@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://<DB_HOST>:<DB_PORT>/<DB_NAME>
-    username: <DB_USERNAME>
-    password: <DB_PASSWORD>
+    url: jdbc:postgresql://localhost:5432/tourism
+    username: postgres
+    password: postgres
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -13,22 +13,22 @@ spring:
         format_sql: true
 
 redis:
-  host: <REDIS_HOST>
-  port: <REDIS_PORT>
-  password: <REDIS_PASSWORD>
+  host: localhost
+  port: 6379
+  password:
 
 firebase:
-  project-id: <FIREBASE_PROJECT_ID>
-  database-url: <FIREBASE_DATABASE_URL>
-  api-key: <FIREBASE_API_KEY>
-  client-email: <FIREBASE_CLIENT_EMAIL>
-  private-key: <FIREBASE_PRIVATE_KEY>
+  project-id: your-local-firebase-project-id
+  database-url: https://your-local-firebase-db-url
+  api-key: your-local-firebase-api-key
+  client-email: your-local-firebase-client-email
+  private-key: your-local-firebase-private-key
 
 aws:
   sns:
-    region: <AWS_REGION>
-    access-key: <AWS_ACCESS_KEY>
-    secret-key: <AWS_SECRET_KEY>
+    region: us-east-1
+    access-key: your-local-aws-access-key
+    secret-key: your-local-aws-secret-key
 
 server:
   port: 8080

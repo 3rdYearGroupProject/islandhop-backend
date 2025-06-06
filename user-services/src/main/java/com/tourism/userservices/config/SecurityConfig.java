@@ -1,3 +1,4 @@
+import com.tourism.userservices.security.FirebaseAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -13,6 +14,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     public SecurityConfig(FirebaseAuthenticationFilter firebaseAuthenticationFilter) {
         this.firebaseAuthenticationFilter = firebaseAuthenticationFilter;
+    }
+
+    @Bean
+    public FirebaseAuthenticationFilter firebaseAuthenticationFilter() {
+        return new FirebaseAuthenticationFilter();
     }
 
     @Override
