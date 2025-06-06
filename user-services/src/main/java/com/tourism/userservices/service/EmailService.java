@@ -11,11 +11,19 @@ public class EmailService {
     @Autowired
     private JavaMailSender mailSender;
 
-    public void sendVerificationEmail(String to, String otp) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject("Your Verification Code");
-        message.setText("Your OTP is: " + otp);
-        mailSender.send(message);
+    public void sendVerificationEmail(String to, String message) {
+        SimpleMailMessage mail = new SimpleMailMessage();
+        mail.setTo(to);
+        mail.setSubject("Account Notification");
+        mail.setText(message);
+        mailSender.send(mail);
+    }
+
+    public void sendOtpEmail(String to, String otp) {
+        SimpleMailMessage mail = new SimpleMailMessage();
+        mail.setTo(to);
+        mail.setSubject("Your OTP Code");
+        mail.setText("Your OTP is: " + otp);
+        mailSender.send(mail);
     }
 }

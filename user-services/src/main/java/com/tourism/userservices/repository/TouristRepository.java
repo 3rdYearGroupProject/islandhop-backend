@@ -1,3 +1,5 @@
+package com.tourism.userservices.repository;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import com.tourism.userservices.entity.Tourist;
