@@ -9,7 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/tourists")
+@RequestMapping("/tourists")
 @RequiredArgsConstructor
 public class TouristController {
 
@@ -63,4 +63,10 @@ public class TouristController {
         boolean isValid = touristService.verifyOTP(firebaseUid, otp);
         return ResponseEntity.ok(isValid);
     }
-} 
+
+    // Health check endpoint to test the backend
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("OK");
+    }
+}
