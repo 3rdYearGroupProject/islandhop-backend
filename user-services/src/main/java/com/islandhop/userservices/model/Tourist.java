@@ -17,41 +17,41 @@ import java.util.UUID;
 @Entity
 @Table(name = "tourists")
 public class Tourist {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-    
+
     @NotBlank
     @Column(unique = true)
     private String firebaseUid;
-    
+
     @NotBlank
     @Email
     @Column(unique = true)
     private String email;
-    
+
     @NotBlank
     private String name;
-    
+
     @NotBlank
     private String nationality;
-    
+
     @ElementCollection
     @CollectionTable(name = "tourist_languages", joinColumns = @JoinColumn(name = "tourist_id"))
     @Column(name = "language")
     private List<String> languages;
-    
+
     @NotNull
     private LocalDate dateOfBirth;
-    
+
     @Enumerated(EnumType.STRING)
     @NotNull
     private TouristStatus status = TouristStatus.ACTIVE;
-    
+
     @CreationTimestamp
     private LocalDateTime createdAt;
-    
+
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-} 
+}

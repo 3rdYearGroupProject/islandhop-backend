@@ -6,6 +6,9 @@ import com.islandhop.userservices.model.Tourist;
 import com.islandhop.userservices.model.TouristStatus;
 import com.islandhop.userservices.repository.TouristRepository;
 import com.islandhop.userservices.service.TouristService;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseToken;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -56,9 +59,9 @@ public class TouristServiceImpl implements TouristService {
     @Transactional
     public Tourist updateTourist(String firebaseUid, TouristRegistrationRequest request) {
         Tourist tourist = getTouristByFirebaseUid(firebaseUid);
-        
-        if (!tourist.getEmail().equals(request.getEmail()) && 
-            touristRepository.existsByEmail(request.getEmail())) {
+
+        if (!tourist.getEmail().equals(request.getEmail()) &&
+                touristRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email already registered");
         }
 
@@ -91,11 +94,11 @@ public class TouristServiceImpl implements TouristService {
     public String generateAndSendOTP(String firebaseUid) {
         Tourist tourist = getTouristByFirebaseUid(firebaseUid);
         String otp = generateOTP();
-        
+
         // Store OTP in Redis with TTL
         String key = OTP_PREFIX + firebaseUid;
         redisTemplate.opsForValue().set(key, otp, OTP_TTL_MINUTES, TimeUnit.MINUTES);
-        
+
         // TODO: Send OTP via AWS SNS
         // For now, just return the OTP for testing
         return otp;
@@ -105,12 +108,22 @@ public class TouristServiceImpl implements TouristService {
     public boolean verifyOTP(String firebaseUid, String otp) {
         String key = OTP_PREFIX + firebaseUid;
         String storedOtp = redisTemplate.opsForValue().get(key);
-        
+
         if (storedOtp != null && storedOtp.equals(otp)) {
             redisTemplate.delete(key);
             return true;
         }
         return false;
+    }
+
+    @Override
+    public String verifyFirebaseIdToken(String idToken) {
+        try {
+            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
+            return decodedToken.getUid();
+        } catch (FirebaseAuthException e) {
+            throw new IllegalArgumentException("Invalid Firebase ID token", e);
+        }
     }
 
     private String generateOTP() {
@@ -121,4 +134,4 @@ public class TouristServiceImpl implements TouristService {
         }
         return otp.toString();
     }
-} 
+}

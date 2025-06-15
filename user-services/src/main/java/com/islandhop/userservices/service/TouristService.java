@@ -3,8 +3,6 @@ package com.islandhop.userservices.service;
 import com.islandhop.userservices.dto.TouristRegistrationRequest;
 import com.islandhop.userservices.model.Tourist;
 
-import java.util.UUID;
-
 public interface TouristService {
     Tourist registerTourist(String firebaseUid, TouristRegistrationRequest request);
     Tourist getTouristByFirebaseUid(String firebaseUid);
@@ -13,4 +11,5 @@ public interface TouristService {
     void deleteTourist(String firebaseUid);
     String generateAndSendOTP(String firebaseUid);
     boolean verifyOTP(String firebaseUid, String otp);
-} 
+    String verifyFirebaseIdToken(String idToken);
+}

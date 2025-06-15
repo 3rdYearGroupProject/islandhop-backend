@@ -35,6 +35,8 @@ management:
       show-details: always
 
 logging:
+  file:
+    name: logs/user-services.log
   level:
     root: INFO
     com.islandhop: DEBUG

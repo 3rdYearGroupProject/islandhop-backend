@@ -12,17 +12,17 @@ import java.util.List;
 public class TouristRegistrationRequest {
     @NotBlank
     private String name;
-    
+
     @NotBlank
     @Email
     private String email;
-    
+
     @NotNull
     private LocalDate dateOfBirth;
-    
+
     @NotBlank
     private String nationality;
-    
+
     @NotNull
     private List<String> languages;
-} 
+}
