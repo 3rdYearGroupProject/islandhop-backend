@@ -1,0 +1,5 @@
+com\islandhop\emergencyservices\model\NotificationType.class
+com\islandhop\emergencyservices\repository\NotificationLogRepository.class
+com\islandhop\emergencyservices\entity\AlertStatus.class
+com\islandhop\emergencyservices\model\NotificationLog.class
+com\islandhop\emergencyservices\entity\EmergencyAlert.class
