@@ -40,8 +40,10 @@ public class EmergencyAlertServiceImpl implements EmergencyAlertService {
 
     @Override
     public EmergencyAlertResponse getAlertById(Long id) {
-        EmergencyAlert alert = alertRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Alert not found with id: " + id));
+        EmergencyAlert alert = alertRepository.findById(id);
+        if (alert == null) {
+            throw new ResourceNotFoundException("Alert not found with id: " + id);
+        }
         return mapToResponse(alert);
     }
 
@@ -62,8 +64,10 @@ public class EmergencyAlertServiceImpl implements EmergencyAlertService {
     @Override
     @Transactional
     public EmergencyAlertResponse updateAlertStatus(Long id, AlertStatus status) {
-        EmergencyAlert alert = alertRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Alert not found with id: " + id));
+        EmergencyAlert alert = alertRepository.findById(id);
+        if (alert == null) {
+            throw new ResourceNotFoundException("Alert not found with id: " + id);
+        }
         alert.setStatus(status);
         return mapToResponse(alertRepository.save(alert));
     }

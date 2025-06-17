@@ -1,7 +1,8 @@
 package com.islandhop.emergencyservices.service.impl;
 
 import com.islandhop.emergencyservices.dto.NotificationRequest;
-import com.islandhop.emergencyservices.entity.NotificationLog;
+import com.islandhop.emergencyservices.model.NotificationLog;
+import com.islandhop.emergencyservices.model.EmergencyAlert;
 import com.islandhop.emergencyservices.repository.NotificationLogRepository;
 import com.islandhop.emergencyservices.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.PublishRequest;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +38,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
             
             snsClient.publish(snsRequest);
-            notificationLog.setDeliveryTime(java.time.LocalDateTime.now());
+            notificationLog.setCreatedAt(LocalDateTime.now());
             notificationLog.setRead(false);
             
             return notificationLogRepository.save(notificationLog);
@@ -62,5 +64,20 @@ public class NotificationServiceImpl implements NotificationService {
             log.error("Failed to send emergency alert: {}", e.getMessage());
             throw new RuntimeException("Failed to send emergency alert", e);
         }
+    }
+
+    @Override
+    public void sendEmergencyNotifications(EmergencyAlert alert) {
+        log.info("Sending emergency notifications for alert: {}", alert);
+        
+        // Create notification request
+        NotificationRequest request = new NotificationRequest();
+        request.setAlertId(alert.getId());
+        request.setMessage(String.format("Emergency alert at location: %s, %s. Triggered by: %s", 
+            alert.getLatitude(), alert.getLongitude(), alert.getTriggeredBy()));
+        request.setTopicArn("arn:aws:sns:us-east-1:123456789012:emergency-alerts");
+        
+        // Send notification
+        sendNotification(request);
     }
 } 

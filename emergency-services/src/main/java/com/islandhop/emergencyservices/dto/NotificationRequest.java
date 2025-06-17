@@ -1,6 +1,6 @@
 package com.islandhop.emergencyservices.dto;
 
-import com.islandhop.emergencyservices.entity.NotificationType;
+import com.islandhop.emergencyservices.model.NotificationType;
 import lombok.Data;
 
 @Data
