@@ -1,0 +1,36 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: tour-planning
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/tour_planning
+    redis:
+      host: localhost
+      port: 6379
+
+# External API Keys (to be configured)
+api:
+  google:
+    maps:
+      key: ${GOOGLE_MAPS_API_KEY}
+  tripadvisor:
+    key: ${TRIPADVISOR_API_KEY}
+  booking:
+    key: ${BOOKING_API_KEY}
+  weather:
+    key: ${WEATHER_API_KEY}
+
+# AWS Configuration
+aws:
+  region: us-east-1
+  sns:
+    topic-arn: ${AWS_SNS_TOPIC_ARN}
+
+# Logging
+logging:
+  level:
+    com.islandhop.tourplanning: DEBUG
+    org.springframework.data.mongodb: INFO 
