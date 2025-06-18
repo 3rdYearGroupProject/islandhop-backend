@@ -1,108 +1,130 @@
 package com.islandhop.userservices.controller;
 
-import com.islandhop.userservices.dto.TouristRegistrationRequest;
-import com.islandhop.userservices.model.Tourist;
+import com.islandhop.userservices.model.TouristAccount;
+import com.islandhop.userservices.model.TouristProfile;
+import com.islandhop.userservices.model.TouristStatus;
+import com.islandhop.userservices.repository.TouristAccountRepository;
+import com.islandhop.userservices.repository.TouristProfileRepository;
 import com.islandhop.userservices.service.TouristService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.Map;
 import java.util.List;
-import java.time.LocalDate;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestMapping;
+import java.util.Map;
+import jakarta.servlet.http.HttpSession;
 
 @RestController
 @RequestMapping("/tourist")
-@CrossOrigin(origins = "http://localhost:5173")
-
+@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 @RequiredArgsConstructor
 public class TouristController {
 
+    private static final Logger logger = LoggerFactory.getLogger(TouristController.class);
+
+    private final TouristAccountRepository accountRepository;
+    private final TouristProfileRepository profileRepository;
     private final TouristService touristService;
 
     @PostMapping("/session-register")
-    public ResponseEntity<Tourist> registerTouristWithSession(
-            @RequestBody Map<String, String> requestBody) {
+    public ResponseEntity<?> sessionRegister(@RequestBody Map<String, String> requestBody) {
+        logger.info("POST /tourist/session-register called with body: {}", requestBody);
         String idToken = requestBody.get("idToken");
         String role = requestBody.get("role");
 
-        if (idToken == null || role == null) {
-            return ResponseEntity.badRequest().build();
+        if (idToken == null || role == null || !"tourist".equalsIgnoreCase(role)) {
+            logger.warn("Invalid session-register request: missing idToken or role");
+            return ResponseEntity.badRequest().body("Missing or invalid idToken/role");
         }
 
-        // Verify the ID token using Firebase Admin SDK
-        String firebaseUid = touristService.verifyFirebaseIdToken(idToken);
-        if (firebaseUid == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        String email = touristService.getEmailFromIdToken(idToken);
+        if (email == null) {
+            logger.warn("Invalid Firebase token during session-register");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Firebase token");
         }
 
-        // Create a TouristRegistrationRequest based on the role
-        TouristRegistrationRequest registrationRequest = new TouristRegistrationRequest();
-        registrationRequest.setName("Default Name"); // Replace with actual logic
-        registrationRequest.setEmail("default@example.com"); // Replace with actual logic
-        registrationRequest.setDateOfBirth(LocalDate.now()); // Replace with actual logic
-        registrationRequest.setNationality("Default Nationality"); // Replace with actual logic
-        registrationRequest.setLanguages(List.of("English")); // Replace with actual logic
+        if (accountRepository.existsByEmail(email)) {
+            logger.info("Attempt to register already existing email: {}", email);
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already registered");
+        }
 
-        Tourist registeredTourist = touristService.registerTourist(firebaseUid, registrationRequest);
-        return ResponseEntity.ok(registeredTourist);
+        TouristAccount account = touristService.createTouristAccount(email);
+        logger.info("Tourist account created for email: {}", email);
+        return ResponseEntity.ok(account);
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<Tourist> registerTourist(
-            @RequestHeader("X-Firebase-Auth") String firebaseUid,
-            @Valid @RequestBody TouristRegistrationRequest request) {
-        return ResponseEntity.ok(touristService.registerTourist(firebaseUid, request));
+    @PostMapping("/complete-profile")
+    public ResponseEntity<?> completeProfile(@RequestBody Map<String, Object> requestBody) {
+        logger.info("POST /tourist/complete-profile called with body: {}", requestBody);
+        String email = (String) requestBody.get("email");
+        String firstName = (String) requestBody.get("firstName");
+        String lastName = (String) requestBody.get("lastName");
+        String nationality = (String) requestBody.get("nationality");
+        List<String> languages = (List<String>) requestBody.get("languages");
+
+        if (!accountRepository.existsByEmail(email)) {
+            logger.warn("Profile completion attempted for non-existent account: {}", email);
+            return ResponseEntity.badRequest().body("Account does not exist");
+        }
+
+        if (profileRepository.existsByEmail(email)) {
+            logger.info("Profile already completed for email: {}", email);
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
+        }
+
+        TouristProfile profile = touristService.completeTouristProfile(email, firstName, lastName, nationality, languages);
+        logger.info("Tourist profile completed for email: {}", email);
+        return ResponseEntity.ok(profile);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody Map<String, String> requestBody, HttpSession session) {
+        logger.info("POST /tourist/login called with body: {}", requestBody);
+        String idToken = requestBody.get("idToken");
+        if (idToken == null) {
+            logger.warn("Login attempt with missing idToken");
+            return ResponseEntity.badRequest().body("Missing idToken");
+        }
+
+        String email = touristService.getEmailFromIdToken(idToken);
+        if (email == null) {
+            logger.warn("Login failed: invalid Firebase token");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Firebase token");
+        }
+
+        session.setAttribute("userEmail", email);
+        session.setAttribute("isAuthenticated", true);
+        logger.info("User logged in and session started: {}", email);
+
+        return ResponseEntity.ok(Map.of("message", "Login successful", "email", email));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpSession session) {
+        String email = (String) session.getAttribute("userEmail");
+        session.invalidate();
+        logger.info("User logged out: {}", email);
+        return ResponseEntity.ok(Map.of("message", "Logged out"));
     }
 
     @GetMapping("/me")
-    public ResponseEntity<Tourist> getCurrentTourist(
-            @RequestHeader("X-Firebase-Auth") String firebaseUid) {
-        return ResponseEntity.ok(touristService.getTouristByFirebaseUid(firebaseUid));
-    }
-
-    @PatchMapping("/update")
-    public ResponseEntity<Tourist> updateTourist(
-            @RequestHeader("X-Firebase-Auth") String firebaseUid,
-            @Valid @RequestBody TouristRegistrationRequest request) {
-        return ResponseEntity.ok(touristService.updateTourist(firebaseUid, request));
-    }
-
-    @PostMapping("/deactivate")
-    public ResponseEntity<Void> deactivateTourist(
-            @RequestHeader("X-Firebase-Auth") String firebaseUid) {
-        touristService.deactivateTourist(firebaseUid);
-        return ResponseEntity.ok().build();
-    }
-
-    @DeleteMapping("/delete")
-    public ResponseEntity<Void> deleteTourist(
-            @RequestHeader("X-Firebase-Auth") String firebaseUid) {
-        touristService.deleteTourist(firebaseUid);
-        return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/verify/send")
-    public ResponseEntity<String> sendVerificationCode(
-            @RequestHeader("X-Firebase-Auth") String firebaseUid) {
-        String otp = touristService.generateAndSendOTP(firebaseUid);
-        return ResponseEntity.ok(otp); // In production, don't return the OTP
-    }
-
-    @PostMapping("/verify/check")
-    public ResponseEntity<Boolean> verifyOTP(
-            @RequestHeader("X-Firebase-Auth") String firebaseUid,
-            @RequestParam String otp) {
-        boolean isValid = touristService.verifyOTP(firebaseUid, otp);
-        return ResponseEntity.ok(isValid);
+    public ResponseEntity<?> getCurrentUser(HttpSession session) {
+        Boolean isAuthenticated = (Boolean) session.getAttribute("isAuthenticated");
+        String email = (String) session.getAttribute("userEmail");
+        logger.info("GET /tourist/me called. Authenticated: {}, Email: {}", isAuthenticated, email);
+        if (isAuthenticated != null && isAuthenticated && email != null) {
+            return ResponseEntity.ok(Map.of("email", email));
+        } else {
+            logger.warn("Unauthorized access to /tourist/me");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not logged in");
+        }
     }
 
     @GetMapping("/health")
     public ResponseEntity<String> health() {
+        logger.info("GET /tourist/health called");
         return ResponseEntity.ok("OK");
     }
 }
