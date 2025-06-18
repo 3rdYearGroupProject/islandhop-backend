@@ -1,0 +1,50 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: tour-planning-service
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: tour_planning_db
+      auto-index-creation: true
+    redis:
+      host: localhost
+      port: 6379
+
+# External API Keys (to be configured)
+api:
+  google:
+    maps:
+      api:
+        key: ${GOOGLE_MAPS_API_KEY}
+        base-url: https://maps.googleapis.com/maps/api
+        timeout: 5000
+  tripadvisor:
+    api:
+      key: ${TRIPADVISOR_API_KEY}
+      base-url: https://api.tripadvisor.com/api/v1
+      timeout: 5000
+  booking:
+    key: ${BOOKING_API_KEY}
+  weather:
+    key: ${WEATHER_API_KEY}
+
+# AWS Configuration
+aws:
+  region: us-east-1
+  sns:
+    topic-arn: ${AWS_SNS_TOPIC_ARN}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.islandhop.tourplanning: DEBUG
+    org.springframework.data.mongodb: INFO
+
+jwt:
+  secret: ${JWT_SECRET:your-default-jwt-secret-key-here}
+  expiration: 86400000 # 24 hours in milliseconds 
