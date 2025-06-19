@@ -1,45 +1,49 @@
 spring:
+  application:
+    name: user-services
   datasource:
-    url: jdbc:postgresql://<DB_HOST>:<DB_PORT>/<DB_NAME>
-    username: <DB_USERNAME>
-    password: <DB_PASSWORD>
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/islandhop}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
-
-redis:
-  host: <REDIS_HOST>
-  port: <REDIS_PORT>
-  password: <REDIS_PASSWORD>
-
-firebase:
-  project-id: <FIREBASE_PROJECT_ID>
-  database-url: <FIREBASE_DATABASE_URL>
-  api-key: <FIREBASE_API_KEY>
-  client-email: <FIREBASE_CLIENT_EMAIL>
-  private-key: <FIREBASE_PRIVATE_KEY>
-
-aws:
-  sns:
-    region: <AWS_REGION>
-    access-key: <AWS_ACCESS_KEY>
-    secret-key: <AWS_SECRET_KEY>
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    ssl: ${REDIS_SSL:false}
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8083}
+  servlet:
+    context-path: /api/v1
+
 
 management:
   endpoints:
     web:
       exposure:
-        include: health, info
+
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
 
 logging:
+  file:
+    name: logs/user-services.log
   level:
-    org.springframework: INFO
-    com.tourism.userservices: DEBUG
+    root: INFO
+    com.islandhop: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: INFO
+
