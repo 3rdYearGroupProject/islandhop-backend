@@ -1,8 +1,8 @@
 package com.islandhop.userservices.model;
 
-public enum TouristStatus {
+public enum SupportStatus {
     ACTIVE,
     DEACTIVATED,
     DELETED,
     SUSPENDED
-} 
+}
