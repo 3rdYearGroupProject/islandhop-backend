@@ -8,4 +8,5 @@ public interface SupportService {
     SupportProfile getProfileByEmail(String email);
     SupportProfile updateProfile(Map<String, String> request);
     boolean changeAccountStatus(String email, String status);
+    SupportProfile createProfile(Map<String, String> request);
 }

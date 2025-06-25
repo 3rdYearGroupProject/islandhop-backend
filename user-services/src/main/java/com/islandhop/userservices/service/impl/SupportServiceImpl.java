@@ -28,7 +28,6 @@ public class SupportServiceImpl implements SupportService {
     private final SupportAccountRepository supportAccountRepository;
     private final EmailService emailService;
 
-    @Override
     public String getEmailFromIdToken(String idToken) {
         try {
             FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
@@ -38,7 +37,6 @@ public class SupportServiceImpl implements SupportService {
         }
     }
 
-    @Override
     public boolean isSupport(String email) {
         return supportAccountRepository.existsByEmail(email);
     }
@@ -92,7 +90,7 @@ public class SupportServiceImpl implements SupportService {
     public SupportProfile createProfile(Map<String, String> request) {
         String email = request.get("email");
         if (email == null || supportProfileRepository.findByEmail(email).isPresent()) {
-            return null; // Already exists or invalid
+            return null;
         }
         SupportProfile profile = new SupportProfile();
         profile.setEmail(email);
