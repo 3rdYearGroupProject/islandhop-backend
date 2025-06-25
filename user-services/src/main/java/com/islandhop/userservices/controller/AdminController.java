@@ -1,6 +1,7 @@
 package com.islandhop.userservices.controller;
 
 import com.islandhop.userservices.service.AdminService;
+import com.islandhop.userservices.service.SupportAccountCreationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ public class AdminController {
     private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
 
     private final AdminService adminService;
+    private final SupportAccountCreationService supportAccountCreationService;
 
     /**
      * Admin login using Firebase ID token.
@@ -103,5 +105,28 @@ public class AdminController {
     public ResponseEntity<String> health() {
         logger.info("GET /admin/health called");
         return ResponseEntity.ok("OK");
+    }
+
+    /**
+     * Creates a support account and sends credentials via email.
+     *
+     * @param request Map containing "email" field
+     * @return ResponseEntity with account creation status
+     */
+    @PostMapping("/create/support")
+    public ResponseEntity<?> createSupportAccount(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email is required"));
+        }
+        try {
+            boolean created = supportAccountCreationService.createSupportAccount(email);
+            if (!created) {
+                return ResponseEntity.status(409).body(Map.of("message", "Account already exists"));
+            }
+            return ResponseEntity.ok(Map.of("message", "Support account created and credentials emailed"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
+        }
     }
 }
