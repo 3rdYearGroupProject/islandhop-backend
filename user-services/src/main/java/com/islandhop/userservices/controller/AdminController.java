@@ -116,16 +116,23 @@ public class AdminController {
     @PostMapping("/create/support")
     public ResponseEntity<?> createSupportAccount(@RequestBody Map<String, String> request) {
         String email = request.get("email");
+        logger.info("POST /admin/create/support called with email: {}", email);
+
         if (email == null) {
+            logger.warn("Support account creation failed: Email is required");
             return ResponseEntity.badRequest().body(Map.of("message", "Email is required"));
         }
         try {
+            logger.info("Checking if support account already exists for email: {}", email);
             boolean created = supportAccountCreationService.createSupportAccount(email);
             if (!created) {
+                logger.warn("Support account creation failed: Account already exists for email: {}", email);
                 return ResponseEntity.status(409).body(Map.of("message", "Account already exists"));
             }
+            logger.info("Support account created and credentials emailed for email: {}", email);
             return ResponseEntity.ok(Map.of("message", "Support account created and credentials emailed"));
         } catch (Exception e) {
+            logger.error("Error creating support account for email {}: {}", email, e.getMessage(), e);
             return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
         }
     }
