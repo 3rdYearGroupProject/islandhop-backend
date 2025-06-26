@@ -29,4 +29,15 @@ public class AdminServiceImpl implements AdminService {
     public boolean isAdmin(String email) {
         return adminAccountRepository.existsByEmail(email);
     }
+
+    @Override
+    public AdminAccount createAdminAccount(String email) {
+        if (adminAccountRepository.existsByEmail(email)) {
+            return adminAccountRepository.findByEmail(email).orElse(null);
+        }
+        AdminAccount account = new AdminAccount();
+        account.setEmail(email);
+        account.setStatus("ACTIVE");
+        return adminAccountRepository.save(account);
+    }
 }
