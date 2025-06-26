@@ -1,0 +1,263 @@
+# Java / Maven specific
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Spring Boot
+*.original
+spring-boot-maven-plugin/
+
+# Gradle (if used)
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# IDE - Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# IDE - NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+
+# Logs
+logs/
+*.log
+*.log.*
+*.out
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Testing
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# API Keys and Secrets
+api-keys.properties
+secrets/
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# MongoDB
+dump/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+.docker/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Package Files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.rar
+*.tar
+*.zip
+
+# JetBrains IDEs
+*.idea/
+.idea_modules/
+
+# Compiled source
+*.com
+*.dll
+*.exe
+*.o
+*.so
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Application specific
+application-*.properties
+application-*.yml
+!application.properties
+!application.yml
+
+# Spring Boot DevTools
+.spring-boot-devtools.properties
+
+# H2 Database files
+*.h2.db
+*.trace.db
+
+# JProfiler
+*.jprofiler
+
+# JRebel
+rebel.xml
+
+# CTags
+tags
+
+# Vim
+*.swp
+*.swo
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# STS (Spring Tool Suite)
+.apt_generated
+.springBeans
+.sts4-cache/
+
+# Code Recommenders
+.recommenders/
+
+# Annotation Processing
+.apt_generated/
+.apt_generated_test/
+
+# Scala IDE specific (if using Scala)
+.cache-main
+.scala_dependencies
+.worksheet
+
+# JIRA plugin
+atlassian-ide-plugin.xml
+
+# Cursive Clojure plugin
+.idea/replstate.xml
+
+# SonarLint plugin
+.idea/sonarlint/
+
+# Crashlytics plugin (for Android Studio and IntelliJ)
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# Editor-based Rest Client
+.idea/httpRequests
+
+# Android studio 3.1+ serialized cache file
+.idea/caches/build_file_checksums.ser
+
+# JEnv local Java version
+.java-version
+
+# Local machine specific Maven settings
+settings.xml
+
+# Maven Wrapper
+!maven-wrapper.jar
+!**/src/main/**/maven-wrapper.jar
+!**/src/test/**/maven-wrapper.jar
+
+# Application specific ignores
+uploads/
+downloads/
+temp/
+cache/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# JVM crash logs
+hs_err_pid*
+*.hprof
+
+# Service specific
+serviceAccountKey.json
+firebase-config.json
