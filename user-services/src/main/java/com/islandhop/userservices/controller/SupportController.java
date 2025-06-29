@@ -1,13 +1,13 @@
 package com.islandhop.userservices.controller;
 
 import com.islandhop.userservices.model.SupportProfile;
-import com.islandhop.userservices.model.SupportStatus;
 import com.islandhop.userservices.service.SupportService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpSession;
 import java.util.Map;
 
@@ -55,7 +55,27 @@ public class SupportController {
         return ResponseEntity.ok(profile);
     }
 
-    // Update profile details
+    // Upload profile photo
+    @PostMapping("/profile/photo")
+    public ResponseEntity<?> uploadProfilePhoto(
+            @RequestParam("email") String email,
+            @RequestParam("photo") MultipartFile photo) {
+        logger.info("POST /support/profile/photo called for email: {}", email);
+
+        try {
+            String photoUrl = supportService.uploadProfilePhoto(email, photo);
+            if (photoUrl != null) {
+                return ResponseEntity.ok(Map.of("photoUrl", photoUrl, "message", "Photo uploaded successfully"));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("message", "Failed to upload photo"));
+            }
+        } catch (Exception e) {
+            logger.error("Error uploading profile photo for email {}: {}", email, e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("message", "Error uploading photo: " + e.getMessage()));
+        }
+    }
+
+    // Update profile details (including photo URL)
     @PutMapping("/profile")
     public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> request) {
         logger.info("PUT /support/profile called for email: {}", request.get("email"));

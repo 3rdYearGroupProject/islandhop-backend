@@ -14,7 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 
@@ -100,5 +103,70 @@ public class SupportServiceImpl implements SupportService {
         profile.setAddress(request.get("address"));
         profile.setProfilePicture(request.get("profilePicture"));
         return supportProfileRepository.save(profile);
+    }
+
+    @Override
+    public String uploadProfilePhoto(String email, MultipartFile photo) {
+        try {
+            logger.info("Uploading profile photo for email: {}", email);
+            
+            // Validate file
+            if (photo.isEmpty()) {
+                logger.error("Empty file uploaded for email: {}", email);
+                return null;
+            }
+
+            // Check file type
+            String contentType = photo.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                logger.error("Invalid file type uploaded for email: {}. Content type: {}", email, contentType);
+                return null;
+            }
+
+            // Check file size (limit to 5MB)
+            if (photo.getSize() > 5 * 1024 * 1024) {
+                logger.error("File too large for email: {}. Size: {} bytes", email, photo.getSize());
+                return null;
+            }
+
+            // Create uploads directory if it doesn't exist
+            String uploadDir = "uploads/profile-photos/";
+            File directory = new File(uploadDir);
+            if (!directory.exists()) {
+                boolean created = directory.mkdirs();
+                logger.info("Created upload directory: {}, success: {}", uploadDir, created);
+            }
+
+            // Generate unique filename
+            String originalFilename = photo.getOriginalFilename();
+            String fileExtension = originalFilename != null ? 
+                originalFilename.substring(originalFilename.lastIndexOf(".")) : ".jpg";
+            String filename = email.replace("@", "_").replace(".", "_") + "_" + 
+                System.currentTimeMillis() + fileExtension;
+
+            // Save file
+            String filePath = uploadDir + filename;
+            File destinationFile = new File(filePath);
+            photo.transferTo(destinationFile);
+
+            // Update profile with photo URL
+            Optional<SupportProfile> profileOpt = supportProfileRepository.findByEmail(email);
+            if (profileOpt.isPresent()) {
+                SupportProfile profile = profileOpt.get();
+                String photoUrl = "/uploads/profile-photos/" + filename;
+                profile.setPhotoUrl(photoUrl);
+                supportProfileRepository.save(profile);
+                
+                logger.info("Profile photo uploaded successfully for email: {}. URL: {}", email, photoUrl);
+                return photoUrl;
+            } else {
+                logger.error("No profile found for email: {}", email);
+                return null;
+            }
+
+        } catch (Exception e) {
+            logger.error("Error uploading profile photo for email {}: {}", email, e.getMessage(), e);
+            return null;
+        }
     }
 }
