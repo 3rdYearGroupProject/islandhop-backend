@@ -27,4 +27,13 @@ public interface TripRepository extends MongoRepository<Trip, String> {
     // For collaborative filtering - find users with similar preferences
     @Query("{'categories': {$in: ?0}, 'pacing': ?1}")
     List<Trip> findSimilarTrips(List<String> categories, Trip.ActivityPacing pacing);
+    
+    // For pooling service integration
+    @Query("{ $or: [ " +
+           "  { $and: [ { 'startDate': { $lte: ?1 } }, { 'endDate': { $gte: ?0 } } ] }, " +
+           "  { $and: [ { 'startDate': { $lte: ?0 } }, { 'endDate': { $gte: ?1 } } ] } " +
+           "] }")
+    List<Trip> findTripsInDateRange(LocalDate startDate, LocalDate endDate);
+    
+    List<Trip> findByBaseCity(String baseCity);
 }

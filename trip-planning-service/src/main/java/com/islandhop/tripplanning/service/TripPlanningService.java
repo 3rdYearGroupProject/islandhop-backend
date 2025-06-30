@@ -560,4 +560,33 @@ public class TripPlanningService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c; // Distance in km
     }
+    
+    /**
+     * Get trips by date range (for pooling service integration)
+     */
+    public List<Trip> getTripsByDateRange(String startDate, String endDate) {
+        log.info("Fetching trips in date range: {} to {}", startDate, endDate);
+        try {
+            return tripRepository.findTripsInDateRange(
+                java.time.LocalDate.parse(startDate),
+                java.time.LocalDate.parse(endDate)
+            );
+        } catch (Exception e) {
+            log.error("Error fetching trips by date range: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+    
+    /**
+     * Get trips by base city (for pooling service integration)
+     */
+    public List<Trip> getTripsByBaseCity(String baseCity) {
+        log.info("Fetching trips for base city: {}", baseCity);
+        try {
+            return tripRepository.findByBaseCity(baseCity);
+        } catch (Exception e) {
+            log.error("Error fetching trips by base city: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
 }

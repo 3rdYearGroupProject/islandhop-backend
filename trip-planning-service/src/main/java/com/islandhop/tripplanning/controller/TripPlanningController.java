@@ -702,4 +702,56 @@ public class TripPlanningController {
         log.info("GET /trip/health called");
         return ResponseEntity.ok("Trip Planning Service is running");
     }
+    
+    /**
+     * Get trips by date range (for pooling service integration)
+     */
+    @GetMapping("/search/date-range")
+    public ResponseEntity<?> getTripsByDateRange(@RequestParam String startDate,
+                                               @RequestParam String endDate) {
+        log.info("GET /trip/search/date-range called with dates: {} to {}", startDate, endDate);
+        
+        try {
+            List<Trip> trips = tripPlanningService.getTripsByDateRange(startDate, endDate);
+            return ResponseEntity.ok(trips);
+        } catch (Exception e) {
+            log.error("Error fetching trips by date range: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch trips by date range", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get trips by base city (for pooling service integration)
+     */
+    @GetMapping("/search/city/{baseCity}")
+    public ResponseEntity<?> getTripsByBaseCity(@PathVariable String baseCity) {
+        log.info("GET /trip/search/city/{} called", baseCity);
+        
+        try {
+            List<Trip> trips = tripPlanningService.getTripsByBaseCity(baseCity);
+            return ResponseEntity.ok(trips);
+        } catch (Exception e) {
+            log.error("Error fetching trips by base city: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch trips by base city", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get user trips (for pooling service integration)
+     */
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<?> getUserTripsForPooling(@PathVariable String userId) {
+        log.info("GET /trip/user/{} called for pooling integration", userId);
+        
+        try {
+            List<Trip> trips = tripPlanningService.getUserTrips(userId);
+            return ResponseEntity.ok(trips);
+        } catch (Exception e) {
+            log.error("Error fetching user trips for pooling: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch user trips", "message", e.getMessage()));
+        }
+    }
 }
