@@ -19,16 +19,7 @@ public class SupportProfile {
     private String lastName;
     private String contactNo;
     private String address;
-    private String profilePicture; // URL or file path
-
-    @Column(name = "photo_url")
-    private String photoUrl;
-
-    public String getPhotoUrl() {
-        return photoUrl;
-    }
-
-    public void setPhotoUrl(String photoUrl) {
-        this.photoUrl = photoUrl;
-    }
+    
+    @Column(name = "profile_picture", columnDefinition = "TEXT")
+    private String profilePicture; // Base64 encoded image data
 }

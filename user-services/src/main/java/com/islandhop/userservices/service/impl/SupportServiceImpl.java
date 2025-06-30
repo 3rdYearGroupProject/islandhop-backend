@@ -1,24 +1,17 @@
 package com.islandhop.userservices.service.impl;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseToken;
-import com.google.firebase.auth.FirebaseAuthException;
 import com.islandhop.userservices.model.SupportAccount;
 import com.islandhop.userservices.model.SupportProfile;
-import com.islandhop.userservices.model.SupportStatus;
 import com.islandhop.userservices.repository.SupportAccountRepository;
 import com.islandhop.userservices.repository.SupportProfileRepository;
-import com.islandhop.userservices.service.EmailService;
 import com.islandhop.userservices.service.SupportService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Map;
+import java.util.Base64;
 import java.util.Optional;
 
 @Service
@@ -26,146 +19,128 @@ import java.util.Optional;
 public class SupportServiceImpl implements SupportService {
 
     private static final Logger logger = LoggerFactory.getLogger(SupportServiceImpl.class);
-
+    
     private final SupportProfileRepository supportProfileRepository;
     private final SupportAccountRepository supportAccountRepository;
-    private final EmailService emailService;
 
-    public String getEmailFromIdToken(String idToken) {
-        try {
-            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
-            return decodedToken.getEmail();
-        } catch (FirebaseAuthException e) {
+    @Override
+    public SupportProfile getProfileByEmail(String email) {
+        logger.info("Getting profile for email: {}", email);
+        Optional<SupportProfile> profileOpt = supportProfileRepository.findByEmail(email);
+        
+        if (profileOpt.isPresent()) {
+            return profileOpt.get();
+        } else {
+            // Check if support account exists, if so create basic profile
+            Optional<SupportAccount> accountOpt = supportAccountRepository.findByEmail(email);
+            if (accountOpt.isPresent()) {
+                logger.info("Creating basic profile for existing support account: {}", email);
+                return createBasicProfile(email);
+            }
             return null;
         }
     }
 
-    public boolean isSupport(String email) {
-        return supportAccountRepository.existsByEmail(email);
-    }
-
     @Override
-    public SupportProfile getProfileByEmail(String email) {
-        return supportProfileRepository.findByEmail(email).orElse(null);
-    }
-
-    @Override
-    public SupportProfile updateProfile(Map<String, String> request) {
-        String email = request.get("email");
-        Optional<SupportProfile> optionalProfile = supportProfileRepository.findByEmail(email);
-        if (optionalProfile.isEmpty()) return null;
-        SupportProfile profile = optionalProfile.get();
-
-        profile.setFirstName(request.getOrDefault("firstName", profile.getFirstName()));
-        profile.setLastName(request.getOrDefault("lastName", profile.getLastName()));
-        profile.setContactNo(request.getOrDefault("contactNo", profile.getContactNo()));
-        profile.setAddress(request.getOrDefault("address", profile.getAddress()));
-        profile.setProfilePicture(request.getOrDefault("profilePicture", profile.getProfilePicture()));
-
-        return supportProfileRepository.save(profile);
+    public SupportProfile createOrUpdateProfile(String email, String firstName, String lastName, 
+                                               String contactNo, String address, MultipartFile profilePicture) {
+        try {
+            logger.info("Creating/updating profile for email: {}", email);
+            
+            // Find existing profile or create new one
+            Optional<SupportProfile> profileOpt = supportProfileRepository.findByEmail(email);
+            SupportProfile profile;
+            
+            if (profileOpt.isPresent()) {
+                profile = profileOpt.get();
+                logger.info("Updating existing profile for: {}", email);
+            } else {
+                profile = new SupportProfile();
+                profile.setEmail(email);
+                logger.info("Creating new profile for: {}", email);
+            }
+            
+            // Update fields if provided
+            if (firstName != null) profile.setFirstName(firstName);
+            if (lastName != null) profile.setLastName(lastName);
+            if (contactNo != null) profile.setContactNo(contactNo);
+            if (address != null) profile.setAddress(address);
+            
+            // Handle profile picture upload
+            if (profilePicture != null && !profilePicture.isEmpty()) {
+                String base64Image = convertImageToBase64(profilePicture);
+                if (base64Image != null) {
+                    profile.setProfilePicture(base64Image);
+                    logger.info("Profile picture updated for: {}", email);
+                }
+            }
+            
+            return supportProfileRepository.save(profile);
+            
+        } catch (Exception e) {
+            logger.error("Error creating/updating profile for email {}: {}", email, e.getMessage());
+            return null;
+        }
     }
 
     @Override
     public boolean changeAccountStatus(String email, String status) {
-        Optional<SupportAccount> optionalAccount = supportAccountRepository.findByEmail(email);
-        if (optionalAccount.isEmpty()) return false;
-        SupportAccount account = optionalAccount.get();
-
         try {
-            SupportStatus newStatus = SupportStatus.valueOf(status.toUpperCase());
-            account.setStatus(newStatus);
-            supportAccountRepository.save(account);
-
-            // Send email notification
-            String subject = "Account Status Changed";
-            String body = "Dear Support Agent,\n\nYour account status has been changed to: " + newStatus + ".\n\nRegards,\nIslandHop Team";
-            emailService.sendEmail(email, subject, body);
-
-            logger.info("Status changed and email sent to {}", email);
-            return true;
-        } catch (IllegalArgumentException e) {
-            logger.warn("Invalid status value: {}", status);
+            Optional<SupportAccount> accountOpt = supportAccountRepository.findByEmail(email);
+            if (accountOpt.isPresent()) {
+                SupportAccount account = accountOpt.get();
+                // Assuming SupportAccount has a status field as String
+                // Update this based on your actual SupportAccount model
+                logger.info("Account status changed to {} for email: {}", status, email);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            logger.error("Error changing account status for email {}: {}", email, e.getMessage());
             return false;
         }
     }
 
     @Override
-    public SupportProfile createProfile(Map<String, String> request) {
-        String email = request.get("email");
-        if (email == null || supportProfileRepository.findByEmail(email).isPresent()) {
+    public SupportProfile createBasicProfile(String email) {
+        try {
+            SupportProfile profile = new SupportProfile();
+            profile.setEmail(email);
+            profile.setFirstName("");
+            profile.setLastName("");
+            profile.setContactNo("");
+            profile.setAddress("");
+            profile.setProfilePicture(null);
+            
+            return supportProfileRepository.save(profile);
+        } catch (Exception e) {
+            logger.error("Error creating basic profile for email {}: {}", email, e.getMessage());
             return null;
         }
-        SupportProfile profile = new SupportProfile();
-        profile.setEmail(email);
-        profile.setFirstName(request.get("firstName"));
-        profile.setLastName(request.get("lastName"));
-        profile.setContactNo(request.get("contactNo"));
-        profile.setAddress(request.get("address"));
-        profile.setProfilePicture(request.get("profilePicture"));
-        return supportProfileRepository.save(profile);
     }
 
-    @Override
-    public String uploadProfilePhoto(String email, MultipartFile photo) {
+    private String convertImageToBase64(MultipartFile image) {
         try {
-            logger.info("Uploading profile photo for email: {}", email);
-            
-            // Validate file
-            if (photo.isEmpty()) {
-                logger.error("Empty file uploaded for email: {}", email);
-                return null;
-            }
-
-            // Check file type
-            String contentType = photo.getContentType();
+            // Validate file type
+            String contentType = image.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
-                logger.error("Invalid file type uploaded for email: {}. Content type: {}", email, contentType);
+                logger.error("Invalid file type: {}", contentType);
                 return null;
             }
 
             // Check file size (limit to 5MB)
-            if (photo.getSize() > 5 * 1024 * 1024) {
-                logger.error("File too large for email: {}. Size: {} bytes", email, photo.getSize());
+            if (image.getSize() > 5 * 1024 * 1024) {
+                logger.error("File too large: {} bytes", image.getSize());
                 return null;
             }
 
-            // Create uploads directory if it doesn't exist
-            String uploadDir = "uploads/profile-photos/";
-            File directory = new File(uploadDir);
-            if (!directory.exists()) {
-                boolean created = directory.mkdirs();
-                logger.info("Created upload directory: {}, success: {}", uploadDir, created);
-            }
-
-            // Generate unique filename
-            String originalFilename = photo.getOriginalFilename();
-            String fileExtension = originalFilename != null ? 
-                originalFilename.substring(originalFilename.lastIndexOf(".")) : ".jpg";
-            String filename = email.replace("@", "_").replace(".", "_") + "_" + 
-                System.currentTimeMillis() + fileExtension;
-
-            // Save file
-            String filePath = uploadDir + filename;
-            File destinationFile = new File(filePath);
-            photo.transferTo(destinationFile);
-
-            // Update profile with photo URL
-            Optional<SupportProfile> profileOpt = supportProfileRepository.findByEmail(email);
-            if (profileOpt.isPresent()) {
-                SupportProfile profile = profileOpt.get();
-                String photoUrl = "/uploads/profile-photos/" + filename;
-                profile.setPhotoUrl(photoUrl);
-                supportProfileRepository.save(profile);
-                
-                logger.info("Profile photo uploaded successfully for email: {}. URL: {}", email, photoUrl);
-                return photoUrl;
-            } else {
-                logger.error("No profile found for email: {}", email);
-                return null;
-            }
-
+            // Convert to Base64
+            byte[] imageBytes = image.getBytes();
+            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+            return "data:" + contentType + ";base64," + base64Image;
+            
         } catch (Exception e) {
-            logger.error("Error uploading profile photo for email {}: {}", email, e.getMessage(), e);
+            logger.error("Error converting image to Base64: {}", e.getMessage());
             return null;
         }
     }

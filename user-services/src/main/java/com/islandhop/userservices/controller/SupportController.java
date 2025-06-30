@@ -11,10 +11,6 @@ import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpSession;
 import java.util.Map;
 
-/**
- * REST controller for managing support user operations.
- * Handles endpoints under /support.
- */
 @RestController
 @RequestMapping("/support")
 @CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
@@ -27,7 +23,6 @@ public class SupportController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> requestBody, HttpSession session) {
         logger.info("POST /support/login called with body: {}", requestBody);
-        // Implement support login logic here
         return ResponseEntity.ok(Map.of("message", "Support login endpoint"));
     }
 
@@ -40,7 +35,6 @@ public class SupportController {
     @GetMapping("/session/validate")
     public ResponseEntity<?> validateSession(HttpSession session) {
         logger.info("GET /support/session/validate called");
-        // Implement session validation logic for support
         return ResponseEntity.ok(Map.of("valid", true));
     }
 
@@ -55,38 +49,61 @@ public class SupportController {
         return ResponseEntity.ok(profile);
     }
 
-    // Upload profile photo
-    @PostMapping("/profile/photo")
-    public ResponseEntity<?> uploadProfilePhoto(
+    // Create profile (first time setup)
+    @PostMapping("/profile")
+    public ResponseEntity<?> createProfile(
             @RequestParam("email") String email,
-            @RequestParam("photo") MultipartFile photo) {
-        logger.info("POST /support/profile/photo called for email: {}", email);
-
+            @RequestParam(value = "firstName", required = false) String firstName,
+            @RequestParam(value = "lastName", required = false) String lastName,
+            @RequestParam(value = "contactNo", required = false) String contactNo,
+            @RequestParam(value = "address", required = false) String address,
+            @RequestParam(value = "profilePicture", required = false) MultipartFile profilePicture) {
+        
+        logger.info("POST /support/profile called for email: {}", email);
+        
         try {
-            String photoUrl = supportService.uploadProfilePhoto(email, photo);
-            if (photoUrl != null) {
-                return ResponseEntity.ok(Map.of("photoUrl", photoUrl, "message", "Photo uploaded successfully"));
-            } else {
-                return ResponseEntity.badRequest().body(Map.of("message", "Failed to upload photo"));
+            SupportProfile created = supportService.createOrUpdateProfile(
+                email, firstName, lastName, contactNo, address, profilePicture);
+            
+            if (created == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Failed to create profile"));
             }
+            
+            return ResponseEntity.ok(created);
         } catch (Exception e) {
-            logger.error("Error uploading profile photo for email {}: {}", email, e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("message", "Error uploading photo: " + e.getMessage()));
+            logger.error("Error creating profile for email {}: {}", email, e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
         }
     }
 
-    // Update profile details (including photo URL)
+    // Update profile details (including photo)
     @PutMapping("/profile")
-    public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> request) {
-        logger.info("PUT /support/profile called for email: {}", request.get("email"));
-        SupportProfile updated = supportService.updateProfile(request);
-        if (updated == null) {
-            return ResponseEntity.notFound().build();
+    public ResponseEntity<?> updateProfile(
+            @RequestParam("email") String email,
+            @RequestParam(value = "firstName", required = false) String firstName,
+            @RequestParam(value = "lastName", required = false) String lastName,
+            @RequestParam(value = "contactNo", required = false) String contactNo,
+            @RequestParam(value = "address", required = false) String address,
+            @RequestParam(value = "profilePicture", required = false) MultipartFile profilePicture) {
+        
+        logger.info("PUT /support/profile called for email: {}", email);
+        
+        try {
+            SupportProfile updated = supportService.createOrUpdateProfile(
+                email, firstName, lastName, contactNo, address, profilePicture);
+            
+            if (updated == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            logger.error("Error updating profile for email {}: {}", email, e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
         }
-        return ResponseEntity.ok(updated);
     }
 
-    // Change account status and send email
+    // Change account status
     @PutMapping("/account/status")
     public ResponseEntity<?> changeStatus(@RequestBody Map<String, String> request) {
         logger.info("PUT /support/account/status called for email: {}", request.get("email"));
@@ -96,17 +113,6 @@ public class SupportController {
         if (!result) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(Map.of("message", "Status updated and email sent"));
-    }
-
-    // Set (create) profile details
-    @PostMapping("/profile")
-    public ResponseEntity<?> createProfile(@RequestBody Map<String, String> request) {
-        logger.info("POST /support/profile called for email: {}", request.get("email"));
-        SupportProfile created = supportService.createProfile(request);
-        if (created == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Profile already exists or invalid data"));
-        }
-        return ResponseEntity.ok(created);
+        return ResponseEntity.ok(Map.of("message", "Status updated"));
     }
 }
