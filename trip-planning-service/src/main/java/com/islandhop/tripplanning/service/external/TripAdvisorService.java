@@ -27,14 +27,20 @@ public class TripAdvisorService {
      * Search for attractions near a location
      */
     public List<PlannedPlace> searchAttractions(double latitude, double longitude, double radiusKm) {
-        log.info("Searching attractions near {}, {} within {} km", latitude, longitude, radiusKm);
+        log.info("Searching attractions near lat: {}, lng: {}, radius: {}km", latitude, longitude, radiusKm);
         
         try {
-            // For now, return mock data since TripAdvisor API setup is needed
-            return getMockAttractions(latitude, longitude);
+            // Check if we should use actual API or mock data
+            if (!"your-tripadvisor-key".equals(apiKey) && !"your-api-key-here".equals(apiKey)) {
+                return searchAttractionsViaAPI(latitude, longitude, radiusKm);
+            } else {
+                log.info("Using mock data - TripAdvisor API key not configured");
+                return getMockAttractions(latitude, longitude, radiusKm);
+            }
         } catch (Exception e) {
             log.error("Error searching attractions: {}", e.getMessage(), e);
-            return Collections.emptyList();
+            // Fallback to mock data on error
+            return getMockAttractions(latitude, longitude, radiusKm);
         }
     }
     
@@ -42,14 +48,17 @@ public class TripAdvisorService {
      * Search for hotels near a location
      */
     public List<PlannedPlace> searchHotels(double latitude, double longitude, double radiusKm) {
-        log.info("Searching hotels near {}, {} within {} km", latitude, longitude, radiusKm);
+        log.info("Searching hotels near lat: {}, lng: {}, radius: {}km", latitude, longitude, radiusKm);
         
         try {
-            // For now, return mock data
-            return getMockHotels(latitude, longitude);
+            if (!"your-tripadvisor-key".equals(apiKey) && !"your-api-key-here".equals(apiKey)) {
+                return searchHotelsViaAPI(latitude, longitude, radiusKm);
+            } else {
+                return getMockHotels(latitude, longitude, radiusKm);
+            }
         } catch (Exception e) {
             log.error("Error searching hotels: {}", e.getMessage(), e);
-            return Collections.emptyList();
+            return getMockHotels(latitude, longitude, radiusKm);
         }
     }
     
@@ -57,44 +66,222 @@ public class TripAdvisorService {
      * Search for restaurants near a location
      */
     public List<PlannedPlace> searchRestaurants(double latitude, double longitude, double radiusKm) {
-        log.info("Searching restaurants near {}, {} within {} km", latitude, longitude, radiusKm);
+        log.info("Searching restaurants near lat: {}, lng: {}, radius: {}km", latitude, longitude, radiusKm);
         
         try {
-            // For now, return mock data
-            return getMockRestaurants(latitude, longitude);
+            if (!"your-tripadvisor-key".equals(apiKey) && !"your-api-key-here".equals(apiKey)) {
+                return searchRestaurantsViaAPI(latitude, longitude, radiusKm);
+            } else {
+                return getMockRestaurants(latitude, longitude, radiusKm);
+            }
         } catch (Exception e) {
             log.error("Error searching restaurants: {}", e.getMessage(), e);
-            return Collections.emptyList();
+            return getMockRestaurants(latitude, longitude, radiusKm);
         }
     }
     
     /**
-     * Get place details by ID
+     * Search for places by name and optional city
      */
-    public PlannedPlace getPlaceDetails(String placeId) {
-        log.info("Getting details for place: {}", placeId);
+    public List<PlannedPlace> searchByName(String placeName, String city) {
+        log.info("Searching for place: {} in city: {}", placeName, city);
         
         try {
-            // Implementation for actual TripAdvisor API call
-            String url = baseUrl + "/location/" + placeId + "/details";
-            
+            if (!"your-tripadvisor-key".equals(apiKey) && !"your-api-key-here".equals(apiKey)) {
+                return searchByNameViaAPI(placeName, city);
+            } else {
+                return getMockPlacesByName(placeName, city);
+            }
+        } catch (Exception e) {
+            log.error("Error searching by name: {}", e.getMessage(), e);
+            return getMockPlacesByName(placeName, city);
+        }
+    }
+    
+    // Actual TripAdvisor API methods
+    
+    private List<PlannedPlace> searchAttractionsViaAPI(double latitude, double longitude, double radiusKm) {
+        String url = baseUrl + "/locations/nearby_search";
+        
+        try {
             Mono<Map> responseMono = webClient.get()
-                    .uri(url)
+                    .uri(uriBuilder -> uriBuilder
+                            .path(url)
+                            .queryParam("latLong", latitude + "," + longitude)
+                            .queryParam("radius", (int)(radiusKm * 1000)) // Convert to meters
+                            .queryParam("radiusUnit", "m")
+                            .queryParam("category", "attractions")
+                            .queryParam("language", "en")
+                            .build())
                     .header("X-TripAdvisor-API-Key", apiKey)
                     .retrieve()
                     .bodyToMono(Map.class);
             
             Map<String, Object> response = responseMono.block();
+            return convertTripAdvisorResponseToPlaces(response, PlannedPlace.PlaceType.ATTRACTION);
             
-            if (response != null) {
-                return mapToPlannedPlace(response);
-            }
-            
-            return null;
         } catch (Exception e) {
-            log.error("Error getting place details: {}", e.getMessage(), e);
-            return null;
+            log.error("TripAdvisor API error for attractions: {}", e.getMessage());
+            return getMockAttractions(latitude, longitude, radiusKm);
         }
+    }
+    
+    private List<PlannedPlace> searchHotelsViaAPI(double latitude, double longitude, double radiusKm) {
+        String url = baseUrl + "/locations/nearby_search";
+        
+        try {
+            Mono<Map> responseMono = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path(url)
+                            .queryParam("latLong", latitude + "," + longitude)
+                            .queryParam("radius", (int)(radiusKm * 1000))
+                            .queryParam("radiusUnit", "m")
+                            .queryParam("category", "hotels")
+                            .queryParam("language", "en")
+                            .build())
+                    .header("X-TripAdvisor-API-Key", apiKey)
+                    .retrieve()
+                    .bodyToMono(Map.class);
+            
+            Map<String, Object> response = responseMono.block();
+            return convertTripAdvisorResponseToPlaces(response, PlannedPlace.PlaceType.HOTEL);
+            
+        } catch (Exception e) {
+            log.error("TripAdvisor API error for hotels: {}", e.getMessage());
+            return getMockHotels(latitude, longitude, radiusKm);
+        }
+    }
+    
+    private List<PlannedPlace> searchRestaurantsViaAPI(double latitude, double longitude, double radiusKm) {
+        String url = baseUrl + "/locations/nearby_search";
+        
+        try {
+            Mono<Map> responseMono = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path(url)
+                            .queryParam("latLong", latitude + "," + longitude)
+                            .queryParam("radius", (int)(radiusKm * 1000))
+                            .queryParam("radiusUnit", "m")
+                            .queryParam("category", "restaurants")
+                            .queryParam("language", "en")
+                            .build())
+                    .header("X-TripAdvisor-API-Key", apiKey)
+                    .retrieve()
+                    .bodyToMono(Map.class);
+            
+            Map<String, Object> response = responseMono.block();
+            return convertTripAdvisorResponseToPlaces(response, PlannedPlace.PlaceType.RESTAURANT);
+            
+        } catch (Exception e) {
+            log.error("TripAdvisor API error for restaurants: {}", e.getMessage());
+            return getMockRestaurants(latitude, longitude, radiusKm);
+        }
+    }
+    
+    private List<PlannedPlace> searchByNameViaAPI(String placeName, String city) {
+        String url = baseUrl + "/locations/search";
+        
+        try {
+            String searchQuery = city != null ? placeName + " " + city : placeName;
+            
+            Mono<Map> responseMono = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path(url)
+                            .queryParam("searchQuery", searchQuery)
+                            .queryParam("language", "en")
+                            .build())
+                    .header("X-TripAdvisor-API-Key", apiKey)
+                    .retrieve()
+                    .bodyToMono(Map.class);
+            
+            Map<String, Object> response = responseMono.block();
+            return convertTripAdvisorResponseToPlaces(response, null); // Mixed types
+            
+        } catch (Exception e) {
+            log.error("TripAdvisor API error for search by name: {}", e.getMessage());
+            return getMockPlacesByName(placeName, city);
+        }
+    }
+    
+    private List<PlannedPlace> convertTripAdvisorResponseToPlaces(Map<String, Object> response, PlannedPlace.PlaceType defaultType) {
+        List<PlannedPlace> places = new ArrayList<>();
+        
+        if (response == null || !response.containsKey("data")) {
+            return places;
+        }
+        
+        List<Map<String, Object>> data = (List<Map<String, Object>>) response.get("data");
+        
+        for (Map<String, Object> item : data) {
+            try {
+                PlannedPlace place = mapTripAdvisorItemToPlace(item, defaultType);
+                if (place != null) {
+                    places.add(place);
+                }
+            } catch (Exception e) {
+                log.warn("Error mapping TripAdvisor item: {}", e.getMessage());
+            }
+        }
+        
+        return places;
+    }
+    
+    private PlannedPlace mapTripAdvisorItemToPlace(Map<String, Object> item, PlannedPlace.PlaceType defaultType) {
+        PlannedPlace place = new PlannedPlace();
+        
+        // Basic info
+        place.setPlaceId((String) item.get("location_id"));
+        place.setName((String) item.get("name"));
+        place.setDescription((String) item.get("description"));
+        
+        // Location
+        if (item.get("latitude") != null) {
+            place.setLatitude(Double.parseDouble(item.get("latitude").toString()));
+        }
+        if (item.get("longitude") != null) {
+            place.setLongitude(Double.parseDouble(item.get("longitude").toString()));
+        }
+        
+        // Address
+        Map<String, Object> address = (Map<String, Object>) item.get("address_obj");
+        if (address != null) {
+            place.setAddress(buildFullAddress(address));
+            place.setCity((String) address.get("city"));
+        }
+        
+        // Rating and reviews
+        if (item.get("rating") != null) {
+            place.setRating(Double.parseDouble(item.get("rating").toString()));
+        }
+        if (item.get("num_reviews") != null) {
+            place.setReviewCount(Integer.parseInt(item.get("num_reviews").toString()));
+        }
+        
+        // Place type
+        place.setType(determinePlaceType(item, defaultType));
+        
+        // Categories based on TripAdvisor subcategory
+        place.setCategories(mapTripAdvisorCategories(item));
+        
+        // Price level
+        place.setPriceLevel(mapPriceLevel(item));
+        
+        // Visit duration estimate
+        place.setEstimatedVisitDurationMinutes(estimateVisitDuration(place.getType()));
+        
+        // Contact info
+        place.setPhoneNumber((String) item.get("phone"));
+        place.setWebsite((String) item.get("website"));
+        
+        // Opening hours (if available)
+        if (item.get("hours") != null) {
+            place.setOpeningHours(parseOpeningHours(item.get("hours")));
+        }
+        
+        place.setUserAdded(false);
+        place.setConfirmed(false);
+        
+        return place;
     }
     
     // Mock data methods (remove when TripAdvisor API is configured)

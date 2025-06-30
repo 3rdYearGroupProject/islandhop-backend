@@ -14,32 +14,64 @@ import java.util.UUID;
 @Slf4j
 public class PlaceService {
     
+    private final LocationService locationService;
+    
     /**
-     * Create a planned place from add place request
+     * Create a planned place from add place request with enhanced validation
      */
     public PlannedPlace createPlannedPlace(AddPlaceRequest request) {
         log.info("Creating planned place for: {}", request.getPlaceName());
+        
+        // Validate and enrich the place data
+        LocationService.PlaceValidationResult validation = locationService.validateAndEnrichPlace(request);
         
         PlannedPlace place = new PlannedPlace();
         place.setPlaceId(UUID.randomUUID().toString());
         place.setName(request.getPlaceName());
         place.setCity(request.getCity());
         place.setDescription(request.getDescription());
-        place.setLatitude(request.getLatitude());
-        place.setLongitude(request.getLongitude());
-        place.setType(PlannedPlace.PlaceType.ATTRACTION); // Default type
-        place.setCategories(new ArrayList<>());
+        
+        // Use validated/suggested coordinates if available
+        if (validation.isValid()) {
+            if (validation.getSuggestedLatitude() != null && validation.getSuggestedLongitude() != null) {
+                place.setLatitude(validation.getSuggestedLatitude());
+                place.setLongitude(validation.getSuggestedLongitude());
+            } else if (request.getLatitude() != null && request.getLongitude() != null) {
+                place.setLatitude(request.getLatitude());
+                place.setLongitude(request.getLongitude());
+            }
+            
+            // Use formatted address if available
+            if (validation.getFormattedAddress() != null) {
+                place.setCity(extractCityFromFormattedAddress(validation.getFormattedAddress()));
+            }
+        } else {
+            // Fallback to original coordinates if validation failed
+            place.setLatitude(request.getLatitude());
+            place.setLongitude(request.getLongitude());
+            log.warn("Using unvalidated coordinates for place: {}", request.getPlaceName());
+        }
+        
+        // Infer place type from location data if available
+        if (validation.getSuggestions() != null && !validation.getSuggestions().isEmpty()) {
+            LocationService.LocationSearchResult bestMatch = validation.getSuggestions().get(0);
+            place.setType(inferPlaceTypeFromGoogleTypes(bestMatch.getTypes()));
+        } else {
+            place.setType(PlannedPlace.PlaceType.ATTRACTION); // Default type
+        }
+        
+        place.setCategories(inferCategories(place.getName(), place.getDescription()));
         place.setUserAdded(true);
-        place.setConfirmed(false);
+        place.setConfirmed(validation.isValid());
         
         // Set default visit duration based on place type
-        place.setEstimatedVisitDurationMinutes(120); // 2 hours default
+        place.setEstimatedVisitDurationMinutes(getDefaultVisitDuration(place.getType()));
         
         if (request.getPreferredDay() != null) {
             place.setDayNumber(request.getPreferredDay());
         }
         
-        log.info("Created planned place with ID: {}", place.getPlaceId());
+        log.info("Created planned place with ID: {} (validated: {})", place.getPlaceId(), validation.isValid());
         return place;
     }
     
@@ -121,5 +153,64 @@ public class PlaceService {
         }
         
         return categories;
+    }
+    
+    /**
+     * Extract city name from Google's formatted address
+     */
+    private String extractCityFromFormattedAddress(String formattedAddress) {
+        if (formattedAddress == null) return null;
+        
+        // Split address by commas and try to find the city
+        String[] parts = formattedAddress.split(",");
+        
+        // For Sri Lankan addresses, city is usually the second-to-last part before "Sri Lanka"
+        for (int i = parts.length - 2; i >= 0; i--) {
+            String part = parts[i].trim();
+            if (!part.equalsIgnoreCase("Sri Lanka") && !part.matches("\\d+")) {
+                return part;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Infer place type from Google Places API types
+     */
+    private PlannedPlace.PlaceType inferPlaceTypeFromGoogleTypes(java.util.List<String> googleTypes) {
+        if (googleTypes == null || googleTypes.isEmpty()) {
+            return PlannedPlace.PlaceType.ATTRACTION;
+        }
+        
+        for (String type : googleTypes) {
+            switch (type.toLowerCase()) {
+                case "lodging":
+                case "hotel":
+                    return PlannedPlace.PlaceType.HOTEL;
+                case "restaurant":
+                case "food":
+                case "meal_takeaway":
+                    return PlannedPlace.PlaceType.RESTAURANT;
+                case "shopping_mall":
+                case "store":
+                    return PlannedPlace.PlaceType.SHOPPING;
+                case "tourist_attraction":
+                case "museum":
+                case "amusement_park":
+                    return PlannedPlace.PlaceType.ATTRACTION;
+                case "natural_feature":
+                case "park":
+                    return PlannedPlace.PlaceType.VIEWPOINT;
+                case "transit_station":
+                case "bus_station":
+                case "airport":
+                    return PlannedPlace.PlaceType.TRANSPORT_HUB;
+                default:
+                    continue;
+            }
+        }
+        
+        return PlannedPlace.PlaceType.ATTRACTION;
     }
 }

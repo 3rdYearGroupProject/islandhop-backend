@@ -4,6 +4,7 @@ import com.islandhop.tripplanning.dto.*;
 import com.islandhop.tripplanning.model.*;
 import com.islandhop.tripplanning.service.TripPlanningService;
 import com.islandhop.tripplanning.service.SessionValidationService;
+import com.islandhop.tripplanning.service.LocationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ public class TripPlanningController {
     
     private final TripPlanningService tripPlanningService;
     private final SessionValidationService sessionValidationService;
+    private final LocationService locationService;
     
     /**
      * Create a new trip with user preferences
@@ -230,6 +232,465 @@ public class TripPlanningController {
             log.error("Error getting user trips: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Search for locations by text query
+     */
+    @GetMapping("/search-locations")
+    public ResponseEntity<?> searchLocations(@RequestParam String query,
+                                           @RequestParam(required = false) String city,
+                                           @RequestParam(required = false) Double biasLat,
+                                           @RequestParam(required = false) Double biasLng,
+                                           @RequestParam(required = false, defaultValue = "10") Integer maxResults,
+                                           HttpSession session) {
+        log.info("GET /trip/search-locations called with query: {}, city: {}", query, city);
+        
+        try {
+            // Validate session
+            sessionValidationService.validateSessionAndGetUserId(session);
+            
+            List<LocationService.LocationSearchResult> results = 
+                locationService.searchLocations(query, city, biasLat, biasLng, maxResults);
+            
+            return ResponseEntity.ok(Map.of(
+                "results", results,
+                "count", results.size(),
+                "query", query
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/search-locations: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error searching locations: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Search failed", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Add a place to a specific day with contextual information
+     */
+    @PostMapping("/{tripId}/day/{dayNumber}/add-place")
+    public ResponseEntity<?> addPlaceToDay(@PathVariable String tripId,
+                                          @PathVariable Integer dayNumber,
+                                          @Valid @RequestBody AddPlaceToDayRequest request,
+                                          HttpSession session) {
+        log.info("POST /trip/{}/day/{}/add-place called for: {}", tripId, dayNumber, request.getPlaceName());
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            
+            // Set the day number from path parameter
+            request.setDayNumber(dayNumber);
+            
+            Trip updatedTrip = tripPlanningService.addPlaceToSpecificDay(tripId, request, userId);
+            
+            return ResponseEntity.ok(Map.of(
+                "message", "Place added to day " + dayNumber + " successfully",
+                "tripId", tripId,
+                "dayNumber", dayNumber,
+                "placeName", request.getPlaceName(),
+                "trip", updatedTrip
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/day/{}/add-place: {}", tripId, dayNumber, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error adding place to day {}: {}", dayNumber, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to add place", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get contextual suggestions for a specific day based on user's current selections
+     */
+    @GetMapping("/{tripId}/day/{dayNumber}/contextual-suggestions")
+    public ResponseEntity<?> getContextualSuggestions(@PathVariable String tripId,
+                                                     @PathVariable Integer dayNumber,
+                                                     @RequestParam(required = false, defaultValue = "initial") String contextType,
+                                                     HttpSession session) {
+        log.info("GET /trip/{}/day/{}/contextual-suggestions called (context: {})", tripId, dayNumber, contextType);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            
+            ContextualSuggestionsResponse suggestions = 
+                tripPlanningService.getContextualSuggestions(tripId, dayNumber, contextType, userId);
+            
+            return ResponseEntity.ok(Map.of(
+                "suggestions", suggestions,
+                "tripId", tripId,
+                "dayNumber", dayNumber,
+                "contextType", contextType
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/day/{}/contextual-suggestions: {}", tripId, dayNumber, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting contextual suggestions for day {}: {}", dayNumber, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get suggestions", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get nearby suggestions based on a selected place
+     */
+    @GetMapping("/{tripId}/nearby-suggestions")
+    public ResponseEntity<?> getNearbySuggestions(@PathVariable String tripId,
+                                                 @RequestParam String placeId,
+                                                 @RequestParam(required = false) String placeType,
+                                                 @RequestParam(required = false, defaultValue = "10") Integer maxResults,
+                                                 HttpSession session) {
+        log.info("GET /trip/{}/nearby-suggestions called for place: {}", tripId, placeId);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            
+            List<ContextualSuggestionsResponse.PlaceSuggestion> suggestions = 
+                tripPlanningService.getNearbySuggestions(tripId, placeId, placeType, maxResults, userId);
+            
+            return ResponseEntity.ok(Map.of(
+                "suggestions", suggestions,
+                "basePlaceId", placeId,
+                "count", suggestions.size()
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/nearby-suggestions: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting nearby suggestions: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get nearby suggestions", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get comprehensive day plan with inline suggestions (TripAdvisor style)
+     */
+    @GetMapping("/{tripId}/day/{dayNumber}/plan")
+    public ResponseEntity<?> getDayPlan(@PathVariable String tripId,
+                                       @PathVariable Integer dayNumber,
+                                       HttpSession session) {
+        log.info("GET /trip/{}/day/{}/plan called", tripId, dayNumber);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            Trip trip = tripPlanningService.getTripByIdAndUserId(tripId, userId);
+            
+            DayPlanResponse dayPlan = tripPlanningService.getDayPlanWithInlineSuggestions(trip, dayNumber);
+            
+            return ResponseEntity.ok(dayPlan);
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/day/{}/plan: {}", tripId, dayNumber, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting day plan: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get day plan", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get real-time suggestions without search (proximity + preferences)
+     */
+    @GetMapping("/{tripId}/day/{dayNumber}/realtime-suggestions")
+    public ResponseEntity<?> getRealtimeSuggestions(@PathVariable String tripId,
+                                                   @PathVariable Integer dayNumber,
+                                                   @RequestParam(required = false) String lastPlaceId,
+                                                   @RequestParam(required = false) String category,
+                                                   HttpSession session) {
+        log.info("GET /trip/{}/day/{}/realtime-suggestions called (lastPlace: {}, category: {})", 
+                tripId, dayNumber, lastPlaceId, category);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            Trip trip = tripPlanningService.getTripByIdAndUserId(tripId, userId);
+            
+            List<DayPlanResponse.QuickSuggestion> suggestions = 
+                tripPlanningService.getRealtimeSuggestions(trip, dayNumber, lastPlaceId, category);
+            
+            return ResponseEntity.ok(Map.of(
+                "suggestions", suggestions,
+                "tripId", tripId,
+                "dayNumber", dayNumber,
+                "basedOn", lastPlaceId != null ? "proximity" : "preferences",
+                "category", category != null ? category : "all"
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/day/{}/realtime-suggestions: {}", tripId, dayNumber, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting realtime suggestions: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get suggestions", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Quick add place to day (inline, no navigation)
+     */
+    @PostMapping("/{tripId}/day/{dayNumber}/quick-add")
+    public ResponseEntity<?> quickAddPlace(@PathVariable String tripId,
+                                          @PathVariable Integer dayNumber,
+                                          @RequestParam String placeId,
+                                          @RequestParam String placeName,
+                                          @RequestParam String placeType,
+                                          @RequestParam(required = false) String insertAfterPlaceId,
+                                          HttpSession session) {
+        log.info("POST /trip/{}/day/{}/quick-add called for place: {}", tripId, dayNumber, placeName);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            
+            // Build quick add request
+            AddPlaceToDayRequest request = new AddPlaceToDayRequest();
+            request.setPlaceName(placeName);
+            request.setDayNumber(dayNumber);
+            request.setPlaceType(PlannedPlace.PlaceType.valueOf(placeType.toUpperCase()));
+            request.setPreviousPlaceId(insertAfterPlaceId);
+            
+            // Get place details from Google Places if it's a Google Place ID
+            if (placeId.startsWith("ChIJ")) {
+                LocationService.PlaceDetails details = locationService.getPlaceDetails(placeId);
+                if (details != null) {
+                    request.setLatitude(details.getLatitude());
+                    request.setLongitude(details.getLongitude());
+                    request.setCity(extractCityFromAddress(details.getFormattedAddress()));
+                }
+            }
+            
+            Trip updatedTrip = tripPlanningService.addPlaceToSpecificDay(tripId, request, userId);
+            
+            // Return updated day plan
+            DayPlanResponse updatedDayPlan = tripPlanningService.getDayPlanWithInlineSuggestions(updatedTrip, dayNumber);
+            
+            return ResponseEntity.ok(Map.of(
+                "message", "Place added successfully",
+                "dayPlan", updatedDayPlan,
+                "addedPlace", placeName
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/day/{}/quick-add: {}", tripId, dayNumber, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error quick adding place: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to add place", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get available place categories (Google-style)
+     */
+    @GetMapping("/place-categories")
+    public ResponseEntity<?> getPlaceCategories(HttpSession session) {
+        log.info("GET /trip/place-categories called");
+        
+        try {
+            sessionValidationService.validateSessionAndGetUserId(session);
+            
+            List<PlaceCategoryService.CategoryInfo> categories = 
+                tripPlanningService.getAvailablePlaceCategories();
+            
+            return ResponseEntity.ok(Map.of(
+                "categories", categories,
+                "total", categories.size()
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/place-categories: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting place categories: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get categories", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get enhanced travel info with multiple route options
+     */
+    @GetMapping("/{tripId}/enhanced-travel-info")
+    public ResponseEntity<?> getEnhancedTravelInfo(@PathVariable String tripId,
+                                                  @RequestParam String fromPlaceId,
+                                                  @RequestParam String toPlaceId,
+                                                  HttpSession session) {
+        log.info("GET /trip/{}/enhanced-travel-info called from {} to {}", tripId, fromPlaceId, toPlaceId);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            
+            Map<String, Object> enhancedTravelInfo = 
+                tripPlanningService.getEnhancedTravelInfo(tripId, fromPlaceId, toPlaceId, userId);
+            
+            return ResponseEntity.ok(enhancedTravelInfo);
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/enhanced-travel-info: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting enhanced travel info: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get travel info", "message", e.getMessage()));
+        }
+    }
+    
+    // Helper method
+    private String extractCityFromAddress(String formattedAddress) {
+        if (formattedAddress == null) return null;
+        
+        String[] parts = formattedAddress.split(",");
+        if (parts.length >= 2) {
+            return parts[parts.length - 2].trim();
+        }
+        return null;
+    }
+    
+    /**
+     * Search locations with contextual filtering based on trip preferences and current location
+     */
+    @GetMapping("/{tripId}/contextual-search")
+    public ResponseEntity<?> contextualLocationSearch(@PathVariable String tripId,
+                                                     @RequestParam String query,
+                                                     @RequestParam(required = false) String placeType,
+                                                     @RequestParam(required = false) Integer dayNumber,
+                                                     @RequestParam(required = false) String lastPlaceId,
+                                                     @RequestParam(required = false, defaultValue = "10") Integer maxResults,
+                                                     HttpSession session) {
+        log.info("GET /trip/{}/contextual-search called with query: {}", tripId, query);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            
+            LocationSearchResponse searchResults = tripPlanningService.contextualLocationSearch(
+                tripId, query, placeType, dayNumber, lastPlaceId, maxResults, userId);
+            
+            return ResponseEntity.ok(searchResults);
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/contextual-search: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error in contextual location search: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Search failed", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get travel time and route information between two places
+     */
+    @GetMapping("/{tripId}/travel-info")
+    public ResponseEntity<?> getTravelInfo(@PathVariable String tripId,
+                                          @RequestParam String fromPlaceId,
+                                          @RequestParam String toPlaceId,
+                                          HttpSession session) {
+        log.info("GET /trip/{}/travel-info called from {} to {}", tripId, fromPlaceId, toPlaceId);
+        
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            
+            Map<String, Object> travelInfo = tripPlanningService.getTravelInfo(tripId, fromPlaceId, toPlaceId, userId);
+            
+            return ResponseEntity.ok(travelInfo);
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/travel-info: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting travel info: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get travel info", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Validate and enrich place information
+     */
+    @PostMapping("/validate-place")
+    public ResponseEntity<?> validatePlace(@Valid @RequestBody AddPlaceRequest request,
+                                         HttpSession session) {
+        log.info("POST /trip/validate-place called for: {}", request.getPlaceName());
+        
+        try {
+            // Validate session
+            sessionValidationService.validateSessionAndGetUserId(session);
+            
+            LocationService.PlaceValidationResult validation = 
+                locationService.validateAndEnrichPlace(request);
+            
+            return ResponseEntity.ok(Map.of(
+                "validation", validation,
+                "valid", validation.isValid(),
+                "hasWarnings", !validation.getWarnings().isEmpty(),
+                "hasErrors", !validation.getErrors().isEmpty()
+            ));
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/validate-place: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error validating place: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Validation failed", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get detailed information about a place by Google Place ID
+     */
+    @GetMapping("/place-details/{placeId}")
+    public ResponseEntity<?> getPlaceDetails(@PathVariable String placeId,
+                                           HttpSession session) {
+        log.info("GET /trip/place-details/{} called", placeId);
+        
+        try {
+            // Validate session
+            sessionValidationService.validateSessionAndGetUserId(session);
+            
+            LocationService.PlaceDetails details = locationService.getPlaceDetails(placeId);
+            
+            if (details != null) {
+                return ResponseEntity.ok(Map.of(
+                    "details", details,
+                    "found", true
+                ));
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Place not found", "placeId", placeId));
+            }
+            
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/place-details: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error getting place details: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get place details", "message", e.getMessage()));
         }
     }
     

@@ -21,6 +21,7 @@ public class TripPlanningService {
     private final PlaceService placeService;
     private final TravelTimeService travelTimeService;
     private final RouteOptimizationService routeOptimizationService;
+    private final ContextualRecommendationService contextualRecommendationService;
     
     /**
      * Create a new trip with user preferences
@@ -209,6 +210,211 @@ public class TripPlanningService {
         return tripRepository.findByUserId(userId);
     }
     
+    /**
+     * Add a place to a specific day with enhanced contextual information
+     */
+    public Trip addPlaceToSpecificDay(String tripId, AddPlaceToDayRequest request, String userId) {
+        log.info("Adding place {} to trip {} day {} for user {}", 
+                request.getPlaceName(), tripId, request.getDayNumber(), userId);
+        
+        Trip trip = getTripByIdAndUserId(tripId, userId);
+        
+        // Validate and enrich the place using LocationService
+        AddPlaceRequest basicRequest = new AddPlaceRequest();
+        basicRequest.setPlaceName(request.getPlaceName());
+        basicRequest.setCity(request.getCity());
+        basicRequest.setDescription(request.getDescription());
+        basicRequest.setLatitude(request.getLatitude());
+        basicRequest.setLongitude(request.getLongitude());
+        
+        LocationService.PlaceValidationResult validation = 
+            locationService.validateAndEnrichPlace(basicRequest);
+        
+        // Create planned place with enhanced information
+        PlannedPlace place = new PlannedPlace();
+        place.setPlaceId(UUID.randomUUID().toString());
+        place.setName(request.getPlaceName());
+        place.setCity(request.getCity());
+        place.setDescription(request.getDescription());
+        place.setType(request.getPlaceType());
+        place.setDayNumber(request.getDayNumber());
+        place.setUserAdded(true);
+        place.setConfirmed(validation.isValid());
+        
+        // Use validated coordinates if available
+        if (validation.isValid() && validation.getSuggestedLatitude() != null) {
+            place.setLatitude(validation.getSuggestedLatitude());
+            place.setLongitude(validation.getSuggestedLongitude());
+        } else {
+            place.setLatitude(request.getLatitude());
+            place.setLongitude(request.getLongitude());
+        }
+        
+        // Set visit duration
+        place.setEstimatedVisitDurationMinutes(
+            request.getEstimatedVisitDurationMinutes() != null ? 
+            request.getEstimatedVisitDurationMinutes() : 
+            getDefaultVisitDuration(request.getPlaceType()));
+        
+        // Calculate travel time from previous place if available
+        if (request.getPreviousPlaceId() != null) {
+            PlannedPlace previousPlace = findPlaceById(trip, request.getPreviousPlaceId());
+            if (previousPlace != null && previousPlace.getLatitude() != null && place.getLatitude() != null) {
+                Integer travelTime = travelTimeService.estimateTravelTime(
+                    previousPlace.getLatitude(), previousPlace.getLongitude(),
+                    place.getLatitude(), place.getLongitude());
+                // You could store this in place metadata or trip statistics
+            }
+        }
+        
+        // Add to trip
+        trip.getPlaces().add(place);
+        trip.setUpdatedAt(LocalDateTime.now());
+        
+        Trip savedTrip = tripRepository.save(trip);
+        log.info("Place added successfully to trip {} day {}", tripId, request.getDayNumber());
+        
+        return savedTrip;
+    }
+    
+    /**
+     * Get contextual suggestions based on trip state and user preferences
+     */
+    public ContextualSuggestionsResponse getContextualSuggestions(String tripId, Integer dayNumber, 
+                                                                String contextType, String userId) {
+        log.info("Getting contextual suggestions for trip {} day {} (context: {})", tripId, dayNumber, contextType);
+        
+        Trip trip = getTripByIdAndUserId(tripId, userId);
+        
+        return contextualRecommendationService.generateContextualSuggestions(trip, dayNumber, contextType);
+    }
+    
+    /**
+     * Get suggestions near a specific place
+     */
+    public List<ContextualSuggestionsResponse.PlaceSuggestion> getNearbySuggestions(
+            String tripId, String placeId, String placeType, Integer maxResults, String userId) {
+        
+        log.info("Getting nearby suggestions for place {} in trip {}", placeId, tripId);
+        
+        Trip trip = getTripByIdAndUserId(tripId, userId);
+        PlannedPlace referencePlace = findPlaceById(trip, placeId);
+        
+        if (referencePlace == null) {
+            throw new IllegalArgumentException("Place not found: " + placeId);
+        }
+        
+        PlannedPlace.PlaceType type = placeType != null ? 
+            PlannedPlace.PlaceType.valueOf(placeType.toUpperCase()) : 
+            PlannedPlace.PlaceType.ATTRACTION;
+        
+        return contextualRecommendationService.getSuggestionsNearPlace(
+            referencePlace, trip.getCategories(), type, maxResults);
+    }
+    
+    /**
+     * Perform contextual location search with trip preferences
+     */
+    public LocationSearchResponse contextualLocationSearch(String tripId, String query, String placeType, 
+                                                         Integer dayNumber, String lastPlaceId, 
+                                                         Integer maxResults, String userId) {
+        
+        log.info("Performing contextual search for trip {} with query: {}", tripId, query);
+        
+        Trip trip = getTripByIdAndUserId(tripId, userId);
+        
+        // Get bias location from last place or trip base city
+        Double biasLat = null;
+        Double biasLng = null;
+        
+        if (lastPlaceId != null) {
+            PlannedPlace lastPlace = findPlaceById(trip, lastPlaceId);
+            if (lastPlace != null) {
+                biasLat = lastPlace.getLatitude();
+                biasLng = lastPlace.getLongitude();
+            }
+        }
+        
+        // Perform search with trip context
+        List<LocationService.LocationSearchResult> results = 
+            locationService.searchLocations(query, trip.getBaseCity(), biasLat, biasLng, maxResults);
+        
+        // Build response with metadata
+        LocationSearchResponse response = new LocationSearchResponse();
+        response.setQuery(query);
+        response.setResults(results);
+        response.setTotalResults(results.size());
+        
+        LocationSearchResponse.SearchMetadata metadata = new LocationSearchResponse.SearchMetadata();
+        metadata.setBiasLatitude(biasLat);
+        metadata.setBiasLongitude(biasLng);
+        metadata.setSearchSource("hybrid");
+        metadata.setSriLankaFiltered(true);
+        response.setMetadata(metadata);
+        
+        return response;
+    }
+    
+    /**
+     * Get travel information between two places
+     */
+    public Map<String, Object> getTravelInfo(String tripId, String fromPlaceId, String toPlaceId, String userId) {
+        log.info("Getting travel info from {} to {} for trip {}", fromPlaceId, toPlaceId, tripId);
+        
+        Trip trip = getTripByIdAndUserId(tripId, userId);
+        
+        PlannedPlace fromPlace = findPlaceById(trip, fromPlaceId);
+        PlannedPlace toPlace = findPlaceById(trip, toPlaceId);
+        
+        if (fromPlace == null || toPlace == null) {
+            throw new IllegalArgumentException("One or both places not found");
+        }
+        
+        if (fromPlace.getLatitude() == null || toPlace.getLatitude() == null) {
+            throw new IllegalArgumentException("Place coordinates not available");
+        }
+        
+        // Calculate travel time and distance using TravelTimeService
+        Integer travelTimeMinutes = travelTimeService.estimateTravelTime(
+            fromPlace.getLatitude(), fromPlace.getLongitude(),
+            toPlace.getLatitude(), toPlace.getLongitude());
+        
+        double distance = calculateDistance(
+            fromPlace.getLatitude(), fromPlace.getLongitude(),
+            toPlace.getLatitude(), toPlace.getLongitude());
+        
+        Map<String, Object> travelInfo = new HashMap<>();
+        travelInfo.put("fromPlace", Map.of(
+            "id", fromPlace.getPlaceId(),
+            "name", fromPlace.getName(),
+            "city", fromPlace.getCity()
+        ));
+        travelInfo.put("toPlace", Map.of(
+            "id", toPlace.getPlaceId(),
+            "name", toPlace.getName(),
+            "city", toPlace.getCity()
+        ));
+        travelInfo.put("distanceKm", Math.round(distance * 100.0) / 100.0);
+        travelInfo.put("travelTimeMinutes", travelTimeMinutes);
+        travelInfo.put("travelMode", "driving");
+        
+        // Add travel insights
+        List<String> insights = new ArrayList<>();
+        if (distance > 100) {
+            insights.add("This is a long distance trip. Consider breaking it into multiple days.");
+        }
+        if (travelTimeMinutes > 180) {
+            insights.add("Travel time is over 3 hours. Plan for rest stops.");
+        }
+        if (!fromPlace.getCity().equals(toPlace.getCity())) {
+            insights.add("You're traveling between different cities. Check local transport options.");
+        }
+        
+        travelInfo.put("insights", insights);
+        
+        return travelInfo;
+    }
+    
     // Helper methods
     
     private Trip getTripByIdAndUserId(String tripId, String userId) {
@@ -315,5 +521,43 @@ public class TripPlanningService {
         double avgLng = places.stream().mapToDouble(PlannedPlace::getLongitude).average().orElse(0.0);
         
         return Map.of("latitude", avgLat, "longitude", avgLng);
+    }
+    
+    private PlannedPlace findPlaceById(Trip trip, String placeId) {
+        return trip.getPlaces().stream()
+                .filter(place -> placeId.equals(place.getPlaceId()))
+                .findFirst()
+                .orElse(null);
+    }
+    
+    private Integer getDefaultVisitDuration(PlannedPlace.PlaceType placeType) {
+        switch (placeType) {
+            case ATTRACTION:
+                return 120; // 2 hours
+            case HOTEL:
+                return 60;  // 1 hour (check-in/out)
+            case RESTAURANT:
+                return 90;  // 1.5 hours
+            case SHOPPING:
+                return 150; // 2.5 hours
+            case VIEWPOINT:
+                return 45;  // 45 minutes
+            case TRANSPORT_HUB:
+                return 30;  // 30 minutes
+            default:
+                return 90;  // 1.5 hours
+        }
+    }
+    
+    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+        final int R = 6371; // Radius of the earth in km
+        
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lngDistance = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in km
     }
 }

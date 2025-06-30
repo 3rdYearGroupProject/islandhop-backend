@@ -370,3 +370,79 @@ This project is part of the IslandHop tourism platform.
 ---
 
 For questions and support, please refer to the main IslandHop documentation or contact the development team.
+
+## API Endpoints
+
+### Trip Management
+- `POST /trip/initiate` - Create a new trip
+- `POST /trip/{tripId}/add-place` - Add a place to a trip
+- `GET /trip/{tripId}/suggestions` - Get contextual recommendations
+- `POST /trip/{tripId}/optimize-order` - Optimize trip route
+- `GET /trip/{tripId}/day/{day}` - Get day plan
+- `GET /trip/{tripId}/summary` - Get trip summary and statistics
+- `GET /trip/{tripId}/map-data` - Get trip data for map visualization
+- `GET /trip/my-trips` - Get user's trips
+
+### Location Search and Validation
+- `GET /trip/search-locations` - Search for locations by text query
+- `POST /trip/validate-place` - Validate and enrich place information
+- `GET /trip/place-details/{placeId}` - Get detailed place information
+
+### Health Check
+- `GET /trip/health` - Service health check
+
+## Location Search Features
+
+The Trip Planning Service now includes robust location search and validation:
+
+### 1. Intelligent Location Search
+- **Hybrid Search**: Combines Google Places API and TripAdvisor for comprehensive results
+- **Sri Lanka Focus**: Automatically filters and biases results to Sri Lankan locations
+- **Smart Query Building**: Automatically appends "Sri Lanka" to queries when needed
+- **Proximity Sorting**: Results can be sorted by distance from a bias location
+
+### 2. Location Validation
+- **Coordinate Validation**: Ensures coordinates are within Sri Lanka bounds
+- **Address Geocoding**: Converts place names to validated coordinates
+- **Reverse Geocoding**: Gets formatted addresses from coordinates
+- **Duplicate Detection**: Filters out duplicate locations from multiple sources
+
+### 3. Enhanced Place Creation
+- **Auto-enrichment**: Automatically enriches user-added places with location data
+- **Type Inference**: Automatically determines place type from Google Places categories
+- **Address Formatting**: Uses Google's formatted addresses for consistent formatting
+- **Validation Feedback**: Provides warnings and suggestions for ambiguous locations
+
+### Location Search API Examples
+
+#### Search for locations:
+```bash
+GET /trip/search-locations?query=Temple of the Tooth&city=Kandy&maxResults=5
+```
+
+#### Validate a place before adding:
+```bash
+POST /trip/validate-place
+{
+  "placeName": "Sigiriya Rock Fortress",
+  "city": "Dambulla",
+  "description": "Ancient rock fortress and palace"
+}
+```
+
+#### Get detailed place information:
+```bash
+GET /trip/place-details/ChIJN1t_tDeuEmsRUsoyG83frY4
+```
+
+## API Configuration
+
+### Google Places API Setup
+1. Get a Google Places API key from Google Cloud Console
+2. Enable the following APIs:
+   - Places API
+   - Geocoding API
+   - Maps JavaScript API (optional, for frontend)
+3. Set the environment variable: `GOOGLE_PLACES_API_KEY=your-key-here`
+
+### TripAdvisor API Setup
