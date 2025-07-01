@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+# Maven wrapper script for Unix-like systems
+
+MAVEN_OPTS="${MAVEN_OPTS:-"-Xmx1024m"}"
+
+# Check if Maven is installed
+if ! command -v mvn &> /dev/null; then
+  echo "Maven is not installed. Please install Maven to use this script."
+  exit 1
+fi
+
+# Execute Maven with the provided arguments
+exec mvn "$@"
