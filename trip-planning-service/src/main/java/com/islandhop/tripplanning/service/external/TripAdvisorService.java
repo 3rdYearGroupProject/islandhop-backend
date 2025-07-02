@@ -286,7 +286,7 @@ public class TripAdvisorService {
     
     // Mock data methods (remove when TripAdvisor API is configured)
     
-    private List<PlannedPlace> getMockAttractions(double latitude, double longitude) {
+    private List<PlannedPlace> getMockAttractions(double latitude, double longitude, double radiusKm) {
         List<PlannedPlace> attractions = new ArrayList<>();
         
         // Sri Lanka specific mock attractions
@@ -304,7 +304,7 @@ public class TripAdvisorService {
         return attractions;
     }
     
-    private List<PlannedPlace> getMockHotels(double latitude, double longitude) {
+    private List<PlannedPlace> getMockHotels(double latitude, double longitude, double radiusKm) {
         List<PlannedPlace> hotels = new ArrayList<>();
         
         PlannedPlace hotel1 = createMockPlace("H001", "Luxury Beach Resort", 
@@ -324,7 +324,7 @@ public class TripAdvisorService {
         return hotels;
     }
     
-    private List<PlannedPlace> getMockRestaurants(double latitude, double longitude) {
+    private List<PlannedPlace> getMockRestaurants(double latitude, double longitude, double radiusKm) {
         List<PlannedPlace> restaurants = new ArrayList<>();
         
         PlannedPlace restaurant1 = createMockPlace("R001", "Local Cuisine Restaurant", 
@@ -476,5 +476,141 @@ public class TripAdvisorService {
         }
         
         return place;
+    }
+    
+    private List<PlannedPlace> getMockPlacesByName(String placeName, String city) {
+        List<PlannedPlace> places = new ArrayList<>();
+        
+        // Mock search by name - you can expand this with more sophisticated matching
+        String lowerName = placeName.toLowerCase();
+        String lowerCity = city != null ? city.toLowerCase() : "";
+        
+        if (lowerName.contains("temple") || lowerName.contains("gangaramaya")) {
+            PlannedPlace temple = new PlannedPlace();
+            temple.setPlaceId("gangaramaya_temple");
+            temple.setName("Gangaramaya Temple");
+            temple.setLatitude(6.9203);
+            temple.setLongitude(79.8612);
+            temple.setType(PlannedPlace.PlaceType.ATTRACTION);
+            temple.setCategories(List.of("Religious Site", "Cultural Attraction"));
+            temple.setRating(4.3);
+            temple.setCity("Colombo");
+            places.add(temple);
+        }
+        
+        if (lowerName.contains("sigiriya") || lowerName.contains("rock")) {
+            PlannedPlace sigiriya = new PlannedPlace();
+            sigiriya.setPlaceId("sigiriya_rock");
+            sigiriya.setName("Sigiriya Rock Fortress");
+            sigiriya.setLatitude(7.9570);
+            sigiriya.setLongitude(80.7603);
+            sigiriya.setType(PlannedPlace.PlaceType.ATTRACTION);
+            sigiriya.setCategories(List.of("UNESCO World Heritage", "Historical Site"));
+            sigiriya.setRating(4.8);
+            sigiriya.setCity("Dambulla");
+            places.add(sigiriya);
+        }
+        
+        if (lowerName.contains("fort") || lowerName.contains("galle")) {
+            PlannedPlace galleFort = new PlannedPlace();
+            galleFort.setPlaceId("galle_fort");
+            galleFort.setName("Galle Fort");
+            galleFort.setLatitude(6.0329);
+            galleFort.setLongitude(80.2168);
+            galleFort.setType(PlannedPlace.PlaceType.ATTRACTION);
+            galleFort.setCategories(List.of("Historical Site", "UNESCO World Heritage"));
+            galleFort.setRating(4.5);
+            galleFort.setCity("Galle");
+            places.add(galleFort);
+        }
+        
+        return places;
+    }
+    
+    // Helper methods
+    
+    private String buildFullAddress(Map<String, Object> address) {
+        if (address == null) return null;
+        
+        StringBuilder fullAddress = new StringBuilder();
+        if (address.get("street1") != null) {
+            fullAddress.append(address.get("street1"));
+        }
+        if (address.get("city") != null) {
+            if (fullAddress.length() > 0) fullAddress.append(", ");
+            fullAddress.append(address.get("city"));
+        }
+        if (address.get("country") != null) {
+            if (fullAddress.length() > 0) fullAddress.append(", ");
+            fullAddress.append(address.get("country"));
+        }
+        
+        return fullAddress.toString();
+    }
+    
+    private PlannedPlace.PlaceType determinePlaceType(Map<String, Object> data, PlannedPlace.PlaceType defaultType) {
+        if (data.get("category") != null) {
+            String category = data.get("category").toString().toLowerCase();
+            if (category.contains("hotel") || category.contains("accommodation")) {
+                return PlannedPlace.PlaceType.HOTEL;
+            } else if (category.contains("restaurant") || category.contains("food")) {
+                return PlannedPlace.PlaceType.RESTAURANT;
+            } else if (category.contains("attraction") || category.contains("tourist")) {
+                return PlannedPlace.PlaceType.ATTRACTION;
+            }
+        }
+        return defaultType != null ? defaultType : PlannedPlace.PlaceType.ATTRACTION;
+    }
+    
+    private List<String> mapTripAdvisorCategories(Map<String, Object> data) {
+        List<String> categories = new ArrayList<>();
+        if (data.get("category") != null) {
+            categories.add(data.get("category").toString());
+        }
+        if (data.get("subcategory") != null) {
+            categories.add(data.get("subcategory").toString());
+        }
+        return categories;
+    }
+    
+    private String mapPriceLevel(Map<String, Object> data) {
+        if (data.get("price_level") != null) {
+            String priceLevel = data.get("price_level").toString();
+            switch (priceLevel) {
+                case "$": return "BUDGET";
+                case "$$": return "MODERATE";
+                case "$$$": case "$$$$": return "EXPENSIVE";
+                default: return "FREE";
+            }
+        }
+        return "FREE";
+    }
+    
+    private List<String> parseOpeningHours(Object hoursData) {
+        List<String> hours = new ArrayList<>();
+        if (hoursData != null) {
+            // Simple parsing - expand this based on TripAdvisor API format
+            hours.add(hoursData.toString());
+        }
+        return hours;
+    }
+    
+    private Integer estimateVisitDuration(PlannedPlace.PlaceType placeType) {
+        switch (placeType) {
+            case ATTRACTION:
+                return 120; // 2 hours
+            case HOTEL:
+                return 480; // 8 hours (overnight)
+            case RESTAURANT:
+                return 90; // 1.5 hours
+            case TRANSPORT_HUB:
+                return 30; // 30 minutes
+            case VIEWPOINT:
+                return 60; // 1 hour
+            case SHOPPING:
+                return 180; // 3 hours
+            default:
+                return 120; // 2 hours default
+        }
     }
 }

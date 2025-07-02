@@ -380,7 +380,7 @@ public class TripPlanningController {
      * Get comprehensive day plan with inline suggestions (TripAdvisor style)
      */
     @GetMapping("/{tripId}/day/{dayNumber}/plan")
-    public ResponseEntity<?> getDayPlan(@PathVariable String tripId,
+    public ResponseEntity<?> getDayPlanWithSuggestions(@PathVariable String tripId,
                                        @PathVariable Integer dayNumber,
                                        HttpSession session) {
         log.info("GET /trip/{}/day/{}/plan called", tripId, dayNumber);
@@ -420,11 +420,11 @@ public class TripPlanningController {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
             Trip trip = tripPlanningService.getTripByIdAndUserId(tripId, userId);
             
-            List<DayPlanResponse.QuickSuggestion> suggestions = 
+            ContextualSuggestionsResponse suggestionsResponse = 
                 tripPlanningService.getRealtimeSuggestions(trip, dayNumber, lastPlaceId, category);
             
             return ResponseEntity.ok(Map.of(
-                "suggestions", suggestions,
+                "suggestions", suggestionsResponse.getSuggestions(),
                 "tripId", tripId,
                 "dayNumber", dayNumber,
                 "basedOn", lastPlaceId != null ? "proximity" : "preferences",
@@ -507,7 +507,7 @@ public class TripPlanningController {
         try {
             sessionValidationService.validateSessionAndGetUserId(session);
             
-            List<PlaceCategoryService.CategoryInfo> categories = 
+            Map<String, List<String>> categories = 
                 tripPlanningService.getAvailablePlaceCategories();
             
             return ResponseEntity.ok(Map.of(
@@ -539,7 +539,7 @@ public class TripPlanningController {
         try {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
             
-            Map<String, Object> enhancedTravelInfo = 
+            EnhancedTravelInfoResponse enhancedTravelInfo = 
                 tripPlanningService.getEnhancedTravelInfo(tripId, fromPlaceId, toPlaceId, userId);
             
             return ResponseEntity.ok(enhancedTravelInfo);

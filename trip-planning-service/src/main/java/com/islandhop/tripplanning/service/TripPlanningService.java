@@ -22,6 +22,7 @@ public class TripPlanningService {
     private final TravelTimeService travelTimeService;
     private final RouteOptimizationService routeOptimizationService;
     private final ContextualRecommendationService contextualRecommendationService;
+    private final LocationService locationService;
     
     /**
      * Create a new trip with user preferences
@@ -415,9 +416,307 @@ public class TripPlanningService {
         return travelInfo;
     }
     
+    /**
+     * Get day plan with inline suggestions
+     */
+    public DayPlanResponse getDayPlanWithInlineSuggestions(Trip trip, int dayNumber) {
+        log.info("Getting day plan with suggestions for trip: {} day: {}", trip.getTripId(), dayNumber);
+        
+        // Get the basic day plan
+        List<PlannedPlace> dayPlaces = trip.getPlaces().stream()
+                .filter(place -> place.getDayNumber() != null && place.getDayNumber() == dayNumber)
+                .sorted(Comparator.comparing(PlannedPlace::getOrderInDay))
+                .toList();
+                
+        DayPlanResponse response = new DayPlanResponse();
+        response.setDayNumber(dayNumber);
+        response.setDate(trip.getStartDate().plusDays(dayNumber - 1));
+        
+        List<DayPlanResponse.DayPlace> places = new ArrayList<>();
+        
+        // Convert places to response objects and add suggestions
+        for (int i = 0; i < dayPlaces.size(); i++) {
+            PlannedPlace place = dayPlaces.get(i);
+            DayPlanResponse.DayPlace dayPlace = convertToDayPlace(place);
+            
+            // Add suggestions after each place (except the last one)
+            if (i < dayPlaces.size() - 1) {
+                List<DayPlanResponse.QuickSuggestion> suggestions = getQuickSuggestionsAfterPlace(trip, place);
+                dayPlace.setNextPlaceSuggestions(suggestions);
+            }
+            
+            places.add(dayPlace);
+        }
+        
+        response.setPlaces(places);
+        response.setContext(buildDayContext(trip, dayNumber, dayPlaces));
+        
+        return response;
+    }
+    
+    private DayPlanResponse.DayContext buildDayContext(Trip trip, int dayNumber, List<PlannedPlace> dayPlaces) {
+        DayPlanResponse.DayContext context = new DayPlanResponse.DayContext();
+        
+        // Set weather and other context information
+        context.setWeatherForecast("Sunny, 25°C");
+        context.setSpecialEvents(List.of("Local Festival in City Center"));
+        
+        // Calculate total travel time and distance
+        double totalDistance = 0;
+        int totalTravelMinutes = 0;
+        
+        for (int i = 0; i < dayPlaces.size() - 1; i++) {
+            PlannedPlace from = dayPlaces.get(i);
+            PlannedPlace to = dayPlaces.get(i + 1);
+            
+            if (from.getLatitude() != null && from.getLongitude() != null &&
+                to.getLatitude() != null && to.getLongitude() != null) {
+                TravelSegment segment = travelTimeService.calculateTravelTime(
+                    from.getLatitude(), from.getLongitude(),
+                    to.getLatitude(), to.getLongitude()
+                );
+                
+                totalDistance += segment.getDistance();
+                totalTravelMinutes += segment.getDurationMinutes();
+            }
+        }
+        
+        context.setTotalTravelDistanceKm(totalDistance);
+        context.setTotalTravelTimeMinutes(totalTravelMinutes);
+        
+        return context;
+    }
+    
+    private DayPlanResponse.DayPlace convertToDayPlace(PlannedPlace place) {
+        DayPlanResponse.DayPlace dayPlace = new DayPlanResponse.DayPlace();
+        dayPlace.setPlaceId(place.getPlaceId());
+        dayPlace.setName(place.getName());
+        dayPlace.setType(place.getType().toString());
+        dayPlace.setAddress(place.getAddress());
+        dayPlace.setCategories(place.getCategories());
+        dayPlace.setLatitude(place.getLatitude());
+        dayPlace.setLongitude(place.getLongitude());
+        dayPlace.setEstimatedVisitDurationMinutes(place.getEstimatedVisitDurationMinutes());
+        dayPlace.setSuggestedArrivalTime(place.getSuggestedArrivalTime());
+        dayPlace.setSuggestedDepartureTime(place.getSuggestedDepartureTime());
+        dayPlace.setOrderInDay(place.getOrderInDay());
+        
+        return dayPlace;
+    }
+    
+    private List<DayPlanResponse.QuickSuggestion> getQuickSuggestionsAfterPlace(Trip trip, PlannedPlace place) {
+        List<DayPlanResponse.QuickSuggestion> suggestions = new ArrayList<>();
+        
+        // Get suggestions near the current place
+        if (place.getLatitude() != null && place.getLongitude() != null) {
+            List<PlannedPlace> nearbyPlaces = placeService.findNearbyPlaces(
+                place.getLatitude(), place.getLongitude(), 5.0, 5
+            );
+            
+            for (PlannedPlace nearbyPlace : nearbyPlaces) {
+                // Skip places already in the trip
+                if (trip.getPlaces().stream().anyMatch(p -> p.getPlaceId().equals(nearbyPlace.getPlaceId()))) {
+                    continue;
+                }
+                
+                DayPlanResponse.QuickSuggestion suggestion = new DayPlanResponse.QuickSuggestion();
+                suggestion.setPlaceId(nearbyPlace.getPlaceId());
+                suggestion.setName(nearbyPlace.getName());
+                suggestion.setType(nearbyPlace.getType().toString());
+                suggestion.setReasonText("Close to " + place.getName());
+                
+                suggestions.add(suggestion);
+            }
+        }
+        
+        return suggestions;
+    }
+    
+    /**
+     * Get realtime suggestions based on current location and preferences
+     */
+    public ContextualSuggestionsResponse getRealtimeSuggestions(Trip trip, int dayNumber, 
+                                                               String lastPlaceId, String category) {
+        log.info("Getting realtime suggestions for trip: {} day: {} after place: {}", 
+                trip.getTripId(), dayNumber, lastPlaceId);
+        
+        // Find the reference place
+        PlannedPlace referencePlace = trip.getPlaces().stream()
+                .filter(p -> p.getPlaceId().equals(lastPlaceId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Place not found: " + lastPlaceId));
+        
+        // Get contextual suggestions
+        List<String> categories = category != null && !category.isEmpty() ? 
+                List.of(category) : List.of();
+        
+        List<ContextualSuggestionsResponse.PlaceSuggestion> suggestions = 
+                contextualRecommendationService.getSuggestionsNearPlace(
+                    referencePlace,
+                    categories,
+                    PlannedPlace.PlaceType.ATTRACTION,
+                    10
+                );
+        
+        ContextualSuggestionsResponse response = new ContextualSuggestionsResponse();
+        response.setSuggestions(suggestions);
+        response.setCurrentLocation(referencePlace.getName());
+        response.setCurrentTime(LocalDateTime.now().toString());
+        
+        return response;
+    }
+    
+    /**
+     * Get all available place categories
+     */
+    public Map<String, List<String>> getAvailablePlaceCategories() {
+        log.info("Getting available place categories");
+        
+        // Define category groups
+        Map<String, List<String>> categories = new HashMap<>();
+        
+        categories.put("Attractions", List.of(
+            "Museum", "Park", "Historical Site", "Beach", "Landmark",
+            "Nature", "Zoo", "Entertainment", "Theme Park", "Cultural Site"
+        ));
+        
+        categories.put("Food", List.of(
+            "Restaurant", "Cafe", "Bar", "Fast Food", "Fine Dining",
+            "Local Cuisine", "International", "Dessert", "Street Food", "Vegetarian"
+        ));
+        
+        categories.put("Shopping", List.of(
+            "Mall", "Market", "Boutique", "Souvenir", "Outlet",
+            "Department Store", "Local Crafts", "Electronics", "Fashion", "Books"
+        ));
+        
+        categories.put("Activities", List.of(
+            "Adventure", "Sports", "Hiking", "Biking", "Water Sports",
+            "Nightlife", "Wellness", "Spa", "Tour", "Workshop"
+        ));
+        
+        return categories;
+    }
+    
+    /**
+     * Get enhanced travel information between two places
+     */
+    public EnhancedTravelInfoResponse getEnhancedTravelInfo(String tripId, String fromPlaceId, 
+                                                          String toPlaceId, String userId) {
+        log.info("Getting enhanced travel info for trip {} from {} to {}", 
+                tripId, fromPlaceId, toPlaceId);
+        
+        // Retrieve trip
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new IllegalArgumentException("Trip not found: " + tripId));
+        
+        // Verify user has access to the trip
+        if (!trip.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("User does not have access to this trip");
+        }
+        
+        // Find the from and to places
+        PlannedPlace fromPlace = trip.getPlaces().stream()
+                .filter(p -> p.getPlaceId().equals(fromPlaceId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("From place not found: " + fromPlaceId));
+        
+        PlannedPlace toPlace = trip.getPlaces().stream()
+                .filter(p -> p.getPlaceId().equals(toPlaceId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("To place not found: " + toPlaceId));
+        
+        // Get travel options
+        EnhancedTravelInfoResponse response = new EnhancedTravelInfoResponse();
+        
+        if (fromPlace.getLatitude() != null && fromPlace.getLongitude() != null &&
+            toPlace.getLatitude() != null && toPlace.getLongitude() != null) {
+            
+            // Calculate basic travel info
+            TravelSegment mainSegment = travelTimeService.calculateTravelTime(
+                fromPlace.getLatitude(), fromPlace.getLongitude(),
+                toPlace.getLatitude(), toPlace.getLongitude()
+            );
+            
+            response.setDistance(mainSegment.getDistance());
+            response.setEstimatedDurationMinutes(mainSegment.getDurationMinutes());
+            response.setPrimaryTravelMode(mainSegment.getTravelMode().toString());
+            
+            // Add enhanced options
+            List<EnhancedTravelInfoResponse.TravelOption> options = new ArrayList<>();
+            
+            // Add car option
+            EnhancedTravelInfoResponse.TravelOption carOption = new EnhancedTravelInfoResponse.TravelOption();
+            carOption.setTravelMode("CAR");
+            carOption.setDurationMinutes((int)(mainSegment.getDurationMinutes() * 0.8));
+            carOption.setDistance(mainSegment.getDistance());
+            carOption.setCost(estimateTravelCost(mainSegment.getDistance(), "CAR"));
+            carOption.setEnvironmentalImpact("High carbon footprint");
+            options.add(carOption);
+            
+            // Add public transit option
+            EnhancedTravelInfoResponse.TravelOption transitOption = new EnhancedTravelInfoResponse.TravelOption();
+            transitOption.setTravelMode("PUBLIC_TRANSIT");
+            transitOption.setDurationMinutes((int)(mainSegment.getDurationMinutes() * 1.5));
+            transitOption.setDistance(mainSegment.getDistance() * 1.2);
+            transitOption.setCost(estimateTravelCost(mainSegment.getDistance(), "PUBLIC_TRANSIT"));
+            transitOption.setEnvironmentalImpact("Medium carbon footprint");
+            options.add(transitOption);
+            
+            // Add walking option if distance is reasonable
+            if (mainSegment.getDistance() < 5.0) {
+                EnhancedTravelInfoResponse.TravelOption walkingOption = new EnhancedTravelInfoResponse.TravelOption();
+                walkingOption.setTravelMode("WALKING");
+                walkingOption.setDurationMinutes((int)(mainSegment.getDistance() * 12)); // ~5km/h
+                walkingOption.setDistance(mainSegment.getDistance() * 0.9); // Slightly shorter for walking paths
+                walkingOption.setCost(0.0);
+                walkingOption.setEnvironmentalImpact("No carbon footprint");
+                options.add(walkingOption);
+            }
+            
+            response.setTravelOptions(options);
+            
+            // Add points of interest along the route
+            response.setPointsOfInterestAlongRoute(findPointsOfInterestAlongRoute(
+                fromPlace.getLatitude(), fromPlace.getLongitude(),
+                toPlace.getLatitude(), toPlace.getLongitude()
+            ));
+        }
+        
+        response.setFromPlace(fromPlace.getName());
+        response.setToPlace(toPlace.getName());
+        
+        return response;
+    }
+    
+    private double estimateTravelCost(double distance, String travelMode) {
+        switch (travelMode) {
+            case "CAR":
+                return distance * 0.5; // $0.50 per km
+            case "PUBLIC_TRANSIT":
+                return Math.min(distance * 0.2, 10.0); // $0.20 per km, max $10
+            default:
+                return 0.0;
+        }
+    }
+    
+    private List<String> findPointsOfInterestAlongRoute(double fromLat, double fromLng, 
+                                                      double toLat, double toLng) {
+        // This would typically use a service to find POIs along the route
+        // For simplicity, we'll return mock data
+        return List.of(
+            "Scenic Viewpoint",
+            "Coffee Shop",
+            "Historic Monument"
+        );
+    }
+    
     // Helper methods
     
-    private Trip getTripByIdAndUserId(String tripId, String userId) {
+    /**
+     * Get a trip by ID and validate user access
+     */
+    public Trip getTripByIdAndUserId(String tripId, String userId) {
         return tripRepository.findByTripIdAndUserId(tripId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Trip not found or access denied"));
     }

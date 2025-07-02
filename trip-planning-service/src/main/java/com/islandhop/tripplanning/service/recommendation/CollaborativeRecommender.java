@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.time.temporal.ChronoUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -183,7 +184,7 @@ public class CollaborativeRecommender {
         
         // Recency weight - more recent trips have higher weight
         if (trip.getCreatedAt() != null) {
-            long daysSinceCreation = java.time.ChronoUnit.DAYS.between(
+            long daysSinceCreation = ChronoUnit.DAYS.between(
                     trip.getCreatedAt().toLocalDate(), 
                     java.time.LocalDate.now());
             

@@ -213,4 +213,68 @@ public class PlaceService {
         
         return PlannedPlace.PlaceType.ATTRACTION;
     }
+    
+    /**
+     * Find nearby places based on coordinates
+     */
+    public java.util.List<PlannedPlace> findNearbyPlaces(Double latitude, Double longitude, 
+                                                     double radiusKm, int maxResults) {
+        log.info("Finding places near ({}, {}) within {}km", latitude, longitude, radiusKm);
+        
+        // This would normally call a real API or database
+        // For now, we'll generate some mock places
+        java.util.List<PlannedPlace> nearbyPlaces = new ArrayList<>();
+        
+        // Generate some mock places at random distances within the radius
+        java.util.Random random = new java.util.Random();
+        for (int i = 0; i < maxResults; i++) {
+            PlannedPlace place = new PlannedPlace();
+            place.setPlaceId(UUID.randomUUID().toString());
+            place.setName("Nearby Place " + (i + 1));
+            
+            // Generate a random point within the radius
+            double distance = random.nextDouble() * radiusKm;
+            double bearing = random.nextDouble() * 360; // Random direction
+            
+            // Calculate new coordinates
+            double[] newCoords = calculateCoordinatesAtDistance(latitude, longitude, distance, bearing);
+            place.setLatitude(newCoords[0]);
+            place.setLongitude(newCoords[1]);
+            
+            // Set other details
+            place.setDescription("A nearby point of interest");
+            place.setType(PlannedPlace.PlaceType.ATTRACTION);
+            place.setCategories(java.util.List.of("Point of Interest", "Landmark"));
+            place.setAddress(distance + "km from reference point");
+            place.setEstimatedVisitDurationMinutes(60); // 1 hour
+            
+            nearbyPlaces.add(place);
+        }
+        
+        return nearbyPlaces;
+    }
+    
+    /**
+     * Calculate new coordinates at a given distance and bearing from a point
+     */
+    private double[] calculateCoordinatesAtDistance(double lat, double lng, double distanceKm, double bearing) {
+        final double R = 6371; // Earth radius in km
+        final double bearingRad = Math.toRadians(bearing);
+        final double latRad = Math.toRadians(lat);
+        final double lngRad = Math.toRadians(lng);
+        
+        double distance = distanceKm / R; // Angular distance
+        
+        double newLatRad = Math.asin(Math.sin(latRad) * Math.cos(distance) +
+                          Math.cos(latRad) * Math.sin(distance) * Math.cos(bearingRad));
+                          
+        double newLngRad = lngRad + Math.atan2(Math.sin(bearingRad) * Math.sin(distance) * Math.cos(latRad),
+                                             Math.cos(distance) - Math.sin(latRad) * Math.sin(newLatRad));
+        
+        // Convert back to degrees
+        double newLat = Math.toDegrees(newLatRad);
+        double newLng = Math.toDegrees(newLngRad);
+        
+        return new double[] { newLat, newLng };
+    }
 }
