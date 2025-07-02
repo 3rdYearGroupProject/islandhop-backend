@@ -23,6 +23,23 @@ ml:
     endpoint: <YOUR_ML_MODEL_ENDPOINT>
     threshold: 0.5
 
+# Gemini AI Configuration
+gemini:
+  api:
+    key: ${GEMINI_API_KEY:your-gemini-api-key-here}
+    endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+    timeout: 30
+  model:
+    name: gemini-pro
+    temperature: 0.1
+    max-tokens: 150
+  toxicity:
+    threshold:
+      inappropriate: 3.0 # Below 3 = banned
+      pending-lower: 3.0 # 3-7 = pending review
+      pending-upper: 7.0
+      approved: 7.0 # Above 7 = approved
+
 server:
   port: 8080
 
@@ -30,3 +47,4 @@ logging:
   level:
     root: INFO
     com.islandhop.reviewservice: DEBUG
+    com.islandhop.reviewservice.service.GeminiAIService: DEBUG

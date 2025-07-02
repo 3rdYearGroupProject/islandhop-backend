@@ -25,3 +25,70 @@ replay_pid*
 
 .idea
 
+# Python virtual environments
+ml_models/sentiment-env/
+ml_models/venv/
+ml_models/env/
+ml_models/.venv/
+ml_models/__pycache__/
+ml_models/*/__pycache__/
+ml_models/*/*/__pycache__/
+
+# Python compiled files
+ml_models/*.pyc
+ml_models/*/*.pyc
+ml_models/*/*/*.pyc
+ml_models/*.pyo
+ml_models/*/*.pyo
+ml_models/*/*/*.pyo
+
+# Large model files and caches
+ml_models/*/models/
+ml_models/*/cache/
+ml_models/*/.cache/
+ml_models/*/downloads/
+ml_models/*/*.pkl
+ml_models/*/*.model
+ml_models/*/*.bin
+ml_models/*/*.safetensors
+ml_models/*/*.onnx
+
+# HuggingFace cache
+ml_models/*/.huggingface/
+ml_models/*/transformers_cache/
+
+# Jupyter Notebook checkpoints
+ml_models/*/.ipynb_checkpoints/
+
+# Environment variables (if any)
+ml_models/*/.env
+ml_models/*/.env.local
+
+# Temporary files
+ml_models/*/temp/
+ml_models/*/tmp/
+ml_models/*/*.tmp
+
+# IDE specific files
+ml_models/*/.vscode/
+ml_models/*/.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Keep only essential ML files
+!ml_models/*/requirements.txt
+!ml_models/*/*.py
+!ml_models/*/README.md
+!ml_models/*/Dockerfile
+!ml_models/*/docker-compose.yml
+!ml_models/*/config.yml
+!ml_models/*/config.json
+!ml_models/*/.gitkeep
+
