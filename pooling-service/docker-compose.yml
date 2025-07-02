@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  pooling-service:
+    build: .
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - MONGODB_URI=mongodb://mongo:27017/pooling
+      - TRIP_PLANNING_SERVICE_URL=http://trip-planning-service:8080
+      - USER_SERVICE_URL=http://user-service:8081
+    depends_on:
+      - mongo
+    networks:
+      - islandhop-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mongo:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=pooling
+    volumes:
+      - mongo_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - islandhop-network
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+
+networks:
+  islandhop-network:
+    external: true
