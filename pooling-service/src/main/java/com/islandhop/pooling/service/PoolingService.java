@@ -149,7 +149,7 @@ public class PoolingService {
         pool.setMaxMembers(maxPoolSize);
         pool.setCurrentMembers(1);
         pool.setCommonInterests(creatorTrip.getCategories());
-        pool.setIsPublic(true);
+        pool.setPublic(true);
         pool.setAllowJoinRequests(true);
         pool.setJoinCode(generateJoinCode());
         pool.setCreatedAt(LocalDateTime.now());
@@ -347,7 +347,7 @@ public class PoolingService {
         List<PoolSuggestion> suggestions = new ArrayList<>();
 
         for (TripPool pool : existingPools) {
-            if (pool.getCurrentMembers() < pool.getMaxMembers() && pool.getAllowJoinRequests()) {
+            if (pool.getCurrentMembers() < pool.getMaxMembers() && pool.isAllowJoinRequests()) {
                 // Calculate compatibility with this pool
                 double compatibility = calculateCompatibilityWithExistingPool(userTrip, userProfile, pool);
                 
