@@ -31,3 +31,18 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Firebase Service Account Keys ###
+src/main/resources/serviceAccountKey.json
+**/serviceAccountKey.json
+serviceAccountKey*.json
+
+### Environment Variables ###
+.env
+.env.local
+.env.production
+.env.staging
+
+### Other sensitive files ###
+**/firebase-service-account.json
+**/google-credentials.json
