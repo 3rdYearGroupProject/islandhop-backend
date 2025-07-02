@@ -15,8 +15,8 @@ public class PlannedPlace {
     private String placeId;
     private String name;
     private String city;
-    private double latitude;
-    private double longitude;
+    private Double latitude;
+    private Double longitude;
     private String description;
     private List<String> categories;
     private PlaceType type; // ATTRACTION, HOTEL, RESTAURANT, TRANSPORT_HUB

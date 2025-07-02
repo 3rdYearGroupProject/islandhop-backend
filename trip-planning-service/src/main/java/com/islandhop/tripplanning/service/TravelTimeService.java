@@ -175,8 +175,8 @@ public class TravelTimeService {
             log.error("Error parsing Google Maps response: {}", e.getMessage());
         }
         
-        // Fallback to estimation
-        return getEstimatedTravelInfo(fromLat, fromLng, toLat, toLng, travelMode);
+        // Fallback to estimation - pass dummy values since we don't have the coordinates in this context
+        return getEstimatedTravelInfo(0.0, 0.0, 0.0, 0.0, travelMode);
     }
     
     private TravelInfo getEstimatedTravelInfo(double fromLat, double fromLng, 

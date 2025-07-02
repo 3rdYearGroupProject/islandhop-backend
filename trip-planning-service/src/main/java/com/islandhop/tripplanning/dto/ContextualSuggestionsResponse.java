@@ -34,6 +34,11 @@ public class ContextualSuggestionsResponse {
     private List<String> warnings;
     private List<String> tips;
     
+    // Additional fields for compatibility
+    private List<PlaceSuggestion> suggestions;
+    private String currentLocation;
+    private String currentTime;
+    
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

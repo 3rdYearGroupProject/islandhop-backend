@@ -19,6 +19,7 @@ public class DayPlanResponse {
     private Integer dayNumber;
     private String dayDate; // e.g., "2025-07-15"
     private String dayName; // e.g., "Day 1", "Monday"
+    private java.time.LocalDate date; // Added for date conversion
     
     // Current places for this day
     private List<DayPlace> places;
@@ -37,12 +38,18 @@ public class DayPlanResponse {
         private String name;
         private String city;
         private PlannedPlace.PlaceType placeType;
+        private String type; // Added for string type
         private Double latitude;
         private Double longitude;
         private String formattedAddress;
+        private String address; // Added for address
+        private List<String> categories; // Added for categories
         private Integer visitDurationMinutes;
+        private Integer estimatedVisitDurationMinutes; // Added for compatibility
         private String timeSlot; // "morning", "afternoon", "evening"
         private Integer orderInDay;
+        private java.time.LocalTime suggestedArrivalTime; // Added for compatibility
+        private java.time.LocalTime suggestedDepartureTime; // Added for compatibility
         
         // Travel context from previous place
         private Integer travelTimeFromPrevious; // minutes
@@ -53,6 +60,9 @@ public class DayPlanResponse {
         private boolean canEdit;
         private boolean canRemove;
         private boolean canReorder;
+        
+        // Additional field for suggestions
+        private List<QuickSuggestion> nextPlaceSuggestions;
     }
     
     @Data
@@ -63,9 +73,11 @@ public class DayPlanResponse {
         private String name;
         private String city;
         private PlannedPlace.PlaceType placeType;
+        private String type; // Added for String type
         private String category; // "Accommodation", "Attraction", "Restaurant", "Activity"
         private Double rating;
         private String reasonForSuggestion; // "Near your last selection", "Based on preferences"
+        private String reasonText; // Added for compatibility
         private Integer travelTimeMinutes;
         private Double distanceKm;
         private String quickAddUrl; // Direct API endpoint to add this place
@@ -78,6 +90,10 @@ public class DayPlanResponse {
         private Integer totalPlaces;
         private Integer totalDurationMinutes;
         private Integer remainingTimeMinutes;
+        private String weatherForecast; // Added for weather
+        private List<String> specialEvents; // Added for events
+        private double totalTravelDistanceKm; // Added for distance
+        private int totalTravelTimeMinutes; // Added for travel time
         private String currentArea; // "Colombo", "Kandy", etc.
         private String suggestedNextCategory; // What type of place to add next
         private List<String> dayInsights;
