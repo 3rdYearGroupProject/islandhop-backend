@@ -25,3 +25,5 @@ replay_pid*
 
 .idea
 
+trip-planning-service/endpoint_test_results.txt
+trip-planning-service/comprehensive_endpoint_test_results.txt
