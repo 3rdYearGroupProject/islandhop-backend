@@ -12,12 +12,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "driver_accounts")
+@Table(name = "driver_profiles")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DriverAccount {
+public class DriverProfile {
     
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -26,8 +26,20 @@ public class DriverAccount {
     @Column(unique = true, nullable = false)
     private String email;
     
+    private String fullName;
+    private String contactNumber;
+    private String nicPassport;
+    
+    private String vehicleType;
+    private String vehicleNumber;
+    private String bodyType;
+    private String acAvailable;
+    private Integer numberOfSeats;
+    
+    private String profilePictureUrl;
+    
     @Builder.Default
-    private String status = "ACTIVE";
+    private Integer profileCompletion = 0;
     
     @CreationTimestamp
     private LocalDateTime createdAt;
