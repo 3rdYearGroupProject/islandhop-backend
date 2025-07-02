@@ -184,7 +184,7 @@ public class TripPlanningController {
         } catch (Exception e) {
             log.error("Error getting trip summary for {}: {}", tripId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+                    .body(Map.of("error", "Internal server error", "mess    age", e.getMessage()));
         }
     }
     
