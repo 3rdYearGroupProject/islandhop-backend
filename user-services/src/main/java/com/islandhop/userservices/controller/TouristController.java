@@ -196,4 +196,34 @@ public class TouristController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("valid", false));
         }
     }
+
+    /**
+     * Retrieves a tourist profile by email (for pooling service integration).
+     * 
+     * @param email Tourist's email address
+     * @return ResponseEntity with tourist profile or not found status
+     */
+    @GetMapping("/profile/{email}")
+    public ResponseEntity<?> getTouristProfile(@PathVariable String email) {
+        logger.info("GET /tourist/profile/{} called", email);
+        
+        try {
+            // Check if profile exists
+            if (!profileRepository.existsByEmail(email)) {
+                logger.warn("Tourist profile not found for email: {}", email);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Tourist profile not found", "email", email));
+            }
+            
+            // Fetch and return the profile
+            TouristProfile profile = profileRepository.findByEmail(email);
+            logger.info("Successfully retrieved tourist profile for email: {}", email);
+            return ResponseEntity.ok(profile);
+            
+        } catch (Exception e) {
+            logger.error("Error retrieving tourist profile for email {}: {}", email, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to retrieve tourist profile", "message", e.getMessage()));
+        }
+    }
 }

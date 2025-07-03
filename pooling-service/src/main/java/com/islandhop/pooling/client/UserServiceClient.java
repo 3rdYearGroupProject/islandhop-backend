@@ -38,6 +38,21 @@ public class UserServiceClient {
     }
     
     /**
+     * Get user ID from email (for compatibility)
+     */
+    public String getUserIdByEmail(String email) {
+        logger.info("Getting user ID for email: {}", email);
+        
+        try {
+            TouristProfileDto profile = getTouristProfileByEmail(email);
+            return profile != null ? profile.getId() : null;
+        } catch (Exception e) {
+            logger.error("Error getting user ID for email {}: {}", email, e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
      * Validate user session
      */
     public boolean validateUserSession(String userId) {

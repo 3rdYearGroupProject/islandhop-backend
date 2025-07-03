@@ -22,8 +22,7 @@ public class PoolingService {
     private static final Logger logger = LoggerFactory.getLogger(PoolingService.class);
 
     private final TripPoolRepository poolRepository;
-    private final TripPlanningServiceClient tripPlanningClient;
-    private final UserServiceClient userServiceClient;
+    private final DirectIntegrationService integrationService;
     private final TimelinePoolingAlgorithm timelineAlgorithm;
 
     @Value("${pooling.pool.max-size:6}")
@@ -33,12 +32,10 @@ public class PoolingService {
     private int minPoolSize;
 
     public PoolingService(TripPoolRepository poolRepository,
-                         TripPlanningServiceClient tripPlanningClient,
-                         UserServiceClient userServiceClient,
+                         DirectIntegrationService integrationService,
                          TimelinePoolingAlgorithm timelineAlgorithm) {
         this.poolRepository = poolRepository;
-        this.tripPlanningClient = tripPlanningClient;
-        this.userServiceClient = userServiceClient;
+        this.integrationService = integrationService;
         this.timelineAlgorithm = timelineAlgorithm;
     }
 
@@ -49,14 +46,14 @@ public class PoolingService {
         logger.info("Finding potential pools for user: {} with trip: {}", request.getUserId(), request.getTripId());
 
         // Get user's trip
-        TripDto userTrip = tripPlanningClient.getTripByIdAndUserId(request.getTripId(), request.getUserId());
+        TripDto userTrip = integrationService.getTripByIdAndUserId(request.getTripId(), request.getUserId());
         if (userTrip == null) {
             logger.warn("Trip not found: {} for user: {}", request.getTripId(), request.getUserId());
             return Collections.emptyList();
         }
 
         // Get user's profile
-        TouristProfileDto userProfile = userServiceClient.getTouristProfileByEmail(request.getUserId());
+        TouristProfileDto userProfile = integrationService.getTouristProfileByEmail(request.getUserId());
         if (userProfile == null) {
             logger.warn("User profile not found: {}", request.getUserId());
             return Collections.emptyList();
@@ -66,13 +63,13 @@ public class PoolingService {
         LocalDate searchStart = userTrip.getStartDate().minusDays(request.getDateFlexibilityDays());
         LocalDate searchEnd = userTrip.getEndDate().plusDays(request.getDateFlexibilityDays());
         
-        List<TripDto> candidateTrips = tripPlanningClient.getTripsInDateRange(searchStart, searchEnd);
+        List<TripDto> candidateTrips = integrationService.getTripsInDateRange(searchStart, searchEnd);
         logger.info("Found {} candidate trips in date range", candidateTrips.size());
 
         // Get profiles for all candidate users
         Map<String, TouristProfileDto> candidateProfiles = new HashMap<>();
         for (TripDto trip : candidateTrips) {
-            TouristProfileDto profile = userServiceClient.getTouristProfileByEmail(trip.getUserId());
+            TouristProfileDto profile = integrationService.getTouristProfileByEmail(trip.getUserId());
             if (profile != null) {
                 candidateProfiles.put(trip.getUserId(), profile);
             }
@@ -111,8 +108,8 @@ public class PoolingService {
         logger.info("Creating new trip pool for user: {} with trip: {}", creatorUserId, tripId);
 
         // Get creator's trip and profile
-        TripDto creatorTrip = tripPlanningClient.getTripByIdAndUserId(tripId, creatorUserId);
-        TouristProfileDto creatorProfile = userServiceClient.getTouristProfileByEmail(creatorUserId);
+        TripDto creatorTrip = integrationService.getTripByIdAndUserId(tripId, creatorUserId);
+        TouristProfileDto creatorProfile = integrationService.getTouristProfileByEmail(creatorUserId);
 
         if (creatorTrip == null || creatorProfile == null) {
             throw new IllegalArgumentException("Invalid trip or user profile");
@@ -187,8 +184,8 @@ public class PoolingService {
         }
 
         // Get user's trip and profile
-        TripDto userTrip = tripPlanningClient.getTripByIdAndUserId(tripId, userId);
-        TouristProfileDto userProfile = userServiceClient.getTouristProfileByEmail(userId);
+        TripDto userTrip = integrationService.getTripByIdAndUserId(tripId, userId);
+        TouristProfileDto userProfile = integrationService.getTouristProfileByEmail(userId);
 
         if (userTrip == null || userProfile == null) {
             throw new IllegalArgumentException("Invalid trip or user profile");
