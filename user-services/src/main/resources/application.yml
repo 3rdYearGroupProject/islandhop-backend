@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: user-services
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://your-cloud-host:5432/islandhop}
+    username: ${DATABASE_USERNAME:your_username}
+    password: ${DATABASE_PASSWORD:your_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+  redis:
+    host: ${REDIS_HOST:your-redis-cloud-host}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:your_redis_password}
+
+server:
+  port: ${SERVER_PORT:8083}
+  servlet:
+    context-path: /api/v1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  file:
+    name: logs/user-services.log
+  level:
+    com.islandhop: INFO
+    org.springframework.web: DEBUG

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  review-service:
+    image: review-service:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://<YOUR_POSTGRES_HOST>:<YOUR_POSTGRES_PORT>/<YOUR_DATABASE_NAME>
+      - SPRING_DATASOURCE_USERNAME=<YOUR_DATABASE_USERNAME>
+      - SPRING_DATASOURCE_PASSWORD=<YOUR_DATABASE_PASSWORD>
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=dev
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_DB: <YOUR_DATABASE_NAME>
+      POSTGRES_USER: <YOUR_DATABASE_USERNAME>
+      POSTGRES_PASSWORD: <YOUR_DATABASE_PASSWORD>
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
