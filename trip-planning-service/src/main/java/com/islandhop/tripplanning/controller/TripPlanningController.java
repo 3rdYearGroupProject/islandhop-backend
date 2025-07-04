@@ -10,8 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.WebSession;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -32,12 +34,12 @@ public class TripPlanningController {
      */
     @PostMapping("/initiate")
     public ResponseEntity<?> initiateTrip(@Valid @RequestBody CreateTripRequest request, 
-                                         HttpSession session) {
+                                         WebSession session) {
         log.info("POST /trip/initiate called");
         
         try {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
-            Trip trip = tripPlanningService.createTrip(request, userId);
+            Trip trip = tripPlanningService.createTrip(request, userId).block();
             
             return ResponseEntity.ok(Map.of(
                 "message", "Trip created successfully",
@@ -61,12 +63,12 @@ public class TripPlanningController {
     @PostMapping("/{tripId}/add-place")
     public ResponseEntity<?> addPlaceToTrip(@PathVariable String tripId,
                                            @Valid @RequestBody AddPlaceRequest request,
-                                           HttpSession session) {
+                                           WebSession session) {
         log.info("POST /trip/{}/add-place called", tripId);
         
         try {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
-            Trip updatedTrip = tripPlanningService.addPlaceToTrip(tripId, request, userId);
+            Trip updatedTrip = tripPlanningService.addPlaceToTrip(tripId, request, userId).block();
             
             return ResponseEntity.ok(Map.of(
                 "message", "Place added successfully",
@@ -93,12 +95,12 @@ public class TripPlanningController {
     @GetMapping("/{tripId}/suggestions")
     public ResponseEntity<?> getSuggestions(@PathVariable String tripId,
                                           @RequestParam(required = false) Integer day,
-                                          HttpSession session) {
+                                          WebSession session) {
         log.info("GET /trip/{}/suggestions called for day {}", tripId, day);
         
         try {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
-            SuggestionsResponse suggestions = tripPlanningService.generateSuggestions(tripId, day, userId);
+            SuggestionsResponse suggestions = tripPlanningService.generateSuggestions(tripId, day, userId).block();
             
             return ResponseEntity.ok(suggestions);
         } catch (SecurityException e) {
@@ -117,12 +119,12 @@ public class TripPlanningController {
      */
     @PostMapping("/{tripId}/optimize-order")
     public ResponseEntity<?> optimizeOrder(@PathVariable String tripId,
-                                         HttpSession session) {
+                                         WebSession session) {
         log.info("POST /trip/{}/optimize-order called", tripId);
         
         try {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
-            Trip optimizedTrip = tripPlanningService.optimizeVisitingOrder(tripId, userId);
+            Trip optimizedTrip = tripPlanningService.optimizeVisitingOrder(tripId, userId).block();
             
             return ResponseEntity.ok(Map.of(
                 "message", "Trip order optimized successfully",
@@ -145,12 +147,12 @@ public class TripPlanningController {
     @GetMapping("/{tripId}/day/{day}")
     public ResponseEntity<?> getDayPlan(@PathVariable String tripId,
                                        @PathVariable Integer day,
-                                       HttpSession session) {
+                                       WebSession session) {
         log.info("GET /trip/{}/day/{} called", tripId, day);
         
         try {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
-            DayPlan dayPlan = tripPlanningService.getDayPlan(tripId, day, userId);
+            DayPlan dayPlan = tripPlanningService.getDayPlan(tripId, day, userId).block();
             
             return ResponseEntity.ok(dayPlan);
         } catch (SecurityException e) {
@@ -169,12 +171,12 @@ public class TripPlanningController {
      */
     @GetMapping("/{tripId}/summary")
     public ResponseEntity<?> getTripSummary(@PathVariable String tripId,
-                                          HttpSession session) {
+                                          WebSession session) {
         log.info("GET /trip/{}/summary called", tripId);
         
         try {
             String userId = sessionValidationService.validateSessionAndGetUserId(session);
-            Trip trip = tripPlanningService.getTripSummary(tripId, userId);
+            Trip trip = tripPlanningService.getTripSummary(tripId, userId).block();
             
             return ResponseEntity.ok(trip);
         } catch (SecurityException e) {
@@ -193,7 +195,7 @@ public class TripPlanningController {
      */
     @GetMapping("/{tripId}/map-data")
     public ResponseEntity<?> getMapData(@PathVariable String tripId,
-                                      HttpSession session) {
+                                      WebSession session) {
         log.info("GET /trip/{}/map-data called", tripId);
         
         try {
@@ -216,7 +218,7 @@ public class TripPlanningController {
      * Get user's trips
      */
     @GetMapping("/my-trips")
-    public ResponseEntity<?> getUserTrips(HttpSession session) {
+    public ResponseEntity<?> getUserTrips(WebSession session) {
         log.info("GET /trip/my-trips called");
         
         try {
@@ -244,7 +246,7 @@ public class TripPlanningController {
                                            @RequestParam(required = false) Double biasLat,
                                            @RequestParam(required = false) Double biasLng,
                                            @RequestParam(required = false, defaultValue = "10") Integer maxResults,
-                                           HttpSession session) {
+                                           WebSession session) {
         log.info("GET /trip/search-locations called with query: {}, city: {}", query, city);
         
         try {
@@ -278,7 +280,7 @@ public class TripPlanningController {
     public ResponseEntity<?> addPlaceToDay(@PathVariable String tripId,
                                           @PathVariable Integer dayNumber,
                                           @Valid @RequestBody AddPlaceToDayRequest request,
-                                          HttpSession session) {
+                                          WebSession session) {
         log.info("POST /trip/{}/day/{}/add-place called for: {}", tripId, dayNumber, request.getPlaceName());
         
         try {
@@ -315,7 +317,7 @@ public class TripPlanningController {
     public ResponseEntity<?> getContextualSuggestions(@PathVariable String tripId,
                                                      @PathVariable Integer dayNumber,
                                                      @RequestParam(required = false, defaultValue = "initial") String contextType,
-                                                     HttpSession session) {
+                                                     WebSession session) {
         log.info("GET /trip/{}/day/{}/contextual-suggestions called (context: {})", tripId, dayNumber, contextType);
         
         try {
@@ -350,7 +352,7 @@ public class TripPlanningController {
                                                  @RequestParam String placeId,
                                                  @RequestParam(required = false) String placeType,
                                                  @RequestParam(required = false, defaultValue = "10") Integer maxResults,
-                                                 HttpSession session) {
+                                                 WebSession session) {
         log.info("GET /trip/{}/nearby-suggestions called for place: {}", tripId, placeId);
         
         try {
@@ -382,7 +384,7 @@ public class TripPlanningController {
     @GetMapping("/{tripId}/day/{dayNumber}/plan")
     public ResponseEntity<?> getDayPlanWithSuggestions(@PathVariable String tripId,
                                        @PathVariable Integer dayNumber,
-                                       HttpSession session) {
+                                       WebSession session) {
         log.info("GET /trip/{}/day/{}/plan called", tripId, dayNumber);
         
         try {
@@ -412,7 +414,7 @@ public class TripPlanningController {
                                                    @PathVariable Integer dayNumber,
                                                    @RequestParam(required = false) String lastPlaceId,
                                                    @RequestParam(required = false) String category,
-                                                   HttpSession session) {
+                                                   WebSession session) {
         log.info("GET /trip/{}/day/{}/realtime-suggestions called (lastPlace: {}, category: {})", 
                 tripId, dayNumber, lastPlaceId, category);
         
@@ -452,7 +454,7 @@ public class TripPlanningController {
                                           @RequestParam String placeName,
                                           @RequestParam String placeType,
                                           @RequestParam(required = false) String insertAfterPlaceId,
-                                          HttpSession session) {
+                                          WebSession session) {
         log.info("POST /trip/{}/day/{}/quick-add called for place: {}", tripId, dayNumber, placeName);
         
         try {
@@ -501,7 +503,7 @@ public class TripPlanningController {
      * Get available place categories (Google-style)
      */
     @GetMapping("/place-categories")
-    public ResponseEntity<?> getPlaceCategories(HttpSession session) {
+    public ResponseEntity<?> getPlaceCategories(WebSession session) {
         log.info("GET /trip/place-categories called");
         
         try {
@@ -533,7 +535,7 @@ public class TripPlanningController {
     public ResponseEntity<?> getEnhancedTravelInfo(@PathVariable String tripId,
                                                   @RequestParam String fromPlaceId,
                                                   @RequestParam String toPlaceId,
-                                                  HttpSession session) {
+                                                  WebSession session) {
         log.info("GET /trip/{}/enhanced-travel-info called from {} to {}", tripId, fromPlaceId, toPlaceId);
         
         try {
@@ -576,7 +578,7 @@ public class TripPlanningController {
                                                      @RequestParam(required = false) Integer dayNumber,
                                                      @RequestParam(required = false) String lastPlaceId,
                                                      @RequestParam(required = false, defaultValue = "10") Integer maxResults,
-                                                     HttpSession session) {
+                                                     WebSession session) {
         log.info("GET /trip/{}/contextual-search called with query: {}", tripId, query);
         
         try {
@@ -605,7 +607,7 @@ public class TripPlanningController {
     public ResponseEntity<?> getTravelInfo(@PathVariable String tripId,
                                           @RequestParam String fromPlaceId,
                                           @RequestParam String toPlaceId,
-                                          HttpSession session) {
+                                          WebSession session) {
         log.info("GET /trip/{}/travel-info called from {} to {}", tripId, fromPlaceId, toPlaceId);
         
         try {
@@ -631,7 +633,7 @@ public class TripPlanningController {
      */
     @PostMapping("/validate-place")
     public ResponseEntity<?> validatePlace(@Valid @RequestBody AddPlaceRequest request,
-                                         HttpSession session) {
+                                         WebSession session) {
         log.info("POST /trip/validate-place called for: {}", request.getPlaceName());
         
         try {
@@ -664,7 +666,7 @@ public class TripPlanningController {
      */
     @GetMapping("/place-details/{placeId}")
     public ResponseEntity<?> getPlaceDetails(@PathVariable String placeId,
-                                           HttpSession session) {
+                                           WebSession session) {
         log.info("GET /trip/place-details/{} called", placeId);
         
         try {
@@ -701,5 +703,185 @@ public class TripPlanningController {
     public ResponseEntity<String> health() {
         log.info("GET /trip/health called");
         return ResponseEntity.ok("Trip Planning Service is running");
+    }
+
+    /**
+     * Create a basic trip with name and dates only
+     */
+    @PostMapping("/create-basic")
+    public ResponseEntity<?> createBasicTrip(@Valid @RequestBody CreateTripBasicRequest request,
+                                                   WebSession session) {
+        log.info("POST /trip/create-basic called for trip: {}", request.getTripName());
+
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            Trip trip = tripPlanningService.createBasicTrip(request, userId).block();
+            
+            return ResponseEntity.ok(Map.of(
+                    "message", "Basic trip created successfully",
+                    "tripId", trip.getTripId(),
+                    "trip", trip
+            ));
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/create-basic: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error creating basic trip: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Update trip preferences from frontend
+     */
+    @PostMapping("/{tripId}/preferences")
+    public ResponseEntity<?> updateTripPreferences(@PathVariable String tripId,
+                                                         @Valid @RequestBody UpdatePreferencesRequest request,
+                                                         WebSession session) {
+        log.info("POST /trip/{}/preferences called", tripId);
+
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            Trip trip = tripPlanningService.updateTripPreferences(tripId, userId, request).block();
+            
+            return ResponseEntity.ok(Map.of(
+                    "message", "Preferences updated successfully",
+                    "trip", trip
+            ));
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/preferences: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error updating preferences for trip {}: {}", tripId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Update cities for trip
+     */
+    @PostMapping("/{tripId}/cities")
+    public ResponseEntity<?> updateTripCities(@PathVariable String tripId,
+                                                    @Valid @RequestBody UpdateCitiesRequest request,
+                                                    WebSession session) {
+        log.info("POST /trip/{}/cities called", tripId);
+
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            Trip trip = tripPlanningService.updateTripCities(tripId, userId, request).block();
+            
+            return ResponseEntity.ok(Map.of(
+                    "message", "Cities updated successfully",
+                    "trip", trip
+            ));
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/cities: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error updating cities for trip {}: {}", tripId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Search activities/things to do for trip with user preferences and nearby recommendations
+     */
+    @GetMapping("/{tripId}/search/activities")
+    public ResponseEntity<?> searchActivities(@PathVariable String tripId,
+                                                    @RequestParam(required = false) String query,
+                                                    @RequestParam(required = false) String city,
+                                                    @RequestParam(required = false) String lastPlaceId,
+                                                    @RequestParam(defaultValue = "10") Integer maxResults,
+                                                    WebSession session) {
+        log.info("GET /trip/{}/search/activities called with query: {}", tripId, query);
+
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            var results = locationService.searchActivitiesForTrip(
+                    tripId, userId, query, city, lastPlaceId, maxResults).block();
+                    
+            return ResponseEntity.ok(Map.of(
+                    "message", "Activities found",
+                    "results", results
+            ));
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/search/activities: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error searching activities for trip {}: {}", tripId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Search accommodation for trip with user preferences and nearby recommendations
+     */
+    @GetMapping("/{tripId}/search/accommodation")
+    public ResponseEntity<?> searchAccommodation(@PathVariable String tripId,
+                                                       @RequestParam(required = false) String query,
+                                                       @RequestParam(required = false) String city,
+                                                       @RequestParam(required = false) String lastPlaceId,
+                                                       @RequestParam(defaultValue = "10") Integer maxResults,
+                                                       WebSession session) {
+        log.info("GET /trip/{}/search/accommodation called with query: {}", tripId, query);
+
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            var results = locationService.searchAccommodationForTrip(
+                    tripId, userId, query, city, lastPlaceId, maxResults).block();
+                    
+            return ResponseEntity.ok(Map.of(
+                    "message", "Accommodation found",
+                    "results", results
+            ));
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/search/accommodation: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error searching accommodation for trip {}: {}", tripId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Search dining options for trip with user preferences and nearby recommendations
+     */
+    @GetMapping("/{tripId}/search/dining")
+    public ResponseEntity<?> searchDining(@PathVariable String tripId,
+                                                @RequestParam(required = false) String query,
+                                                @RequestParam(required = false) String city,
+                                                @RequestParam(required = false) String lastPlaceId,
+                                                @RequestParam(defaultValue = "10") Integer maxResults,
+                                                WebSession session) {
+        log.info("GET /trip/{}/search/dining called with query: {}", tripId, query);
+
+        try {
+            String userId = sessionValidationService.validateSessionAndGetUserId(session);
+            var results = locationService.searchDiningForTrip(
+                    tripId, userId, query, city, lastPlaceId, maxResults).block();
+                    
+            return ResponseEntity.ok(Map.of(
+                    "message", "Dining options found",
+                    "results", results
+            ));
+        } catch (SecurityException e) {
+            log.warn("Unauthorized access to /trip/{}/search/dining: {}", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error searching dining for trip {}: {}", tripId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error", "message", e.getMessage()));
+        }
     }
 }

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import jakarta.servlet.http.HttpSession;
+import org.springframework.web.server.WebSession;
 import java.util.Map;
 
 @Service
@@ -26,11 +26,11 @@ public class SessionValidationService {
     /**
      * Validates session with user-services and returns userId
      */
-    public String validateSessionAndGetUserId(HttpSession session) {
+    public String validateSessionAndGetUserId(WebSession session) {
         try {
             // Extract session data
-            Boolean isAuthenticated = (Boolean) session.getAttribute("isAuthenticated");
-            String email = (String) session.getAttribute("userEmail");
+            Boolean isAuthenticated = session.getAttribute("isAuthenticated");
+            String email = session.getAttribute("userEmail");
             
             if (isAuthenticated == null || !isAuthenticated || email == null) {
                 throw new SecurityException("No valid session found");
@@ -70,9 +70,9 @@ public class SessionValidationService {
      * Alternative method for direct session validation without external call
      * Use this if you want to skip user-services validation during development
      */
-    public String validateLocalSession(HttpSession session) {
-        Boolean isAuthenticated = (Boolean) session.getAttribute("isAuthenticated");
-        String email = (String) session.getAttribute("userEmail");
+    public String validateLocalSession(WebSession session) {
+        Boolean isAuthenticated = session.getAttribute("isAuthenticated");
+        String email = session.getAttribute("userEmail");
         
         if (isAuthenticated != null && isAuthenticated && email != null) {
             return email; // Return email as userId

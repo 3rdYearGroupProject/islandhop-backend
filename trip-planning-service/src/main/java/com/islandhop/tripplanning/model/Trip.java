@@ -33,6 +33,12 @@ public class Trip {
     private List<String> categories; // Nature, Culture, Adventure, Leisure
     private ActivityPacing pacing; // RELAXED, NORMAL, ACTIVE
     
+    // New preference fields for frontend integration
+    private List<String> terrainPreferences; // beaches, mountains, forests, etc.
+    private List<String> activityPreferences; // surfing, hiking, photography, etc.
+    private List<String> plannedCities; // cities user wants to visit
+    private Map<String, Integer> cityDays; // city -> number of days
+    
     private List<PlannedPlace> places;
     private List<DayPlan> dayPlans;
     private TripStatistics statistics;
@@ -54,6 +60,6 @@ public class Trip {
     }
     
     public enum TripStatus {
-        PLANNING, ACTIVE, COMPLETED, CANCELLED
+        DRAFT, PLANNING, ACTIVE, COMPLETED, CANCELLED
     }
 }
