@@ -1,17 +1,109 @@
-# Frontend Integration Guide - Trip Planning System (Fully Updated)
+# Frontend Integration Guide - Trip Planning System (Fully Updated with UserId Support)
 
 ## Table of Contents
-1. [New Trip Planning Flow](#new-trip-planning-flow)
-2. [Complete API Endpoint Reference](#complete-api-endpoint-reference)
-3. [Request/Response Models](#request-response-models)
-4. [Frontend Architecture](#frontend-architecture)
-5. [UI Components Structure](#ui-components-structure)
-6. [API Service Layer](#api-service-layer)
-7. [State Management with Redux Toolkit](#state-management-with-redux-toolkit)
-8. [User Interface Examples](#user-interface-examples)
-9. [Category Management & Preference Mapping](#category-management--preference-mapping)
-10. [Error Handling & Validation](#error-handling--validation)
-11. [Testing Strategy](#testing-strategy)
+1. [User Authentication & UserId Pattern](#user-authentication--userid-pattern)
+2. [New Trip Planning Flow](#new-trip-planning-flow)
+3. [Complete API Endpoint Reference](#complete-api-endpoint-reference)
+4. [Request/Response Models](#request-response-models)
+5. [Frontend Architecture](#frontend-architecture)
+6. [UI Components Structure](#ui-components-structure)
+7. [API Service Layer](#api-service-layer)
+8. [State Management with Redux Toolkit](#state-management-with-redux-toolkit)
+9. [User Interface Examples](#user-interface-examples)
+10. [Category Management & Preference Mapping](#category-management--preference-mapping)
+11. [Error Handling & Validation](#error-handling--validation)
+12. [Testing Strategy](#testing-strategy)
+13. [Security & User Authorization](#security--user-authorization)
+14. [Microservice Architecture & User Identity](#microservice-architecture--user-identity)
+
+## User Authentication & UserId Pattern
+
+### 🔐 New UserId Integration Approach
+
+**Important Update:** All API endpoints now support receiving and returning `userId` for better microservice coordination and user experience optimization.
+
+#### How It Works
+
+1. **Frontend receives userId from user-services after login**
+2. **Frontend includes userId in request bodies (POST/PUT) or query parameters (GET)**
+3. **Backend validates session exists + uses provided userId for operations**
+4. **Backend returns userId in responses for consistency**
+
+#### Implementation Pattern
+
+```javascript
+// Frontend should maintain the userId after login
+const loginUser = async (credentials) => {
+  const response = await fetch('/api/user/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(credentials)
+  });
+  
+  const userData = await response.json();
+  
+  // Store userId in application state
+  return {
+    userId: userData.userId,     // ← Use this in subsequent calls
+    email: userData.email,
+    isAuthenticated: true
+  };
+};
+
+// Usage in trip planning calls
+const createTrip = async (tripData, userId) => {
+  const response = await fetch('/api/trip/create-basic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,              // ← Include userId in request body
+      tripName: tripData.name,
+      startDate: tripData.startDate,
+      endDate: tripData.endDate
+    })
+  });
+  
+  const result = await response.json();
+  
+  // Backend returns userId for consistency
+  console.log('Trip created for user:', result.userId);
+  return result;
+};
+```
+
+#### Benefits of this Approach
+
+1. **Reduced User-Service Calls** - Backend doesn't need to validate with user-services on every request
+2. **Better Frontend UX** - Frontend knows which user is performing actions
+3. **Microservice Efficiency** - Cleaner separation between services
+4. **Flexible Validation** - Can switch between lightweight and enhanced validation as needed
+
+#### Migration Guide for Existing Frontend Code
+
+**Before (session-only):**
+```javascript
+const response = await fetch('/api/trip/preferences', {
+  method: 'POST',
+  body: JSON.stringify({
+    terrainPreferences: ['mountains', 'beaches'],
+    activityPreferences: ['hiking', 'swimming']
+  })
+});
+```
+
+**After (with userId):**
+```javascript
+const response = await fetch('/api/trip/preferences', {
+  method: 'POST',
+  body: JSON.stringify({
+    userId: currentUser.userId,    // ← Add this field
+    terrainPreferences: ['mountains', 'beaches'],
+    activityPreferences: ['hiking', 'swimming']
+  })
+});
+```
 
 ## New Trip Planning Flow
 
@@ -179,8 +271,15 @@ Response: String "Trip Planning Service is running"
 POST /api/trip/create-basic
 Description: Create initial trip with minimal information
 Authentication: Session required
-Request Body: CreateTripBasicRequest
-Response: { message, tripId, trip }
+Request Body: CreateTripBasicRequest (includes userId)
+Response: { message, tripId, userId, trip }
+Example:
+{
+  "userId": "user123",
+  "tripName": "Sri Lanka Adventure",
+  "startDate": "2024-12-01",
+  "endDate": "2024-12-07"
+}
 ```
 
 #### 3. Legacy Trip Creation (Full)
@@ -188,8 +287,18 @@ Response: { message, tripId, trip }
 POST /api/trip/initiate
 Description: Create complete trip with all preferences
 Authentication: Session required  
-Request Body: CreateTripRequest
-Response: { message, tripId, trip }
+Request Body: CreateTripRequest (includes userId)
+Response: { message, tripId, userId, trip }
+Example:
+{
+  "userId": "user123",
+  "tripName": "Cultural Explorer",
+  "startDate": "2024-12-01",
+  "endDate": "2024-12-07",
+  "baseCity": "Colombo",
+  "categories": ["Culture", "Nature"],
+  "pacing": "MODERATE"
+}
 ```
 
 #### 4. Update Trip Preferences
@@ -197,8 +306,14 @@ Response: { message, tripId, trip }
 POST /api/trip/{tripId}/preferences
 Description: Update terrain and activity preferences
 Authentication: Session required
-Request Body: UpdatePreferencesRequest
-Response: { message, trip }
+Request Body: UpdatePreferencesRequest (includes userId)
+Response: { message, userId, trip }
+Example:
+{
+  "userId": "user123",
+  "terrainPreferences": ["mountains", "beaches"],
+  "activityPreferences": ["hiking", "swimming"]
+}
 ```
 
 #### 5. Update Trip Cities
@@ -206,6 +321,19 @@ Response: { message, trip }
 POST /api/trip/{tripId}/cities
 Description: Set cities and day allocation
 Authentication: Session required
+Request Body: UpdateCitiesRequest (includes userId)
+Response: { message, userId, trip }
+Example:
+{
+  "userId": "user123",
+  "cities": ["Colombo", "Kandy", "Galle"],
+  "cityDays": {
+    "Colombo": 2,
+    "Kandy": 3,
+    "Galle": 2
+  }
+}
+```
 Request Body: UpdateCitiesRequest
 Response: { message, trip }
 ```
@@ -222,7 +350,10 @@ Query Parameters:
   - city (optional): Filter by city
   - lastPlaceId (optional): For proximity recommendations
   - maxResults (optional, default=10): Result limit
-Response: { message, results }
+  - userId (optional): User identifier for optimized validation
+Response: { message, results, userId }
+Example:
+GET /api/trip/trip123/search/activities?query=hiking&city=Kandy&userId=user123
 ```
 
 #### 7. Search Accommodation
@@ -230,8 +361,15 @@ Response: { message, results }
 GET /api/trip/{tripId}/search/accommodation
 Description: Find hotels/lodging based on preferences
 Authentication: Session required
-Query Parameters: Same as activities
-Response: { message, results }
+Query Parameters:
+  - query (optional): Text search
+  - city (optional): Filter by city
+  - lastPlaceId (optional): For proximity recommendations  
+  - maxResults (optional, default=10): Result limit
+  - userId (optional): User identifier for optimized validation
+Response: { message, results, userId }
+Example:
+GET /api/trip/trip123/search/accommodation?city=Galle&userId=user123
 ```
 
 #### 8. Search Dining
@@ -239,8 +377,15 @@ Response: { message, results }
 GET /api/trip/{tripId}/search/dining
 Description: Find restaurants based on preferences
 Authentication: Session required
-Query Parameters: Same as activities
-Response: { message, results }
+Query Parameters:
+  - query (optional): Text search
+  - city (optional): Filter by city
+  - lastPlaceId (optional): For proximity recommendations
+  - maxResults (optional, default=10): Result limit
+  - userId (optional): User identifier for optimized validation
+Response: { message, results, userId }
+Example:
+GET /api/trip/trip123/search/dining?query=seafood&city=Galle&userId=user123
 ```
 
 ### 📍 Location & Planning Endpoints
@@ -263,32 +408,62 @@ Response: { results }
 POST /api/trip/{tripId}/add-place
 Description: Add a specific place to trip itinerary
 Authentication: Session required
-Request Body: AddPlaceRequest
-Response: { message, trip }
+Request Body: AddPlaceRequest (includes userId)
+Response: { message, userId, trip }
+Example:
+{
+  "userId": "user123",
+  "placeName": "Temple of the Sacred Tooth Relic",
+  "city": "Kandy",
+  "description": "Historical Buddhist temple",
+  "latitude": 7.2930,
+  "longitude": 80.6346,
+  "preferredDay": 2
+}
 ```
 
-#### 11. Generate/Optimize Itinerary
+#### 11. Add Place to Specific Day
+```
+POST /api/trip/{tripId}/day/{dayNumber}/add-place
+Description: Add place to a specific day with detailed context
+Authentication: Session required
+Request Body: AddPlaceToDayRequest (includes userId)
+Response: { message, tripId, dayNumber, placeName, userId, trip }
+Example:
+{
+  "userId": "user123",
+  "placeName": "Sigiriya Rock Fortress",
+  "city": "Dambulla",
+  "dayNumber": 3,
+  "placeType": "ATTRACTION",
+  "estimatedVisitDurationMinutes": 180,
+  "preferredTimeSlot": "morning",
+  "priority": 8
+}
+```
+
+#### 12. Generate/Optimize Itinerary
 ```
 POST /api/trip/{tripId}/generate-itinerary
 Description: Create optimized day-by-day itinerary
 Authentication: Session required
-Response: { message, trip }
+Response: { message, userId, trip }
 ```
 
-#### 12. Get Trip Details
+#### 13. Get Trip Details
 ```
 GET /api/trip/{tripId}
 Description: Retrieve complete trip information
 Authentication: Session required
-Response: { trip }
+Response: { trip, userId, tripId }
 ```
 
-#### 13. Get User's Trips
+#### 14. Get User's Trips
 ```
 GET /api/trip/my-trips
 Description: List all trips for authenticated user
 Authentication: Session required
-Response: { trips }
+Response: { trips, userId, count }
 ```
 
 #### 14. Get Trip Map Data
@@ -301,11 +476,12 @@ Response: Map data object with coordinates and routes
 
 ## Request/Response Models
 
-### 📝 Request DTOs
+### 📝 Request DTOs (Updated with UserId Support)
 
 #### CreateTripBasicRequest
 ```typescript
 interface CreateTripBasicRequest {
+  userId: string;       // User identifier (required)
   tripName: string;     // User-friendly trip name
   startDate: string;    // ISO date format "YYYY-MM-DD"
   endDate: string;      // ISO date format "YYYY-MM-DD"
@@ -315,22 +491,57 @@ interface CreateTripBasicRequest {
 #### UpdatePreferencesRequest
 ```typescript
 interface UpdatePreferencesRequest {
-  terrainPreferences: string[];   // ["beach", "mountain", "urban", "rural"]
-  activityPreferences: string[];  // ["adventure", "culture", "nightlife", "nature", "food", "shopping"]
+  userId: string;                     // User identifier (required)
+  terrainPreferences: string[];       // ["beach", "mountain", "urban", "rural"]
+  activityPreferences: string[];      // ["adventure", "culture", "nightlife", "nature", "food", "shopping"]
 }
 ```
 
 #### UpdateCitiesRequest
 ```typescript
 interface UpdateCitiesRequest {
+  userId: string;                      // User identifier (required)
   cities: string[];                    // ["Colombo", "Kandy", "Galle"]
   cityDays: Record<string, number>;    // {"Colombo": 2, "Kandy": 2, "Galle": 3}
+}
+```
+
+#### AddPlaceRequest
+```typescript
+interface AddPlaceRequest {
+  userId: string;          // User identifier (required)
+  placeName: string;       // Name of the place
+  city?: string;           // City location
+  description?: string;    // Optional description
+  latitude?: number;       // GPS coordinates
+  longitude?: number;      // GPS coordinates
+  preferredDay?: number;   // Which day to visit (optional)
+}
+```
+
+#### AddPlaceToDayRequest
+```typescript
+interface AddPlaceToDayRequest {
+  userId: string;                           // User identifier (required)
+  placeName: string;                        // Name of the place
+  city?: string;                            // City location
+  description?: string;                     // Optional description
+  latitude?: number;                        // GPS coordinates
+  longitude?: number;                       // GPS coordinates
+  dayNumber: number;                        // Specific day number
+  placeType: 'HOTEL' | 'ATTRACTION' | 'RESTAURANT' | 'ACTIVITY'; // Place category
+  estimatedVisitDurationMinutes?: number;   // How long to spend here
+  preferredTimeSlot?: 'morning' | 'afternoon' | 'evening'; // Time preference
+  previousPlaceId?: string;                 // For contextual ordering
+  isAccommodation?: boolean;                // Is this where they're staying
+  priority?: number;                        // Importance level 1-10
 }
 ```
 
 #### CreateTripRequest (Legacy - Full Creation)
 ```typescript
 interface CreateTripRequest {
+  userId: string;          // User identifier (required)
   tripName: string;
   duration: number;                    // Days
   budget: number;                      // Budget in currency
@@ -343,15 +554,27 @@ interface CreateTripRequest {
 }
 ```
 
-### 📤 Response Models
+### 📤 Response Models (Updated with UserId)
 
 #### Standard Success Response
 ```typescript
 interface ApiResponse<T> {
   message: string;      // Success message
+  userId: string;       // User identifier (always included)
   tripId?: string;      // Trip identifier (when applicable)
   trip?: Trip;          // Trip object (when applicable)  
   results?: T[];        // Search results (for search endpoints)
+  count?: number;       // Number of results (for list endpoints)
+}
+```
+
+#### Search Response
+```typescript
+interface SearchResponse<T> {
+  message: string;      // Search result message
+  userId: string;       // User identifier
+  results: T[];         // Array of search results
+  tripId?: string;      // Trip context (when applicable)
 }
 ```
 
@@ -416,1496 +639,841 @@ interface ErrorResponse {
 }
 ```
 
-// Similar functions for accommodation and dining
-const searchAccommodation = async (tripId, searchParams) => { /* ... */ };
-const searchDining = async (tripId, searchParams) => { /* ... */ };
-```
+## Complete JavaScript API Integration Guide
 
-## API Endpoint Integration
+### 🚀 All Endpoints with UserId Support - Ready-to-Use JavaScript Functions
 
-### Base Configuration
+#### Core Trip Management Functions
+
 ```javascript
-// config/api.js
-const API_BASE_URL = 'http://localhost:8083'; // Updated port
-const TRIP_API_BASE = `${API_BASE_URL}/api/trip`;
+// ===== TRIP CREATION =====
 
-export const API_ENDPOINTS = {
-  // === NEW TRIP FLOW ENDPOINTS ===
+/**
+ * Create a basic trip (NEW RECOMMENDED APPROACH)
+ */
+const createBasicTrip = async (tripData, userId) => {
+  const response = await fetch('/api/trip/create-basic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,
+      tripName: tripData.name,
+      startDate: tripData.startDate,
+      endDate: tripData.endDate
+    })
+  });
   
-  // Basic Trip Management
-  CREATE_BASIC_TRIP: `${TRIP_API_BASE}/create-basic`,
-  UPDATE_PREFERENCES: (tripId) => `${TRIP_API_BASE}/${tripId}/preferences`,
-  UPDATE_CITIES: (tripId) => `${TRIP_API_BASE}/${tripId}/cities`,
+  if (!response.ok) {
+    throw new Error(`Failed to create trip: ${response.status}`);
+  }
   
-  // Search Endpoints (NEW)
-  SEARCH_ACTIVITIES: (tripId) => `${TRIP_API_BASE}/${tripId}/search/activities`,
-  SEARCH_ACCOMMODATION: (tripId) => `${TRIP_API_BASE}/${tripId}/search/accommodation`,
-  SEARCH_DINING: (tripId) => `${TRIP_API_BASE}/${tripId}/search/dining`,
+  return await response.json();
+};
+
+/**
+ * Create a full trip (LEGACY APPROACH - Still Supported)
+ */
+const createFullTrip = async (tripData, userId) => {
+  const response = await fetch('/api/trip/initiate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,
+      tripName: tripData.name,
+      startDate: tripData.startDate,
+      endDate: tripData.endDate,
+      baseCity: tripData.baseCity,
+      categories: tripData.categories,
+      pacing: tripData.pacing,
+      arrivalTime: tripData.arrivalTime,
+      multiCity: tripData.multiCity || false
+    })
+  });
   
-  // === EXISTING ENDPOINTS ===
+  if (!response.ok) {
+    throw new Error(`Failed to create full trip: ${response.status}`);
+  }
   
-  // Legacy Trip Management
-  CREATE_TRIP: `${TRIP_API_BASE}/initiate`,
-  GET_MY_TRIPS: `${TRIP_API_BASE}/my-trips`,
-  GET_TRIP_SUMMARY: (tripId) => `${TRIP_API_BASE}/${tripId}/summary`,
+  return await response.json();
+};
+
+// ===== TRIP PREFERENCES =====
+
+/**
+ * Update trip preferences
+ */
+const updateTripPreferences = async (tripId, preferences, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/preferences`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,
+      terrainPreferences: preferences.terrain,
+      activityPreferences: preferences.activity
+    })
+  });
   
-  // Location & Search
-  SEARCH_LOCATIONS: `${TRIP_API_BASE}/search-locations`,
-  ADD_PLACE: (tripId) => `${TRIP_API_BASE}/${tripId}/add-place`,
-  ADD_PLACE_TO_DAY: (tripId, day) => `${TRIP_API_BASE}/${tripId}/day/${day}/add-place`,
+  if (!response.ok) {
+    throw new Error(`Failed to update preferences: ${response.status}`);
+  }
   
-  // AI Features
-  GET_SUGGESTIONS: (tripId) => `${TRIP_API_BASE}/${tripId}/suggestions`,
-  GET_CONTEXTUAL_SUGGESTIONS: (tripId, day) => `${TRIP_API_BASE}/${tripId}/day/${day}/contextual-suggestions`,
-  GET_NEARBY_SUGGESTIONS: (tripId) => `${TRIP_API_BASE}/${tripId}/nearby-suggestions`,
+  return await response.json();
+};
+
+/**
+ * Update trip cities and day allocation
+ */
+const updateTripCities = async (tripId, cityData, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/cities`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,
+      cities: cityData.cities,
+      cityDays: cityData.cityDays
+    })
+  });
   
-  // Day Planning
-  GET_DAY_PLAN: (tripId, day) => `${TRIP_API_BASE}/${tripId}/day/${day}`,
-  OPTIMIZE_ORDER: (tripId) => `${TRIP_API_BASE}/${tripId}/optimize-order`,
+  if (!response.ok) {
+    throw new Error(`Failed to update cities: ${response.status}`);
+  }
   
-  // Map & Data
-  GET_MAP_DATA: (tripId) => `${TRIP_API_BASE}/${tripId}/map-data`,
+  return await response.json();
+};
+
+// ===== PLACE MANAGEMENT =====
+
+/**
+ * Add place to trip (general)
+ */
+const addPlaceToTrip = async (tripId, placeData, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/add-place`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,
+      placeName: placeData.name,
+      city: placeData.city,
+      description: placeData.description,
+      latitude: placeData.latitude,
+      longitude: placeData.longitude,
+      preferredDay: placeData.preferredDay
+    })
+  });
   
-  // Utility
-  HEALTH_CHECK: `${TRIP_API_BASE}/health`
+  if (!response.ok) {
+    throw new Error(`Failed to add place: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Add place to specific day (enhanced)
+ */
+const addPlaceToDay = async (tripId, dayNumber, placeData, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/day/${dayNumber}/add-place`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,
+      placeName: placeData.name,
+      city: placeData.city,
+      description: placeData.description,
+      latitude: placeData.latitude,
+      longitude: placeData.longitude,
+      dayNumber: dayNumber,
+      placeType: placeData.type, // "HOTEL", "ATTRACTION", "RESTAURANT", "ACTIVITY"
+      estimatedVisitDurationMinutes: placeData.duration,
+      preferredTimeSlot: placeData.timeSlot, // "morning", "afternoon", "evening"
+      previousPlaceId: placeData.previousPlaceId,
+      isAccommodation: placeData.isAccommodation || false,
+      priority: placeData.priority || 5
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to add place to day: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Quick add place (inline without navigation)
+ */
+const quickAddPlace = async (tripId, dayNumber, placeData) => {
+  const params = new URLSearchParams({
+    placeId: placeData.id,
+    placeName: placeData.name,
+    placeType: placeData.type,
+    insertAfterPlaceId: placeData.insertAfter || ''
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/day/${dayNumber}/quick-add?${params}`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to quick add place: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+// ===== SEARCH FUNCTIONS =====
+
+/**
+ * Search activities with user preferences
+ */
+const searchActivities = async (tripId, searchParams, userId = null) => {
+  const params = new URLSearchParams({
+    query: searchParams.query || '',
+    city: searchParams.city || '',
+    lastPlaceId: searchParams.lastPlaceId || '',
+    maxResults: searchParams.maxResults || 10,
+    ...(userId && { userId: userId })
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/search/activities?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search activities: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Search accommodation with preferences
+ */
+const searchAccommodation = async (tripId, searchParams, userId = null) => {
+  const params = new URLSearchParams({
+    query: searchParams.query || '',
+    city: searchParams.city || '',
+    lastPlaceId: searchParams.lastPlaceId || '',
+    maxResults: searchParams.maxResults || 10,
+    ...(userId && { userId: userId })
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/search/accommodation?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search accommodation: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Search dining options with preferences
+ */
+const searchDining = async (tripId, searchParams, userId = null) => {
+  const params = new URLSearchParams({
+    query: searchParams.query || '',
+    city: searchParams.city || '',
+    lastPlaceId: searchParams.lastPlaceId || '',
+    maxResults: searchParams.maxResults || 10,
+    ...(userId && { userId: userId })
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/search/dining?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search dining: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * General location search
+ */
+const searchLocations = async (searchParams) => {
+  const params = new URLSearchParams({
+    query: searchParams.query,
+    city: searchParams.city || '',
+    biasLat: searchParams.biasLat || '',
+    biasLng: searchParams.biasLng || '',
+    maxResults: searchParams.maxResults || 10
+  });
+  
+  const response = await fetch(`/api/trip/search-locations?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search locations: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Contextual location search (trip-aware)
+ */
+const contextualLocationSearch = async (tripId, searchParams) => {
+  const params = new URLSearchParams({
+    query: searchParams.query,
+    placeType: searchParams.placeType || '',
+    dayNumber: searchParams.dayNumber || '',
+    lastPlaceId: searchParams.lastPlaceId || '',
+    maxResults: searchParams.maxResults || 10
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/contextual-search?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search contextually: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+// ===== TRIP INFORMATION =====
+
+/**
+ * Get user's trips
+ */
+const getUserTrips = async () => {
+  const response = await fetch('/api/trip/my-trips', {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get trips: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get trip summary
+ */
+const getTripSummary = async (tripId) => {
+  const response = await fetch(`/api/trip/${tripId}/summary`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get trip summary: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get day plan
+ */
+const getDayPlan = async (tripId, day) => {
+  const response = await fetch(`/api/trip/${tripId}/day/${day}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get day plan: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get day plan with suggestions (TripAdvisor style)
+ */
+const getDayPlanWithSuggestions = async (tripId, dayNumber) => {
+  const response = await fetch(`/api/trip/${tripId}/day/${dayNumber}/plan`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get day plan with suggestions: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get map data for trip
+ */
+const getMapData = async (tripId) => {
+  const response = await fetch(`/api/trip/${tripId}/map-data`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get map data: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+// ===== SUGGESTIONS =====
+
+/**
+ * Get AI-powered suggestions
+ */
+const getSuggestions = async (tripId, day = null) => {
+  const params = new URLSearchParams({
+    ...(day && { day: day })
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/suggestions?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get suggestions: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get contextual suggestions for a day
+ */
+const getContextualSuggestions = async (tripId, dayNumber, contextType = 'initial') => {
+  const params = new URLSearchParams({
+    contextType: contextType
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/day/${dayNumber}/contextual-suggestions?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get contextual suggestions: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get real-time suggestions
+ */
+const getRealtimeSuggestions = async (tripId, dayNumber, options = {}) => {
+  const params = new URLSearchParams({
+    lastPlaceId: options.lastPlaceId || '',
+    category: options.category || ''
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/day/${dayNumber}/realtime-suggestions?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get realtime suggestions: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get nearby suggestions
+ */
+const getNearbySuggestions = async (tripId, placeId, options = {}) => {
+  const params = new URLSearchParams({
+    placeId: placeId,
+    placeType: options.placeType || '',
+    maxResults: options.maxResults || 10
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/nearby-suggestions?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get nearby suggestions: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+// ===== OPTIMIZATION =====
+
+/**
+ * Optimize trip order
+ */
+const optimizeOrder = async (tripId) => {
+  const response = await fetch(`/api/trip/${tripId}/optimize-order`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to optimize order: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+// ===== PLACE INFORMATION =====
+
+/**
+ * Get place details
+ */
+const getPlaceDetails = async (placeId) => {
+  const response = await fetch(`/api/trip/place-details/${placeId}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get place details: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Validate place information
+ */
+const validatePlace = async (placeData, userId) => {
+  const response = await fetch('/api/trip/validate-place', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      userId: userId,
+      placeName: placeData.name,
+      city: placeData.city,
+      description: placeData.description,
+      latitude: placeData.latitude,
+      longitude: placeData.longitude
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to validate place: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get place categories
+ */
+const getPlaceCategories = async () => {
+  const response = await fetch('/api/trip/place-categories', {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get place categories: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+// ===== TRAVEL INFORMATION =====
+
+/**
+ * Get travel information between places
+ */
+const getTravelInfo = async (tripId, fromPlaceId, toPlaceId) => {
+  const params = new URLSearchParams({
+    fromPlaceId: fromPlaceId,
+    toPlaceId: toPlaceId
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/travel-info?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get travel info: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+/**
+ * Get enhanced travel information
+ */
+const getEnhancedTravelInfo = async (tripId, fromPlaceId, toPlaceId) => {
+  const params = new URLSearchParams({
+    fromPlaceId: fromPlaceId,
+    toPlaceId: toPlaceId
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/enhanced-travel-info?${params}`, {
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get enhanced travel info: ${response.status}`);
+  }
+  
+  return await response.json();
+};
+
+// ===== UTILITY FUNCTIONS =====
+
+/**
+ * Health check
+ */
+const healthCheck = async () => {
+  const response = await fetch('/api/trip/health');
+  return await response.text();
+};
+
+/**
+ * Complete API service class for easy integration
+ */
+class TripPlanningAPI {
+  constructor(baseUrl = '/api/trip') {
+    this.baseUrl = baseUrl;
+  }
+  
+  // Helper method for making requests
+  async request(endpoint, options = {}) {
+    const url = `${this.baseUrl}${endpoint}`;
+    const defaultOptions = {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    };
+    
+    const response = await fetch(url, { ...defaultOptions, ...options });
+    
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  }
+  
+  // Trip management methods
+  async createBasicTrip(tripData, userId) {
+    return this.request('/create-basic', {
+      method: 'POST',
+      body: JSON.stringify({ userId, ...tripData })
+    });
+  }
+  
+  async updatePreferences(tripId, preferences, userId) {
+    return this.request(`/${tripId}/preferences`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, ...preferences })
+    });
+  }
+  
+  async updateCities(tripId, cityData, userId) {
+    return this.request(`/${tripId}/cities`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, ...cityData })
+    });
+  }
+  
+  async searchActivities(tripId, searchParams, userId = null) {
+    const params = new URLSearchParams({
+      ...searchParams,
+      ...(userId && { userId })
+    });
+    return this.request(`/${tripId}/search/activities?${params}`);
+  }
+  
+  async searchAccommodation(tripId, searchParams, userId = null) {
+    const params = new URLSearchParams({
+      ...searchParams,
+      ...(userId && { userId })
+    });
+    return this.request(`/${tripId}/search/accommodation?${params}`);
+  }
+  
+  async searchDining(tripId, searchParams, userId = null) {
+    const params = new URLSearchParams({
+      ...searchParams,
+      ...(userId && { userId })
+    });
+    return this.request(`/${tripId}/search/dining?${params}`);
+  }
+  
+  // Add more methods as needed...
+}
+
+// Export for ES6 modules
+export {
+  createBasicTrip,
+  createFullTrip,
+  updateTripPreferences,
+  updateTripCities,
+  addPlaceToTrip,
+  addPlaceToDay,
+  quickAddPlace,
+  searchActivities,
+  searchAccommodation,
+  searchDining,
+  searchLocations,
+  contextualLocationSearch,
+  getUserTrips,
+  getTripSummary,
+  getDayPlan,
+  getDayPlanWithSuggestions,
+  getMapData,
+  getSuggestions,
+  getContextualSuggestions,
+  getRealtimeSuggestions,
+  getNearbySuggestions,
+  optimizeOrder,
+  getPlaceDetails,
+  validatePlace,
+  getPlaceCategories,
+  getTravelInfo,
+  getEnhancedTravelInfo,
+  healthCheck,
+  TripPlanningAPI
 };
 ```
 
-### Request/Response Data Models
+### 🔧 React Integration Examples
 
-#### CreateTripBasicRequest
-```typescript
-interface CreateTripBasicRequest {
-  tripName: string;      // "Sri Lanka Adventure"
-  startDate: string;     // "2024-12-01" (ISO date format)
-  endDate: string;       // "2024-12-07" (ISO date format)
-}
-```
-
-#### UpdatePreferencesRequest
-```typescript
-interface UpdatePreferencesRequest {
-  terrainPreferences: string[];    // ["beach", "mountain", "urban", "forest"]
-  activityPreferences: string[];   // ["adventure", "culture", "nightlife", "nature", "wellness", "shopping"]
-}
-
-// Available preference values:
-const TERRAIN_OPTIONS = [
-  "beach", "mountain", "urban", "forest", "countryside", "lakeside", "desert", "volcanic"
-];
-
-const ACTIVITY_OPTIONS = [
-  "adventure", "culture", "nightlife", "nature", "wellness", "shopping", 
-  "sports", "photography", "food", "history", "wildlife", "relaxation"
-];
-```
-
-#### UpdateCitiesRequest
-```typescript
-interface UpdateCitiesRequest {
-  cities: string[];                    // ["Colombo", "Kandy", "Galle"]
-  cityDays: Record<string, number>;    // {"Colombo": 2, "Kandy": 2, "Galle": 3}
-}
-```
-
-#### Search Response Model
-```typescript
-interface SearchResult {
-  placeId: string;
-  name: string;
-  formattedAddress: string;
-  latitude: number;
-  longitude: number;
-  rating?: number;
-  types: string[];
-  source: string;           // "tripadvisor", "google", "local"
-  distanceFromBias?: number; // Distance from last selected place (km)
-}
-
-interface SearchResponse {
-  message: string;
-  results: SearchResult[];
-}
-```
-  "framework": "React.js / Vue.js / Next.js",
-  "stateManagement": "Redux Toolkit / Zustand / Pinia",
-  "styling": "Tailwind CSS / Material-UI / Ant Design",
-  "maps": "Google Maps API / Leaflet",
-  "http": "Axios / Fetch API",
-  "forms": "Formik / React Hook Form",
-  "datePicker": "react-datepicker / vuetify-datepicker",
-  "notifications": "react-toastify / vue-toastification"
-}
-```
-
-### Project Structure
-```
-src/
-├── components/
-│   ├── TripCreation/
-│   │   ├── TripWizard.jsx
-│   │   ├── CitySelector.jsx
-│   │   ├── CategorySelector.jsx
-│   │   └── DateRangePicker.jsx
-│   ├── TripPlanning/
-│   │   ├── TripDashboard.jsx
-│   │   ├── LocationSearch.jsx
-│   │   ├── PlaceCard.jsx
-│   │   └── SuggestionPanel.jsx
-│   ├── DayPlanning/
-│   │   ├── DayPlanView.jsx
-│   │   ├── TimelineView.jsx
-│   │   └── PlaceTimeline.jsx
-│   ├── Maps/
-│   │   ├── TripMap.jsx
-│   │   └── RouteVisualization.jsx
-│   └── Common/
-│       ├── LoadingSpinner.jsx
-│       ├── ErrorBoundary.jsx
-│       └── CategoryChip.jsx
-├── services/
-│   ├── tripService.js
-│   ├── locationService.js
-│   └── apiClient.js
-├── store/
-│   ├── tripSlice.js
-│   ├── locationSlice.js
-│   └── store.js
-├── pages/
-│   ├── TripCreation.jsx
-│   ├── TripPlanning.jsx
-│   ├── DayPlanning.jsx
-│   └── TripSummary.jsx
-└── utils/
-    ├── dateHelpers.js
-    ├── categoryHelpers.js
-    └── mapHelpers.js
-```
-
-## API Service Layer
-
-### Trip Service Implementation
-```javascript
-// services/tripService.js
-import axios from 'axios';
-import { API_ENDPOINTS } from '../config/api';
-
-class TripService {
-  constructor() {
-    this.api = axios.create({
-      baseURL: API_ENDPOINTS.base,
-      withCredentials: true, // Important for session handling
-      timeout: 30000
-    });
-    
-    // Request interceptor for loading states
-    this.api.interceptors.request.use(
-      (config) => {
-        // Show loading spinner
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-    
-    // Response interceptor for error handling
-    this.api.interceptors.response.use(
-      (response) => response.data,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Redirect to login
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
-    );
-  }
-
-  // Trip Creation
-  async createTrip(tripData) {
-    try {
-      const response = await this.api.post(API_ENDPOINTS.CREATE_TRIP, {
-        tripName: tripData.tripName,
-        startDate: tripData.startDate,
-        endDate: tripData.endDate,
-        arrivalTime: tripData.arrivalTime,
-        baseCity: tripData.baseCity,
-        multiCity: tripData.multiCity,
-        categories: tripData.categories,
-        pacing: tripData.pacing
-      });
-      return response;
-    } catch (error) {
-      throw new Error(`Failed to create trip: ${error.message}`);
-    }
-  }
-
-  // Location Search
-  async searchLocations(query, city = null, biasLocation = null, maxResults = 10) {
-    try {
-      const params = {
-        query,
-        maxResults,
-        ...(city && { city }),
-        ...(biasLocation && { 
-          biasLat: biasLocation.lat, 
-          biasLng: biasLocation.lng 
-        })
-      };
-      
-      const response = await this.api.get(API_ENDPOINTS.SEARCH_LOCATIONS, { params });
-      return response.results;
-    } catch (error) {
-      throw new Error(`Failed to search locations: ${error.message}`);
-    }
-  }
-
-  // Add Place to Trip
-  async addPlaceToTrip(tripId, placeData) {
-    try {
-      const response = await this.api.post(API_ENDPOINTS.ADD_PLACE(tripId), {
-        placeName: placeData.name,
-        address: placeData.address,
-        latitude: placeData.latitude,
-        longitude: placeData.longitude,
-        category: placeData.category,
-        placeId: placeData.placeId,
-        estimatedDuration: placeData.estimatedDuration || "2 hours"
-      });
-      return response;
-    } catch (error) {
-      throw new Error(`Failed to add place: ${error.message}`);
-    }
-  }
-
-  // Get AI Suggestions
-  async getSuggestions(tripId, day = null) {
-    try {
-      const params = day ? { day } : {};
-      const response = await this.api.get(API_ENDPOINTS.GET_SUGGESTIONS(tripId), { params });
-      return response;
-    } catch (error) {
-      throw new Error(`Failed to get suggestions: ${error.message}`);
-    }
-  }
-
-  // Get Day Plan
-  async getDayPlan(tripId, day) {
-    try {
-      const response = await this.api.get(API_ENDPOINTS.GET_DAY_PLAN(tripId, day));
-      return response;
-    } catch (error) {
-      throw new Error(`Failed to get day plan: ${error.message}`);
-    }
-  }
-
-  // Optimize Trip Order
-  async optimizeTripOrder(tripId) {
-    try {
-      const response = await this.api.post(API_ENDPOINTS.OPTIMIZE_ORDER(tripId));
-      return response;
-    } catch (error) {
-      throw new Error(`Failed to optimize trip: ${error.message}`);
-    }
-  }
-
-  // Get Trip Summary
-  async getTripSummary(tripId) {
-    try {
-      const response = await this.api.get(API_ENDPOINTS.GET_TRIP_SUMMARY(tripId));
-      return response;
-    } catch (error) {
-      throw new Error(`Failed to get trip summary: ${error.message}`);
-    }
-  }
-
-  // Get User's Trips
-  async getMyTrips() {
-    try {
-      const response = await this.api.get(API_ENDPOINTS.GET_MY_TRIPS);
-      return response.trips;
-    } catch (error) {
-      throw new Error(`Failed to get trips: ${error.message}`);
-    }
-  }
-}
-
-export default new TripService();
-```
-
-## Frontend Architecture
-
-### Technology Stack Recommendation
-```json
-{
-  "framework": "React 18+ with TypeScript",
-  "stateManagement": "Redux Toolkit + RTK Query",
-  "routing": "React Router v6",
-  "styling": "Tailwind CSS + Headless UI",
-  "forms": "React Hook Form + Zod validation",
-  "dateHandling": "date-fns",
-  "mapping": "Leaflet or Google Maps API",
-  "icons": "Heroicons or Lucide React"
-}
-```
-
-### Modern Trip Planning Service Integration
-
-```typescript
-// services/tripPlanningService.ts
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-
-export const tripPlanningApi = createApi({
-  reducerPath: 'tripPlanningApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: '/api/trip',
-    credentials: 'include',
-    prepareHeaders: (headers) => {
-      headers.set('Content-Type', 'application/json');
-      return headers;
-    },
-  }),
-  tagTypes: ['Trip', 'SearchResults'],
-  endpoints: (builder) => ({
-    // === NEW TRIP FLOW ===
-    createBasicTrip: builder.mutation<TripResponse, CreateTripBasicRequest>({
-      query: (tripData) => ({
-        url: '/create-basic',
-        method: 'POST',
-        body: tripData,
-      }),
-      invalidatesTags: ['Trip'],
-    }),
-    
-    updateTripPreferences: builder.mutation<TripResponse, { tripId: string; preferences: UpdatePreferencesRequest }>({
-      query: ({ tripId, preferences }) => ({
-        url: `/${tripId}/preferences`,
-        method: 'POST',
-        body: preferences,
-      }),
-      invalidatesTags: (result, error, { tripId }) => [{ type: 'Trip', id: tripId }],
-    }),
-    
-    updateTripCities: builder.mutation<TripResponse, { tripId: string; cities: UpdateCitiesRequest }>({
-      query: ({ tripId, cities }) => ({
-        url: `/${tripId}/cities`,
-        method: 'POST',
-        body: cities,
-      }),
-      invalidatesTags: (result, error, { tripId }) => [{ type: 'Trip', id: tripId }],
-    }),
-    
-    // === SEARCH ENDPOINTS ===
-    searchActivities: builder.query<SearchResponse, SearchActivitiesParams>({
-      query: ({ tripId, ...params }) => ({
-        url: `/${tripId}/search/activities`,
-        params: params,
-      }),
-      providesTags: (result, error, { tripId }) => [{ type: 'SearchResults', id: `activities-${tripId}` }],
-    }),
-    
-    searchAccommodation: builder.query<SearchResponse, SearchAccommodationParams>({
-      query: ({ tripId, ...params }) => ({
-        url: `/${tripId}/search/accommodation`,
-        params: params,
-      }),
-      providesTags: (result, error, { tripId }) => [{ type: 'SearchResults', id: `accommodation-${tripId}` }],
-    }),
-    
-    searchDining: builder.query<SearchResponse, SearchDiningParams>({
-      query: ({ tripId, ...params }) => ({
-        url: `/${tripId}/search/dining`,
-        params: params,
-      }),
-      providesTags: (result, error, { tripId }) => [{ type: 'SearchResults', id: `dining-${tripId}` }],
-    }),
-    
-    // === EXISTING ENDPOINTS ===
-    getMyTrips: builder.query<Trip[], void>({
-      query: () => '/my-trips',
-      providesTags: ['Trip'],
-    }),
-    
-    getTripSummary: builder.query<Trip, string>({
-      query: (tripId) => `/${tripId}/summary`,
-      providesTags: (result, error, tripId) => [{ type: 'Trip', id: tripId }],
-    }),
-    
-    // ... other existing endpoints
-  }),
-});
-
-export const {
-  useCreateBasicTripMutation,
-  useUpdateTripPreferencesMutation,
-  useUpdateTripCitiesMutation,
-  useSearchActivitiesQuery,
-  useSearchAccommodationQuery,
-  useSearchDiningQuery,
-  useGetMyTripsQuery,
-  useGetTripSummaryQuery,
-} = tripPlanningApi;
-```
-
-## UI Components Structure
-
-### 1. Trip Creation Wizard
-
-```tsx
-// components/TripCreation/TripCreationWizard.tsx
+#### Complete Trip Creation Flow
+```jsx
 import React, { useState } from 'react';
-import { useCreateBasicTripMutation, useUpdateTripPreferencesMutation, useUpdateTripCitiesMutation } from '../services/tripPlanningService';
+import { useSelector } from 'react-redux';
+import { createBasicTrip, updateTripPreferences, updateTripCities } from './tripAPI';
 
-interface TripCreationWizardProps {
-  onComplete: (tripId: string) => void;
-}
-
-const TripCreationWizard: React.FC<TripCreationWizardProps> = ({ onComplete }) => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [tripData, setTripData] = useState({
-    tripName: '',
-    startDate: '',
-    endDate: '',
-    preferences: {
-      terrainPreferences: [] as string[],
-      activityPreferences: [] as string[],
-    },
-    cities: {
-      cities: [] as string[],
-      cityDays: {} as Record<string, number>,
-    },
-  });
+const TripCreationWizard = () => {
+  const currentUser = useSelector(state => state.auth.user);
+  const [step, setStep] = useState(1);
+  const [tripData, setTripData] = useState({});
+  const [tripId, setTripId] = useState(null);
   
-  const [createBasicTrip] = useCreateBasicTripMutation();
-  const [updatePreferences] = useUpdateTripPreferencesMutation();
-  const [updateCities] = useUpdateTripCitiesMutation();
-  
-  const [tripId, setTripId] = useState<string | null>(null);
-
-  const handleStep1Submit = async () => {
+  const handleStepOne = async (formData) => {
     try {
       const result = await createBasicTrip({
-        tripName: tripData.tripName,
-        startDate: tripData.startDate,
-        endDate: tripData.endDate,
-      }).unwrap();
+        tripName: formData.name,
+        startDate: formData.startDate,
+        endDate: formData.endDate
+      }, currentUser.userId);
       
       setTripId(result.tripId);
-      setCurrentStep(2);
+      setTripData(prev => ({ ...prev, ...result.trip }));
+      setStep(2);
     } catch (error) {
       console.error('Failed to create trip:', error);
     }
   };
-
-  const handleStep2Submit = async () => {
-    if (!tripId) return;
-    
+  
+  const handleStepTwo = async (preferences) => {
     try {
-      await updatePreferences({
-        tripId,
-        preferences: tripData.preferences,
-      }).unwrap();
-      
-      setCurrentStep(3);
+      await updateTripPreferences(tripId, preferences, currentUser.userId);
+      setStep(3);
     } catch (error) {
       console.error('Failed to update preferences:', error);
     }
   };
-
-  const handleStep3Submit = async () => {
-    if (!tripId) return;
-    
+  
+  const handleStepThree = async (cityData) => {
     try {
-      await updateCities({
-        tripId,
-        cities: tripData.cities,
-      }).unwrap();
-      
-      onComplete(tripId);
+      await updateTripCities(tripId, cityData, currentUser.userId);
+      // Navigate to planning interface
+      window.location.href = `/trip/${tripId}/planning`;
     } catch (error) {
       console.error('Failed to update cities:', error);
     }
   };
-
+  
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      {/* Step Indicator */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          {[1, 2, 3].map((step) => (
-            <div
-              key={step}
-              className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                step <= currentStep ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-              }`}
-            >
-              {step}
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-between mt-2 text-sm text-gray-600">
-          <span>Basic Info</span>
-          <span>Preferences</span>
-          <span>Cities & Days</span>
-        </div>
-      </div>
-
-      {/* Step Content */}
-      {currentStep === 1 && (
-        <TripBasicInfoForm
-          data={tripData}
-          onChange={setTripData}
-          onSubmit={handleStep1Submit}
-        />
-      )}
-      
-      {currentStep === 2 && (
-        <TripPreferencesForm
-          data={tripData}
-          onChange={setTripData}
-          onSubmit={handleStep2Submit}
-          onBack={() => setCurrentStep(1)}
-        />
-      )}
-      
-      {currentStep === 3 && (
-        <TripCitiesForm
-          data={tripData}
-          onChange={setTripData}
-          onSubmit={handleStep3Submit}
-          onBack={() => setCurrentStep(2)}
-        />
-      )}
+    <div>
+      {step === 1 && <BasicTripForm onSubmit={handleStepOne} />}
+      {step === 2 && <PreferencesForm onSubmit={handleStepTwo} />}
+      {step === 3 && <CitiesForm onSubmit={handleStepThree} />}
     </div>
   );
 };
 ```
 
-### 2. Search Components
-
-```tsx
-// components/Search/ActivitySearch.tsx
-import React, { useState } from 'react';
-import { useSearchActivitiesQuery } from '../services/tripPlanningService';
-import { SearchResult } from '../types/trip';
-
-interface ActivitySearchProps {
-  tripId: string;
-  city?: string;
-  lastPlaceId?: string;
-  onSelectActivity: (activity: SearchResult) => void;
-}
-
-const ActivitySearch: React.FC<ActivitySearchProps> = ({
-  tripId,
-  city,
-  lastPlaceId,
-  onSelectActivity,
-}) => {
-  const [query, setQuery] = useState('');
-  const [maxResults, setMaxResults] = useState(10);
-
-  const { data: searchResults, isLoading, error } = useSearchActivitiesQuery({
-    tripId,
-    query,
-    city,
-    lastPlaceId,
-    maxResults,
-  }, {
-    skip: !tripId,
-  });
-
-  return (
-    <div className="space-y-4">
-      <div className="flex space-x-4">
-        <input
-          type="text"
-          placeholder="Search activities..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <select
-          value={maxResults}
-          onChange={(e) => setMaxResults(Number(e.target.value))}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value={5}>5 results</option>
-          <option value={10}>10 results</option>
-          <option value={20}>20 results</option>
-        </select>
-      </div>
-
-      {isLoading && (
-        <div className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">Failed to load activities. Please try again.</p>
-        </div>
-      )}
-
-      {searchResults && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {searchResults.results.map((activity) => (
-            <ActivityCard
-              key={activity.placeId}
-              activity={activity}
-              onSelect={() => onSelectActivity(activity)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// components/Search/ActivityCard.tsx
-const ActivityCard: React.FC<{ activity: SearchResult; onSelect: () => void }> = ({
-  activity,
-  onSelect,
-}) => (
-  <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-    <div className="flex justify-between items-start mb-2">
-      <h3 className="font-semibold text-lg">{activity.name}</h3>
-      {activity.rating && (
-        <div className="flex items-center space-x-1">
-          <span className="text-yellow-500">★</span>
-          <span className="text-sm text-gray-600">{activity.rating}</span>
-        </div>
-      )}
-    </div>
-    
-    <p className="text-gray-600 text-sm mb-3">{activity.formattedAddress}</p>
-    
-    <div className="flex flex-wrap gap-1 mb-3">
-      {activity.types.slice(0, 3).map((type) => (
-        <span
-          key={type}
-          className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-        >
-          {type}
-        </span>
-      ))}
-    </div>
-    
-    <div className="flex justify-between items-center">
-      <span className="text-xs text-gray-500 capitalize">{activity.source}</span>
-      <button
-        onClick={onSelect}
-        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-      >
-        Add to Trip
-      </button>
-    </div>
-    
-    {activity.distanceFromBias && (
-      <p className="text-xs text-gray-500 mt-2">
-        {activity.distanceFromBias.toFixed(1)} km from last location
-      </p>
-    )}
-  </div>
-);
-```
-
-## User Interface Examples
-
-### 🎨 Trip Creation Wizard
-
+#### Activity Search Component
 ```jsx
-// pages/TripWizard.jsx
-import React from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { Stepper, Step, StepLabel, Box, Container } from '@mui/material';
-import BasicTripForm from '../components/trip/TripCreation/BasicTripForm';
-import PreferenceSelector from '../components/trip/TripCreation/PreferenceSelector';
-import CitySelector from '../components/trip/TripCreation/CitySelector';
-import TripSummary from '../components/trip/TripCreation/TripSummary';
-import { 
-  createBasicTrip, 
-  updateTripPreferences, 
-  updateTripCities,
-  selectCreationStep,
-  selectCurrentTrip,
-  selectTripLoading 
-} from '../store/slices/tripSlice';
-
-const steps = ['Basic Info', 'Preferences', 'Cities', 'Summary'];
-
-const TripWizard = () => {
-  const dispatch = useDispatch();
-  const creationStep = useSelector(selectCreationStep);
-  const currentTrip = useSelector(selectCurrentTrip);
-  const loading = useSelector(selectTripLoading);
-
-  const getActiveStep = () => {
-    switch (creationStep) {
-      case 'basic': return 0;
-      case 'preferences': return 1;
-      case 'cities': return 2;
-      case 'planning': return 3;
-      default: return 0;
-    }
-  };
-
-  const handleBasicTripSubmit = (tripData) => {
-    dispatch(createBasicTrip(tripData));
-  };
-
-  const handlePreferencesSubmit = (preferences) => {
-    dispatch(updateTripPreferences({ 
-      tripId: currentTrip.tripId, 
-      preferences 
-    }));
-  };
-
-  const handleCitiesSubmit = (cityData) => {
-    dispatch(updateTripCities({ 
-      tripId: currentTrip.tripId, 
-      cityData 
-    }));
-  };
-
-  const renderStepContent = () => {
-    switch (creationStep) {
-      case 'basic':
-        return (
-          <BasicTripForm 
-            onSubmit={handleBasicTripSubmit}
-            loading={loading.creating}
-          />
-        );
-      case 'preferences':
-        return (
-          <PreferenceSelector 
-            tripId={currentTrip?.tripId}
-            onSubmit={handlePreferencesSubmit}
-            loading={loading.updating}
-          />
-        );
-      case 'cities':
-        return (
-          <CitySelector 
-            tripId={currentTrip?.tripId}
-            onSubmit={handleCitiesSubmit}
-            loading={loading.updating}
-          />
-        );
-      case 'planning':
-        return (
-          <TripSummary 
-            trip={currentTrip}
-            loading={loading.updating}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Stepper activeStep={getActiveStep()} sx={{ mb: 4 }}>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-      
-      <Box>
-        {renderStepContent()}
-      </Box>
-    </Container>
-  );
-};
-
-export default TripWizard;
-```
-
-### 🔍 Search Results Component
-
-```jsx
-// components/trip/TripPlanning/ActivitySearch.jsx
 import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { 
-  Card, CardContent, CardMedia, Typography, Box, 
-  TextField, Button, Grid, Chip, Rating, CircularProgress 
-} from '@mui/material';
-import { searchActivities, selectSearchResults, selectTripLoading } from '../../../store/slices/tripSlice';
+import { useSelector } from 'react-redux';
+import { searchActivities, addPlaceToDay } from './tripAPI';
 
-const ActivitySearch = ({ tripId }) => {
-  const dispatch = useDispatch();
-  const searchResults = useSelector(selectSearchResults);
-  const loading = useSelector(selectTripLoading);
-  
+const ActivitySearch = ({ tripId, currentDay }) => {
+  const currentUser = useSelector(state => state.auth.user);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCity, setSelectedCity] = useState('');
-
-  const handleSearch = () => {
-    dispatch(searchActivities({
-      tripId,
-      searchParams: {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
+  const handleSearch = async () => {
+    setLoading(true);
+    try {
+      const searchResults = await searchActivities(tripId, {
         query: searchQuery,
-        city: selectedCity,
         maxResults: 20
-      }
-    }));
+      }, currentUser.userId);
+      
+      setResults(searchResults.results);
+    } catch (error) {
+      console.error('Search failed:', error);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const renderActivityCard = (activity) => (
-    <Grid item xs={12} sm={6} md={4} key={activity.locationId}>
-      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {activity.images && activity.images[0] && (
-          <CardMedia
-            component="img"
-            height="200"
-            image={activity.images[0]}
-            alt={activity.name}
-          />
-        )}
-        <CardContent sx={{ flexGrow: 1 }}>
-          <Typography gutterBottom variant="h6" component="h2">
-            {activity.name}
-          </Typography>
-          
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Rating value={activity.rating} readOnly size="small" />
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-              ({activity.reviewCount} reviews)
-            </Typography>
-          </Box>
-          
-          <Typography variant="body2" color="text.secondary" paragraph>
-            {activity.description}
-          </Typography>
-          
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-            <Chip 
-              label={activity.category} 
-              size="small" 
-              color="primary" 
-              variant="outlined" 
-            />
-            {activity.subcategory && (
-              <Chip 
-                label={activity.subcategory} 
-                size="small" 
-                color="secondary" 
-                variant="outlined" 
-              />
-            )}
-          </Box>
-          
-          <Typography variant="body2" color="text.secondary">
-            📍 {activity.address}
-          </Typography>
-          
-          {activity.preferenceScore && (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="caption" color="primary">
-                🎯 {(activity.preferenceScore * 100).toFixed(0)}% match
-              </Typography>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-    </Grid>
-  );
-
+  
+  const handleAddToTrip = async (activity) => {
+    try {
+      await addPlaceToDay(tripId, currentDay, {
+        name: activity.name,
+        city: activity.city,
+        description: activity.description,
+        latitude: activity.latitude,
+        longitude: activity.longitude,
+        type: 'ATTRACTION',
+        duration: activity.suggestedDuration || 120,
+        timeSlot: 'afternoon',
+        priority: 7
+      }, currentUser.userId);
+      
+      alert('Activity added to trip!');
+    } catch (error) {
+      console.error('Failed to add activity:', error);
+    }
+  };
+  
   return (
-    <Box>
-      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
-        <TextField
-          label="Search activities..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          fullWidth
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-        />
-        <TextField
-          label="City (optional)"
-          value={selectedCity}
-          onChange={(e) => setSelectedCity(e.target.value)}
-          sx={{ minWidth: 150 }}
-        />
-        <Button 
-          variant="contained" 
-          onClick={handleSearch}
-          disabled={loading.searching}
-          sx={{ minWidth: 100 }}
-        >
-          {loading.searching ? <CircularProgress size={20} /> : 'Search'}
-        </Button>
-      </Box>
-
-      {loading.searching && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
-        </Box>
-      )}
-
-      <Grid container spacing={3}>
-        {searchResults.activities.map(renderActivityCard)}
-      </Grid>
-
-      {searchResults.activities.length === 0 && !loading.searching && (
-        <Box sx={{ textAlign: 'center', my: 4 }}>
-          <Typography variant="body1" color="text.secondary">
-            No activities found. Try a different search term or city.
-          </Typography>
-        </Box>
-      )}
-    </Box>
+    <div>
+      <input 
+        type="text" 
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="Search for activities..."
+      />
+      <button onClick={handleSearch} disabled={loading}>
+        {loading ? 'Searching...' : 'Search'}
+      </button>
+      
+      <div>
+        {results.map(activity => (
+          <div key={activity.id} className="activity-card">
+            <h3>{activity.name}</h3>
+            <p>{activity.description}</p>
+            <p>Location: {activity.city}</p>
+            <p>Rating: {activity.rating}/5</p>
+            <button onClick={() => handleAddToTrip(activity)}>
+              Add to Day {currentDay}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
-
-export default ActivitySearch;
 ```
-
-## Category Management & Preference Mapping
-
-### 🏷️ Frontend to Backend Preference Mapping
-
-```javascript
-// services/utils/preferenceMapper.js
-
-// Frontend preference categories that users see
-export const FRONTEND_PREFERENCES = {
-  terrain: [
-    { id: 'beach', label: '🏖️ Beach & Coast', keywords: ['beach', 'coast', 'ocean', 'sea'] },
-    { id: 'mountain', label: '🏔️ Mountains & Hills', keywords: ['mountain', 'hill', 'peak', 'highlands'] },
-    { id: 'urban', label: '🏙️ City & Urban', keywords: ['city', 'urban', 'downtown', 'metropolitan'] },
-    { id: 'rural', label: '🌾 Rural & Countryside', keywords: ['rural', 'countryside', 'village', 'farm'] },
-    { id: 'forest', label: '🌲 Forest & Jungle', keywords: ['forest', 'jungle', 'woodland', 'trees'] },
-    { id: 'desert', label: '🏜️ Desert & Arid', keywords: ['desert', 'arid', 'sand', 'dry'] }
-  ],
-  
-  activities: [
-    { 
-      id: 'adventure', 
-      label: '🏃 Adventure & Sports', 
-      keywords: ['adventure', 'sport', 'extreme', 'hiking', 'climbing'],
-      backendCategories: ['sports', 'outdoor', 'adventure', 'recreation']
-    },
-    { 
-      id: 'culture', 
-      label: '🏛️ Culture & History', 
-      keywords: ['culture', 'history', 'museum', 'heritage', 'art'],
-      backendCategories: ['museums', 'historical', 'cultural', 'arts']
-    },
-    { 
-      id: 'nightlife', 
-      label: '🌃 Nightlife & Entertainment', 
-      keywords: ['nightlife', 'bar', 'club', 'entertainment', 'party'],
-      backendCategories: ['nightlife', 'entertainment', 'bars', 'clubs']
-    },
-    { 
-      id: 'nature', 
-      label: '🌿 Nature & Wildlife', 
-      keywords: ['nature', 'wildlife', 'park', 'garden', 'eco'],
-      backendCategories: ['nature', 'parks', 'wildlife', 'outdoor']
-    },
-    { 
-      id: 'food', 
-      label: '🍽️ Food & Dining', 
-      keywords: ['food', 'restaurant', 'dining', 'cuisine', 'culinary'],
-      backendCategories: ['restaurants', 'food', 'dining', 'culinary']
-    },
-    { 
-      id: 'shopping', 
-      label: '🛍️ Shopping & Markets', 
-      keywords: ['shopping', 'market', 'mall', 'store', 'retail'],
-      backendCategories: ['shopping', 'markets', 'retail', 'stores']
-    },
-    { 
-      id: 'relaxation', 
-      label: '🧘 Relaxation & Wellness', 
-      keywords: ['spa', 'wellness', 'relaxation', 'meditation', 'health'],
-      backendCategories: ['spas', 'wellness', 'health', 'relaxation']
-    }
-  ]
-};
-
-// Map frontend preferences to backend search categories
-export const mapPreferencesToCategories = (frontendPreferences) => {
-  const categories = new Set();
-  
-  frontendPreferences.forEach(prefId => {
-    const preference = FRONTEND_PREFERENCES.activities.find(p => p.id === prefId);
-    if (preference && preference.backendCategories) {
-      preference.backendCategories.forEach(cat => categories.add(cat));
-    }
-  });
-  
-  return Array.from(categories);
-};
-
-// Generate search keywords from preferences
-export const generateSearchKeywords = (preferences) => {
-  const keywords = new Set();
-  
-  [...(preferences.terrain || []), ...(preferences.activities || [])].forEach(prefId => {
-    // Check terrain preferences
-    const terrainPref = FRONTEND_PREFERENCES.terrain.find(p => p.id === prefId);
-    if (terrainPref) {
-      terrainPref.keywords.forEach(keyword => keywords.add(keyword));
-    }
-    
-    // Check activity preferences
-    const activityPref = FRONTEND_PREFERENCES.activities.find(p => p.id === prefId);
-    if (activityPref) {
-      activityPref.keywords.forEach(keyword => keywords.add(keyword));
-    }
-  });
-  
-  return Array.from(keywords);
-};
-
-// Score location based on preference match
-export const calculatePreferenceScore = (location, userPreferences) => {
-  let score = 0;
-  let maxScore = 0;
-  
-  const keywords = generateSearchKeywords(userPreferences);
-  const categories = mapPreferencesToCategories(userPreferences.activities || []);
-  
-  // Check category matches
-  if (categories.includes(location.category?.toLowerCase())) {
-    score += 3;
-  }
-  maxScore += 3;
-  
-  if (categories.includes(location.subcategory?.toLowerCase())) {
-    score += 2;
-  }
-  maxScore += 2;
-  
-  // Check keyword matches in name and description
-  const text = `${location.name} ${location.description}`.toLowerCase();
-  keywords.forEach(keyword => {
-    if (text.includes(keyword.toLowerCase())) {
-      score += 1;
-    }
-    maxScore += 1;
-  });
-  
-  return maxScore > 0 ? score / maxScore : 0;
-};
-
-export default {
-  FRONTEND_PREFERENCES,
-  mapPreferencesToCategories,
-  generateSearchKeywords,
-  calculatePreferenceScore
-};
-```
-
-## Error Handling & Validation
-
-### 🚨 Comprehensive Error Handling
-
-```javascript
-// services/utils/errorHandler.js
-export class TripPlanningError extends Error {
-  constructor(message, code, details = null) {
-    super(message);
-    this.name = 'TripPlanningError';
-    this.code = code;
-    this.details = details;
-  }
-}
-
-export const ERROR_CODES = {
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  VALIDATION_ERROR: 'VALIDATION_ERROR',
-  NETWORK_ERROR: 'NETWORK_ERROR',
-  NOT_FOUND: 'NOT_FOUND',
-  SERVER_ERROR: 'SERVER_ERROR',
-  TRIP_NOT_FOUND: 'TRIP_NOT_FOUND',
-  INVALID_DATES: 'INVALID_DATES',
-  NO_RESULTS: 'NO_RESULTS'
-};
-
-export const handleApiError = (error, context = '') => {
-  console.error(`API Error in ${context}:`, error);
-  
-  if (error.response) {
-    const { status, data } = error.response;
-    
-    switch (status) {
-      case 401:
-        return new TripPlanningError(
-          'Please log in to continue',
-          ERROR_CODES.UNAUTHORIZED,
-          data
-        );
-      case 400:
-        return new TripPlanningError(
-          data.message || 'Invalid request',
-          ERROR_CODES.VALIDATION_ERROR,
-          data
-        );
-      case 404:
-        return new TripPlanningError(
-          'Resource not found',
-          ERROR_CODES.NOT_FOUND,
-          data
-        );
-      case 500:
-        return new TripPlanningError(
-          'Server error. Please try again later.',
-          ERROR_CODES.SERVER_ERROR,
-          data
-        );
-      default:
-        return new TripPlanningError(
-          `Unexpected error (${status})`,
-          ERROR_CODES.SERVER_ERROR,
-          data
-        );
-    }
-  } else if (error.request) {
-    return new TripPlanningError(
-      'Network error. Please check your connection.',
-      ERROR_CODES.NETWORK_ERROR,
-      error.request
-    );
-  } else {
-    return new TripPlanningError(
-      error.message || 'Unknown error',
-      ERROR_CODES.SERVER_ERROR,
-      error
-    );
-  }
-};
-
-// React hook for error handling
-import { useState } from 'react';
-
-export const useErrorHandler = () => {
-  const [error, setError] = useState(null);
-
-  const handleError = (error, context = '') => {
-    const processedError = handleApiError(error, context);
-    setError(processedError);
-    return processedError;
-  };
-
-  const clearError = () => setError(null);
-
-  return { error, handleError, clearError };
-};
-```
-
-### ✅ Input Validation
-
-```javascript
-// services/utils/validation.js
-import { format, isAfter, isBefore, addDays } from 'date-fns';
-
-export const validateTripBasic = (tripData) => {
-  const errors = {};
-
-  // Trip name validation
-  if (!tripData.tripName || tripData.tripName.trim().length < 3) {
-    errors.tripName = 'Trip name must be at least 3 characters long';
-  }
-
-  if (tripData.tripName && tripData.tripName.length > 100) {
-    errors.tripName = 'Trip name must be less than 100 characters';
-  }
-
-  // Date validation
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  if (!tripData.startDate) {
-    errors.startDate = 'Start date is required';
-  } else {
-    const startDate = new Date(tripData.startDate);
-    if (isBefore(startDate, today)) {
-      errors.startDate = 'Start date cannot be in the past';
-    }
-  }
-
-  if (!tripData.endDate) {
-    errors.endDate = 'End date is required';
-  } else if (tripData.startDate) {
-    const startDate = new Date(tripData.startDate);
-    const endDate = new Date(tripData.endDate);
-    
-    if (!isAfter(endDate, startDate)) {
-      errors.endDate = 'End date must be after start date';
-    }
-
-    // Check for reasonable trip duration
-    const maxDate = addDays(startDate, 365); // Max 1 year
-    if (isAfter(endDate, maxDate)) {
-      errors.endDate = 'Trip cannot be longer than 1 year';
-    }
-  }
-
-  return {
-    isValid: Object.keys(errors).length === 0,
-    errors
-  };
-};
-
-export const validatePreferences = (preferences) => {
-  const errors = {};
-
-  if (!preferences.terrainPreferences || preferences.terrainPreferences.length === 0) {
-    if (!preferences.activityPreferences || preferences.activityPreferences.length === 0) {
-      errors.preferences = 'Please select at least one terrain or activity preference';
-    }
-  }
-
-  return {
-    isValid: Object.keys(errors).length === 0,
-    errors
-  };
-};
-
-export const validateCities = (cityData) => {
-  const errors = {};
-
-  if (!cityData.cities || cityData.cities.length === 0) {
-    errors.cities = 'Please select at least one city';
-  }
-
-  if (!cityData.cityDays || Object.keys(cityData.cityDays).length === 0) {
-    errors.cityDays = 'Please specify days for each city';
-  } else {
-    // Validate that all cities have day allocations
-    cityData.cities?.forEach(city => {
-      if (!cityData.cityDays[city] || cityData.cityDays[city] < 1) {
-        errors.cityDays = `Please specify at least 1 day for ${city}`;
-      }
-    });
-  }
-
-  return {
-    isValid: Object.keys(errors).length === 0,
-    errors
-  };
-};
-```
-
-## Testing Strategy
-
-### 🧪 Unit Testing for API Service
-
-```javascript
-// services/api/__tests__/tripService.test.js
-import { tripService } from '../tripService';
-import axios from 'axios';
-
-jest.mock('axios');
-const mockedAxios = axios;
-
-describe('TripService', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('createBasicTrip', () => {
-    it('should create a basic trip successfully', async () => {
-      const mockResponse = {
-        data: {
-          message: 'Basic trip created successfully',
-          tripId: 'trip-123',
-          trip: { tripId: 'trip-123', tripName: 'Test Trip' }
-        }
-      };
-
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const tripData = {
-        tripName: 'Test Trip',
-        startDate: '2024-12-01',
-        endDate: '2024-12-07'
-      };
-
-      const result = await tripService.createBasicTrip(tripData);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith('/create-basic', tripData);
-      expect(result).toEqual(mockResponse.data);
-    });
-
-    it('should handle API errors', async () => {
-      const mockError = {
-        response: {
-          status: 400,
-          data: { error: 'Bad Request', message: 'Invalid trip data' }
-        }
-      };
-
-      mockedAxios.post.mockRejectedValue(mockError);
-
-      await expect(tripService.createBasicTrip({})).rejects.toThrow();
-    });
-  });
-
-  describe('searchActivities', () => {
-    it('should search activities with correct parameters', async () => {
-      const mockResponse = {
-        data: {
-          message: 'Activities found',
-          results: [
-            { locationId: '1', name: 'Test Activity' }
-          ]
-        }
-      };
-
-      mockedAxios.get.mockResolvedValue(mockResponse);
-
-      const searchParams = {
-        query: 'hiking',
-        city: 'Colombo',
-        maxResults: 10
-      };
-
-      const result = await tripService.searchActivities('trip-123', searchParams);
-
-      expect(mockedAxios.get).toHaveBeenCalledWith(
-        '/trip-123/search/activities?query=hiking&city=Colombo&maxResults=10'
-      );
-      expect(result).toEqual(mockResponse.data);
-    });
-  });
-});
-```
-
-### 🎭 Component Testing
-
-```javascript
-// components/trip/TripCreation/__tests__/BasicTripForm.test.jsx
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import BasicTripForm from '../BasicTripForm';
-
-const theme = createTheme();
-
-const renderWithTheme = (component) => {
-  return render(
-    <ThemeProvider theme={theme}>
-      {component}
-    </ThemeProvider>
-  );
-};
-
-describe('BasicTripForm', () => {
-  const mockOnSubmit = jest.fn();
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('renders form elements correctly', () => {
-    renderWithTheme(<BasicTripForm onSubmit={mockOnSubmit} />);
-
-    expect(screen.getByLabelText(/trip name/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/end date/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /create trip/i })).toBeInTheDocument();
-  });
-
-  it('validates required fields', async () => {
-    renderWithTheme(<BasicTripForm onSubmit={mockOnSubmit} />);
-
-    const submitButton = screen.getByRole('button', { name: /create trip/i });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByText(/trip name is required/i)).toBeInTheDocument();
-    });
-
-    expect(mockOnSubmit).not.toHaveBeenCalled();
-  });
-
-  it('submits valid form data', async () => {
-    renderWithTheme(<BasicTripForm onSubmit={mockOnSubmit} />);
-
-    const tripNameInput = screen.getByLabelText(/trip name/i);
-    fireEvent.change(tripNameInput, { target: { value: 'My Test Trip' } });
-
-    // Mock date picker interactions
-    // (Implementation depends on your date picker library)
-
-    const submitButton = screen.getByRole('button', { name: /create trip/i });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(mockOnSubmit).toHaveBeenCalledWith({
-        tripName: 'My Test Trip',
-        startDate: expect.any(String),
-        endDate: expect.any(String)
-      });
-    });
-  });
-});
-```
-
----
-
-## 🚀 Quick Start Integration Guide
-
-### 1. Install Dependencies
-```bash
-npm install @reduxjs/toolkit react-redux axios @mui/material @mui/icons-material date-fns
-```
-
-### 2. Setup Redux Store
-```javascript
-// store/store.js
-import { configureStore } from '@reduxjs/toolkit';
-import tripReducer from './slices/tripSlice';
-
-export const store = configureStore({
-  reducer: {
-    trip: tripReducer
-  }
-});
-```
-
-### 3. Wrap Your App
-```jsx
-// App.jsx
-import { Provider } from 'react-redux';
-import { store } from './store/store';
-import TripWizard from './pages/TripWizard';
-
-function App() {
-  return (
-    <Provider store={store}>
-      <TripWizard />
-    </Provider>
-  );
-}
-```
-
-### 4. Start Using the Components
-```jsx
-// Your component
-import { useDispatch } from 'react-redux';
-import { createBasicTrip } from './store/slices/tripSlice';
-
-const MyComponent = () => {
-  const dispatch = useDispatch();
-  
-  const handleCreateTrip = (tripData) => {
-    dispatch(createBasicTrip(tripData));
-  };
-  
-  return <BasicTripForm onSubmit={handleCreateTrip} />;
-};
-```
-
----
-
-This comprehensive guide provides everything needed to integrate the trip planning service with your frontend application. The examples show real-world implementation patterns, proper error handling, and testing strategies that will ensure a robust and user-friendly trip planning experience.
