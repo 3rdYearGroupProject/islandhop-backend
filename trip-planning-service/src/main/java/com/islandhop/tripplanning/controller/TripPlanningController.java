@@ -20,7 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/trip")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class TripPlanningController {
