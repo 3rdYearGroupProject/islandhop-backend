@@ -1,5 +1,6 @@
 package com.islandhop.tripplanning.controller;
 
+import com.islandhop.tripplanning.config.CorsConfigConstants;
 import com.islandhop.tripplanning.dto.*;
 import com.islandhop.tripplanning.model.*;
 import com.islandhop.tripplanning.service.TripPlanningService;
@@ -19,8 +20,8 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/trip")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@RequestMapping("/v1/trip")
+@CrossOrigin(origins = CorsConfigConstants.ALLOWED_ORIGIN, allowCredentials = CorsConfigConstants.ALLOW_CREDENTIALS)
 @RequiredArgsConstructor
 @Slf4j
 public class TripPlanningController {
@@ -28,6 +29,37 @@ public class TripPlanningController {
     private final TripPlanningService tripPlanningService;
     private final SessionValidationService sessionValidationService;
     private final LocationService locationService;
+    
+    /**
+     * CORS test endpoint - simple GET request
+     */
+    @GetMapping("/cors-test")
+    public ResponseEntity<?> corsTest() {
+        log.info("🚀 Starting CORS test endpoint");
+        try {
+            log.debug("📍 Creating response data for CORS test");
+            Map<String, Object> response = Map.of(
+                "message", "CORS is working",
+                "timestamp", java.time.Instant.now(),
+                "service", "trip-planning-service"
+            );
+            log.info("✅ CORS test completed successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("❌ Unexpected error in CORS test: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "CORS test failed", "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * CORS test endpoint - OPTIONS preflight
+     */
+    @RequestMapping(value = "/cors-test", method = RequestMethod.OPTIONS)
+    public ResponseEntity<?> corsTestOptions() {
+        log.info("OPTIONS /v1/trip/cors-test called");
+        return ResponseEntity.ok().build();
+    }
     
     /**
      * Create a new trip with user preferences
@@ -731,7 +763,7 @@ public class TripPlanningController {
      */
     @GetMapping("/health")
     public ResponseEntity<String> health() {
-        log.info("GET /trip/health called");
+        log.info("GET /v1/trip/health called");
         return ResponseEntity.ok("Trip Planning Service is running");
     }
 
