@@ -1,0 +1,40 @@
+version: '3.8'
+
+# Development override for docker-compose.yml
+# Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  trip-planning-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount source code for hot reloading (if using Spring Boot DevTools)
+      - ./src:/app/src:ro
+      - ./target:/app/target:ro
+    environment:
+      # Development specific settings
+      SPRING_PROFILES_ACTIVE: development
+      LOGGING_LEVEL_COM_ISLANDHOP: DEBUG
+      LOGGING_LEVEL_ROOT: INFO
+      
+      # Enable Spring Boot DevTools
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+      
+      # Relaxed security for development
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+      
+    # Override command to use Spring Boot Maven plugin for hot reloading
+    # Uncomment the next line if you want to run with Maven instead of JAR
+    # command: ["mvn", "spring-boot:run"]
+    
+  mongodb:
+    # Enable MongoDB logging for development
+    command: ["mongod", "--verbose"]
+    
+  # Add a development database browser
+  mongo-express:
+    environment:
+      # More permissive settings for development
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: true
+      ME_CONFIG_MONGODB_AUTH_DATABASE: admin
