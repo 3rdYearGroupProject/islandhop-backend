@@ -18,21 +18,19 @@
 
 ## User Authentication & UserId Pattern
 
-### 🔐 New UserId Integration Approach
+### 🔐 IMPORTANT: UserId is Required for All API Calls
 
-**Important Update:** All API endpoints now support receiving and returning `userId` for better microservice coordination and user experience optimization.
+**Critical Update:** All API endpoints now **require userId** to be included in request bodies (POST/PUT) or query parameters (GET). The old session-only pattern will **NOT work**.
 
-#### How It Works
+#### Required Implementation Steps
 
-1. **Frontend receives userId from user-services after login**
-2. **Frontend includes userId in request bodies (POST/PUT) or query parameters (GET)**
-3. **Backend validates session exists + uses provided userId for operations**
-4. **Backend returns userId in responses for consistency**
+1. **Get userId from your authentication system after login**
+2. **Include userId in all API requests**
+3. **Handle userId in responses for consistency**
 
-#### Implementation Pattern
-
+#### Example: Getting UserId After Login
 ```javascript
-// Frontend should maintain the userId after login
+// Step 1: Login and store userId
 const loginUser = async (credentials) => {
   const response = await fetch('/api/user/login', {
     method: 'POST',
@@ -43,22 +41,49 @@ const loginUser = async (credentials) => {
   
   const userData = await response.json();
   
-  // Store userId in application state
+  // Store userId in your application state (Redux, Context, etc.)
   return {
-    userId: userData.userId,     // ← Use this in subsequent calls
+    userId: userData.userId,     // ← CRITICAL: Store this for all future API calls
     email: userData.email,
+    name: userData.name,
     isAuthenticated: true
   };
 };
 
-// Usage in trip planning calls
-const createTrip = async (tripData, userId) => {
+// Step 2: Use userId in all trip planning calls
+const getCurrentUserId = () => {
+  // Get from your auth state management
+  // Examples:
+  
+  // Option A: From Redux store
+  // const { user } = useSelector(state => state.auth);
+  // return user?.userId;
+  
+  // Option B: From React Context
+  // const { user } = useAuth();
+  // return user?.userId;
+  
+  // Option C: From localStorage/sessionStorage
+  // return sessionStorage.getItem('userId');
+  
+  // Option D: From JWT token
+  // const token = localStorage.getItem('authToken');
+  // const decoded = jwt_decode(token);
+  // return decoded.userId;
+  
+  throw new Error('User not authenticated - implement getCurrentUserId()');
+};
+
+// Step 3: Use in trip planning calls
+const createTrip = async (tripData) => {
+  const userId = getCurrentUserId(); // Get current user's ID
+  
   const response = await fetch('/api/trip/create-basic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({
-      userId: userId,              // ← Include userId in request body
+      userId: userId,              // ← REQUIRED in ALL requests
       tripName: tripData.name,
       startDate: tripData.startDate,
       endDate: tripData.endDate
@@ -73,34 +98,29 @@ const createTrip = async (tripData, userId) => {
 };
 ```
 
-#### Benefits of this Approach
-
-1. **Reduced User-Service Calls** - Backend doesn't need to validate with user-services on every request
-2. **Better Frontend UX** - Frontend knows which user is performing actions
-3. **Microservice Efficiency** - Cleaner separation between services
-4. **Flexible Validation** - Can switch between lightweight and enhanced validation as needed
-
-#### Migration Guide for Existing Frontend Code
-
-**Before (session-only):**
+#### ❌ Old Pattern (Will Fail)
 ```javascript
-const response = await fetch('/api/trip/preferences', {
+// DON'T DO THIS - Missing userId
+const response = await fetch('/api/trip/create-basic', {
   method: 'POST',
   body: JSON.stringify({
-    terrainPreferences: ['mountains', 'beaches'],
-    activityPreferences: ['hiking', 'swimming']
+    tripName: "My Trip",          // ❌ Missing userId
+    startDate: "2024-12-01",
+    endDate: "2024-12-07"
   })
 });
 ```
 
-**After (with userId):**
+#### ✅ New Pattern (Required)
 ```javascript
-const response = await fetch('/api/trip/preferences', {
+// DO THIS - Include userId
+const response = await fetch('/api/trip/create-basic', {
   method: 'POST',
   body: JSON.stringify({
-    userId: currentUser.userId,    // ← Add this field
-    terrainPreferences: ['mountains', 'beaches'],
-    activityPreferences: ['hiking', 'swimming']
+    userId: getCurrentUserId(),   // ✅ Required field
+    tripName: "My Trip",
+    startDate: "2024-12-01",
+    endDate: "2024-12-07"
   })
 });
 ```
@@ -122,12 +142,13 @@ The trip planning system now supports a modern, step-by-step approach designed f
 #### Step 1: Basic Trip Creation
 ```javascript
 // Create basic trip with minimal information to reduce initial friction
-const createBasicTrip = async (tripData) => {
+const createBasicTrip = async (tripData, userId) => {
   const response = await fetch('/api/trip/create-basic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include', // Essential for session management
     body: JSON.stringify({
+      userId: userId,                 // ← REQUIRED: User identifier from auth
       tripName: tripData.name,        // User-friendly name
       startDate: tripData.startDate,  // "2024-12-01" (ISO date format)
       endDate: tripData.endDate       // "2024-12-07" (ISO date format)
@@ -142,7 +163,8 @@ const createBasicTrip = async (tripData) => {
   return {
     tripId: result.tripId,
     trip: result.trip,
-    message: result.message
+    message: result.message,
+    userId: result.userId            // Backend returns userId for consistency
   };
 };
 ```
@@ -150,12 +172,13 @@ const createBasicTrip = async (tripData) => {
 #### Step 2: Update Preferences
 ```javascript
 // Update user preferences for personalized recommendations
-const updatePreferences = async (tripId, preferences) => {
+const updatePreferences = async (tripId, preferences, userId) => {
   const response = await fetch(`/api/trip/${tripId}/preferences`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({
+      userId: userId,                        // ← REQUIRED: User identifier
       terrainPreferences: preferences.terrain,    // ["beach", "mountain", "urban", "rural"]
       activityPreferences: preferences.activities // ["adventure", "culture", "nightlife", "nature", "food", "shopping"]
     })
@@ -165,19 +188,25 @@ const updatePreferences = async (tripId, preferences) => {
     throw new Error(`Failed to update preferences: ${response.status}`);
   }
   
-  return await response.json();
+  const result = await response.json();
+  return {
+    message: result.message,
+    userId: result.userId,
+    trip: result.trip
+  };
 };
 ```
 
 #### Step 3: Set Cities and Days
 ```javascript
 // Configure multi-city trip with intelligent day allocation
-const updateCities = async (tripId, cityData) => {
+const updateCities = async (tripId, cityData, userId) => {
   const response = await fetch(`/api/trip/${tripId}/cities`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({
+      userId: userId,                 // ← REQUIRED: User identifier
       cities: cityData.cities,        // ["Colombo", "Kandy", "Galle"]
       cityDays: cityData.cityDays     // {"Colombo": 2, "Kandy": 2, "Galle": 3}
     })
@@ -187,7 +216,12 @@ const updateCities = async (tripId, cityData) => {
     throw new Error(`Failed to update cities: ${response.status}`);
   }
   
-  return await response.json();
+  const result = await response.json();
+  return {
+    message: result.message,
+    userId: result.userId,
+    trip: result.trip
+  };
 };
 ```
 
@@ -259,219 +293,428 @@ const searchDining = async (tripId, searchParams) => {
 ### 🔗 Core Trip Management Endpoints
 
 #### 1. Health Check
-```
-GET /api/trip/health
-Description: Service health verification
-Authentication: None required
-Response: String "Trip Planning Service is running"
+```javascript
+// Service health verification - no authentication required
+const healthCheck = async () => {
+  const response = await fetch('/api/trip/health');
+  
+  if (!response.ok) {
+    throw new Error(`Health check failed: ${response.status}`);
+  }
+  
+  return await response.text(); // Returns: "Trip Planning Service is running"
+};
 ```
 
 #### 2. Create Basic Trip
-```
-POST /api/trip/create-basic
-Description: Create initial trip with minimal information
-Authentication: Session required
-Request Body: CreateTripBasicRequest (includes userId)
-Response: { message, tripId, userId, trip }
-Example:
-{
-  "userId": "user123",
-  "tripName": "Sri Lanka Adventure",
-  "startDate": "2024-12-01",
-  "endDate": "2024-12-07"
-}
+```javascript
+// Create initial trip with minimal information to reduce friction
+const createBasicTrip = async (tripData, userId) => {
+  const response = await fetch('/api/trip/create-basic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Session required
+    body: JSON.stringify({
+      userId: userId,                 // ← REQUIRED: User identifier
+      tripName: tripData.name,        // User-friendly trip name
+      startDate: tripData.startDate,  // "2024-12-01" (ISO date format)
+      endDate: tripData.endDate       // "2024-12-07" (ISO date format)
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to create basic trip: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    tripId: result.tripId,
+    trip: result.trip,
+    message: result.message,
+    userId: result.userId            // Backend returns userId for consistency
+  };
+};
 ```
 
 #### 3. Legacy Trip Creation (Full)
-```
-POST /api/trip/initiate
-Description: Create complete trip with all preferences
-Authentication: Session required  
-Request Body: CreateTripRequest (includes userId)
-Response: { message, tripId, userId, trip }
-Example:
-{
-  "userId": "user123",
-  "tripName": "Cultural Explorer",
-  "startDate": "2024-12-01",
-  "endDate": "2024-12-07",
-  "baseCity": "Colombo",
-  "categories": ["Culture", "Nature"],
-  "pacing": "MODERATE"
-}
+```javascript
+// Create complete trip with all preferences (legacy approach - still supported)
+const createFullTrip = async (tripData, userId) => {
+  const response = await fetch('/api/trip/initiate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Session required
+    body: JSON.stringify({
+      userId: userId,                 // ← REQUIRED: User identifier
+      tripName: tripData.name,        // "Cultural Explorer"
+      startDate: tripData.startDate,  // "2024-12-01"
+      endDate: tripData.endDate,      // "2024-12-07"
+      baseCity: tripData.baseCity,    // "Colombo"
+      categories: tripData.categories, // ["Culture", "Nature"]
+      pacing: tripData.pacing         // "MODERATE"
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to create full trip: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    tripId: result.tripId,
+    trip: result.trip,
+    message: result.message,
+    userId: result.userId
+  };
+};
 ```
 
 #### 4. Update Trip Preferences
-```
-POST /api/trip/{tripId}/preferences
-Description: Update terrain and activity preferences
-Authentication: Session required
-Request Body: UpdatePreferencesRequest (includes userId)
-Response: { message, userId, trip }
-Example:
-{
-  "userId": "user123",
-  "terrainPreferences": ["mountains", "beaches"],
-  "activityPreferences": ["hiking", "swimming"]
-}
+```javascript
+// Update terrain and activity preferences for personalized recommendations
+const updateTripPreferences = async (tripId, preferences, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/preferences`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Session required
+    body: JSON.stringify({
+      userId: userId,                        // ← REQUIRED: User identifier
+      terrainPreferences: preferences.terrain,    // ["mountains", "beaches"]
+      activityPreferences: preferences.activities // ["hiking", "swimming"]
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to update preferences: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    userId: result.userId,
+    trip: result.trip
+  };
+};
 ```
 
 #### 5. Update Trip Cities
-```
-POST /api/trip/{tripId}/cities
-Description: Set cities and day allocation
-Authentication: Session required
-Request Body: UpdateCitiesRequest (includes userId)
-Response: { message, userId, trip }
-Example:
-{
-  "userId": "user123",
-  "cities": ["Colombo", "Kandy", "Galle"],
-  "cityDays": {
-    "Colombo": 2,
-    "Kandy": 3,
-    "Galle": 2
+```javascript
+// Set cities and day allocation for multi-city trips
+const updateTripCities = async (tripId, cityData, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/cities`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Session required
+    body: JSON.stringify({
+      userId: userId,                 // ← REQUIRED: User identifier
+      cities: cityData.cities,        // ["Colombo", "Kandy", "Galle"]
+      cityDays: cityData.cityDays     // {"Colombo": 2, "Kandy": 3, "Galle": 2}
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to update cities: ${response.status}`);
   }
-}
-```
-Request Body: UpdateCitiesRequest
-Response: { message, trip }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    userId: result.userId,
+    trip: result.trip
+  };
+};
 ```
 
 ### 🔍 Search Endpoints
 
 #### 6. Search Activities
-```
-GET /api/trip/{tripId}/search/activities
-Description: Find activities based on user preferences and proximity
-Authentication: Session required
-Query Parameters:
-  - query (optional): Text search
-  - city (optional): Filter by city
-  - lastPlaceId (optional): For proximity recommendations
-  - maxResults (optional, default=10): Result limit
-  - userId (optional): User identifier for optimized validation
-Response: { message, results, userId }
-Example:
-GET /api/trip/trip123/search/activities?query=hiking&city=Kandy&userId=user123
+```javascript
+// Find activities based on user preferences and proximity
+const searchActivities = async (tripId, searchParams, userId = null) => {
+  const params = new URLSearchParams({
+    query: searchParams.query || '',           // Optional text search
+    city: searchParams.city || '',             // Filter by specific city
+    lastPlaceId: searchParams.lastPlaceId || '', // For proximity recommendations
+    maxResults: searchParams.maxResults || 10,   // Result limit
+    ...(userId && { userId: userId })            // Optional userId for optimized validation
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/search/activities?${params}`, {
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search activities: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    results: result.results,
+    userId: result.userId
+  };
+};
+
+// Example usage:
+// const activities = await searchActivities('trip123', {
+//   query: 'hiking',
+//   city: 'Kandy',
+//   maxResults: 20
+// }, 'user123');
 ```
 
 #### 7. Search Accommodation
-```
-GET /api/trip/{tripId}/search/accommodation
-Description: Find hotels/lodging based on preferences
-Authentication: Session required
-Query Parameters:
-  - query (optional): Text search
-  - city (optional): Filter by city
-  - lastPlaceId (optional): For proximity recommendations  
-  - maxResults (optional, default=10): Result limit
-  - userId (optional): User identifier for optimized validation
-Response: { message, results, userId }
-Example:
-GET /api/trip/trip123/search/accommodation?city=Galle&userId=user123
+```javascript
+// Find hotels/lodging based on preferences
+const searchAccommodation = async (tripId, searchParams, userId = null) => {
+  const params = new URLSearchParams({
+    query: searchParams.query || '',           // Optional text search
+    city: searchParams.city || '',             // Filter by specific city
+    lastPlaceId: searchParams.lastPlaceId || '', // For proximity recommendations
+    maxResults: searchParams.maxResults || 10,   // Result limit
+    ...(userId && { userId: userId })            // Optional userId for optimized validation
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/search/accommodation?${params}`, {
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search accommodation: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    results: result.results,
+    userId: result.userId
+  };
+};
+
+// Example usage:
+// const hotels = await searchAccommodation('trip123', {
+//   city: 'Galle'
+// }, 'user123');
 ```
 
 #### 8. Search Dining
-```
-GET /api/trip/{tripId}/search/dining
-Description: Find restaurants based on preferences
-Authentication: Session required
-Query Parameters:
-  - query (optional): Text search
-  - city (optional): Filter by city
-  - lastPlaceId (optional): For proximity recommendations
-  - maxResults (optional, default=10): Result limit
-  - userId (optional): User identifier for optimized validation
-Response: { message, results, userId }
-Example:
-GET /api/trip/trip123/search/dining?query=seafood&city=Galle&userId=user123
+```javascript
+// Find restaurants based on preferences
+const searchDining = async (tripId, searchParams, userId = null) => {
+  const params = new URLSearchParams({
+    query: searchParams.query || '',           // Optional text search
+    city: searchParams.city || '',             // Filter by specific city
+    lastPlaceId: searchParams.lastPlaceId || '', // For proximity recommendations
+    maxResults: searchParams.maxResults || 10,   // Result limit
+    ...(userId && { userId: userId })            // Optional userId for optimized validation
+  });
+  
+  const response = await fetch(`/api/trip/${tripId}/search/dining?${params}`, {
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search dining: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    results: result.results,
+    userId: result.userId
+  };
+};
+
+// Example usage:
+// const restaurants = await searchDining('trip123', {
+//   query: 'seafood',
+//   city: 'Galle'
+// }, 'user123');
 ```
 
 ### 📍 Location & Planning Endpoints
 
 #### 9. Search Locations (General)
-```
-GET /api/trip/search-locations
-Description: General location search with bias
-Authentication: Session required
-Query Parameters:
-  - query: Search text (required)
-  - city (optional): City filter
-  - biasLat, biasLng (optional): Geographic bias
-  - maxResults (optional, default=10): Result limit
-Response: { results }
+```javascript
+// General location search with geographic bias
+const searchLocations = async (searchParams) => {
+  const params = new URLSearchParams({
+    query: searchParams.query,                // Search text (required)
+    city: searchParams.city || '',            // Optional city filter
+    biasLat: searchParams.biasLat || '',      // Optional geographic bias
+    biasLng: searchParams.biasLng || '',      // Optional geographic bias
+    maxResults: searchParams.maxResults || 10 // Result limit
+  });
+  
+  const response = await fetch(`/api/trip/search-locations?${params}`, {
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to search locations: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    results: result.results
+  };
+};
+
+// Example usage:
+// const locations = await searchLocations({
+//   query: 'beaches',
+//   city: 'Galle',
+//   maxResults: 15
+// });
 ```
 
 #### 10. Add Place to Trip
-```
-POST /api/trip/{tripId}/add-place
-Description: Add a specific place to trip itinerary
-Authentication: Session required
-Request Body: AddPlaceRequest (includes userId)
-Response: { message, userId, trip }
-Example:
-{
-  "userId": "user123",
-  "placeName": "Temple of the Sacred Tooth Relic",
-  "city": "Kandy",
-  "description": "Historical Buddhist temple",
-  "latitude": 7.2930,
-  "longitude": 80.6346,
-  "preferredDay": 2
-}
+```javascript
+// Add a specific place to trip itinerary
+const addPlaceToTrip = async (tripId, placeData, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/add-place`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Session required
+    body: JSON.stringify({
+      userId: userId,                    // ← REQUIRED: User identifier
+      placeName: placeData.name,         // "Temple of the Sacred Tooth Relic"
+      city: placeData.city,              // "Kandy"
+      description: placeData.description, // "Historical Buddhist temple"
+      latitude: placeData.latitude,      // 7.2930
+      longitude: placeData.longitude,    // 80.6346
+      preferredDay: placeData.preferredDay || null // 2 (optional)
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to add place to trip: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    userId: result.userId,
+    trip: result.trip
+  };
+};
 ```
 
 #### 11. Add Place to Specific Day
-```
-POST /api/trip/{tripId}/day/{dayNumber}/add-place
-Description: Add place to a specific day with detailed context
-Authentication: Session required
-Request Body: AddPlaceToDayRequest (includes userId)
-Response: { message, tripId, dayNumber, placeName, userId, trip }
-Example:
-{
-  "userId": "user123",
-  "placeName": "Sigiriya Rock Fortress",
-  "city": "Dambulla",
-  "dayNumber": 3,
-  "placeType": "ATTRACTION",
-  "estimatedVisitDurationMinutes": 180,
-  "preferredTimeSlot": "morning",
-  "priority": 8
-}
+```javascript
+// Add place to a specific day with detailed context
+const addPlaceToDay = async (tripId, dayNumber, placeData, userId) => {
+  const response = await fetch(`/api/trip/${tripId}/day/${dayNumber}/add-place`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Session required
+    body: JSON.stringify({
+      userId: userId,                             // ← REQUIRED: User identifier
+      placeName: placeData.name,                  // "Sigiriya Rock Fortress"
+      city: placeData.city,                       // "Dambulla"
+      dayNumber: dayNumber,                       // 3
+      placeType: placeData.type,                  // "ATTRACTION"
+      estimatedVisitDurationMinutes: placeData.duration || 120, // 180
+      preferredTimeSlot: placeData.timeSlot || 'morning',        // "morning"
+      priority: placeData.priority || 5           // 8
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to add place to day: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    tripId: result.tripId,
+    dayNumber: result.dayNumber,
+    placeName: result.placeName,
+    userId: result.userId,
+    trip: result.trip
+  };
+};
 ```
 
 #### 12. Generate/Optimize Itinerary
-```
-POST /api/trip/{tripId}/generate-itinerary
-Description: Create optimized day-by-day itinerary
-Authentication: Session required
-Response: { message, userId, trip }
+```javascript
+// Create optimized day-by-day itinerary
+const generateItinerary = async (tripId) => {
+  const response = await fetch(`/api/trip/${tripId}/generate-itinerary`, {
+    method: 'POST',
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to generate itinerary: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    message: result.message,
+    userId: result.userId,
+    trip: result.trip
+  };
+};
 ```
 
 #### 13. Get Trip Details
-```
-GET /api/trip/{tripId}
-Description: Retrieve complete trip information
-Authentication: Session required
-Response: { trip, userId, tripId }
+```javascript
+// Retrieve complete trip information
+const getTripDetails = async (tripId) => {
+  const response = await fetch(`/api/trip/${tripId}`, {
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get trip details: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    trip: result.trip,
+    userId: result.userId,
+    tripId: result.tripId
+  };
+};
 ```
 
 #### 14. Get User's Trips
-```
-GET /api/trip/my-trips
-Description: List all trips for authenticated user
-Authentication: Session required
-Response: { trips, userId, count }
+```javascript
+// List all trips for authenticated user
+const getUserTrips = async () => {
+  const response = await fetch('/api/trip/my-trips', {
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get user trips: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return {
+    trips: result.trips,
+    userId: result.userId,
+    count: result.count
+  };
+};
 ```
 
-#### 14. Get Trip Map Data
-```
-GET /api/trip/{tripId}/map-data
-Description: Get data for map visualization
-Authentication: Session required
-Response: Map data object with coordinates and routes
+#### 15. Get Trip Map Data
+```javascript
+// Get data for map visualization
+const getTripMapData = async (tripId) => {
+  const response = await fetch(`/api/trip/${tripId}/map-data`, {
+    credentials: 'include' // Session required
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get map data: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  return result; // Map data object with coordinates and routes
+};
 ```
 
 ## Request/Response Models
@@ -1361,7 +1604,7 @@ const TripCreationWizard = () => {
         tripName: formData.name,
         startDate: formData.startDate,
         endDate: formData.endDate
-      }, currentUser.userId);
+      }, currentUser.userId);  // ← Pass userId as second parameter
       
       setTripId(result.tripId);
       setTripData(prev => ({ ...prev, ...result.trip }));
@@ -1373,7 +1616,7 @@ const TripCreationWizard = () => {
   
   const handleStepTwo = async (preferences) => {
     try {
-      await updateTripPreferences(tripId, preferences, currentUser.userId);
+      await updateTripPreferences(tripId, preferences, currentUser.userId); // ← Pass userId
       setStep(3);
     } catch (error) {
       console.error('Failed to update preferences:', error);
@@ -1382,7 +1625,7 @@ const TripCreationWizard = () => {
   
   const handleStepThree = async (cityData) => {
     try {
-      await updateTripCities(tripId, cityData, currentUser.userId);
+      await updateTripCities(tripId, cityData, currentUser.userId); // ← Pass userId
       // Navigate to planning interface
       window.location.href = `/trip/${tripId}/planning`;
     } catch (error) {

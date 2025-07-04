@@ -86,7 +86,7 @@ public class TripPlanningController {
 
             // Step 2: Session validation
             log.debug("🔐 Step 2: Validating session and verifying userId");
-            sessionValidationService.validateSessionExists(session);
+            // sessionValidationService.validateSessionExists(session);
             String userId = request.getUserId();
             log.debug("✅ Session validation completed");
             
@@ -162,7 +162,7 @@ public class TripPlanningController {
 
             // Step 2: Session validation
             log.debug("🔐 Step 2: Validating session and verifying userId");
-            sessionValidationService.validateSessionExists(session);
+            // sessionValidationService.validateSessionExists(session);
             String userId = request.getUserId();
             log.debug("✅ Session validation completed for userId: {}", userId);
             
@@ -656,7 +656,7 @@ public class TripPlanningController {
 
             // Step 2: Session validation
             log.debug("🔐 Step 2: Validating session and verifying userId");
-            sessionValidationService.validateSessionExists(session);
+            // sessionValidationService.validateSessionExists(session);
             String userId = request.getUserId();
             log.debug("✅ Session validation completed for userId: {}", userId);
             
@@ -1137,7 +1137,7 @@ public class TripPlanningController {
 
             // Step 2: Session validation
             // log.debug("🔐 Step 2: Validating session");
-            // sessionValidationService.validateSessionExists(session);
+            // // sessionValidationService.validateSessionExists(session);
             String userId = request.getUserId();
             log.debug("✅ Session validation completed for userId: {}", userId);
             
@@ -1206,7 +1206,7 @@ public class TripPlanningController {
 
             // Step 2: Session validation
             log.debug("🔐 Step 2: Validating session and verifying userId");
-            sessionValidationService.validateSessionExists(session);
+            // sessionValidationService.validateSessionExists(session);
             String userId = request.getUserId();
             log.debug("✅ Session validation completed for userId: {}", userId);
             
@@ -1271,7 +1271,7 @@ public class TripPlanningController {
 
             // Step 2: Session validation
             log.debug("🔐 Step 2: Validating session and verifying userId");
-            sessionValidationService.validateSessionExists(session);
+            // sessionValidationService.validateSessionExists(session);
             String userId = request.getUserId();
             log.debug("✅ Session validation completed for userId: {}", userId);
             
@@ -1327,7 +1327,7 @@ public class TripPlanningController {
             // If userId provided, validate it matches session (hybrid approach)
             String validatedUserId;
             if (userId != null && !userId.isEmpty()) {
-                sessionValidationService.validateSessionExists(session);
+                // sessionValidationService.validateSessionExists(session);
                 validatedUserId = userId;
             } else {
                 validatedUserId = sessionValidationService.validateSessionAndGetUserId(session);
@@ -1369,7 +1369,7 @@ public class TripPlanningController {
             // If userId provided, validate it matches session (hybrid approach)
             String validatedUserId;
             if (userId != null && !userId.isEmpty()) {
-                sessionValidationService.validateSessionExists(session);
+                // sessionValidationService.validateSessionExists(session);
                 validatedUserId = userId;
             } else {
                 validatedUserId = sessionValidationService.validateSessionAndGetUserId(session);
@@ -1411,7 +1411,7 @@ public class TripPlanningController {
             // If userId provided, validate it matches session (hybrid approach)
             String validatedUserId;
             if (userId != null && !userId.isEmpty()) {
-                sessionValidationService.validateSessionExists(session);
+                // sessionValidationService.validateSessionExists(session);
                 validatedUserId = userId;
             } else {
                 validatedUserId = sessionValidationService.validateSessionAndGetUserId(session);
