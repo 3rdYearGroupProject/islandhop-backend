@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateTripBasicRequest {
+    private String userId;      // Accept userId from frontend
     private String tripName;
     private String startDate;
     private String endDate;

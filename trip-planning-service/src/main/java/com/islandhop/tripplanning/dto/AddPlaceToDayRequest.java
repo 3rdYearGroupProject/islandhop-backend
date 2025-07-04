@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 
@@ -17,6 +18,9 @@ import jakarta.validation.constraints.Max;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AddPlaceToDayRequest {
+    
+    @NotBlank(message = "User ID is required")
+    private String userId;
     
     @NotEmpty
     private String placeName;
