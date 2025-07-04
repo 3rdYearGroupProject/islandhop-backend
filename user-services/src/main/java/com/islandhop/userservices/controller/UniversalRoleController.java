@@ -1,5 +1,6 @@
 package com.islandhop.userservices.controller;
 
+import com.islandhop.userservices.config.CorsConfig;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = CorsConfig.ALLOWED_ORIGIN, allowCredentials = CorsConfig.ALLOW_CREDENTIALS)
 public class UniversalRoleController {
 
     private static final Logger logger = LoggerFactory.getLogger(UniversalRoleController.class);

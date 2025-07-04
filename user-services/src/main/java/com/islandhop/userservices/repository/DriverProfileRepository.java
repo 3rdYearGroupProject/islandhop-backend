@@ -14,14 +14,18 @@ public interface DriverProfileRepository extends JpaRepository<DriverProfile, UU
     DriverProfile findByEmail(String email);
     boolean existsByEmail(String email);
     List<DriverProfile> findByProfileCompletion(Integer profileCompletion);
-    List<DriverProfile> findByVehicleType(String vehicleType);
-    List<DriverProfile> findByAcAvailable(String acAvailable);
-    List<DriverProfile> findByNumberOfSeats(Integer numberOfSeats);
-    List<DriverProfile> findByBodyType(String bodyType);
+    List<DriverProfile> findByRatingGreaterThanEqual(Double rating);
+    List<DriverProfile> findByAcceptPartialTrips(Integer acceptPartialTrips);
+    List<DriverProfile> findByAutoAcceptTrips(Integer autoAcceptTrips);
+    List<DriverProfile> findByDrivingLicenseVerified(Integer verified);
+    List<DriverProfile> findBySltdaLicenseVerified(Integer verified);
     
-    @Query("SELECT d FROM DriverProfile d WHERE d.numberOfSeats >= :minSeats")
-    List<DriverProfile> findByMinimumSeats(@Param("minSeats") Integer minSeats);
+    @Query("SELECT d FROM DriverProfile d WHERE d.rating >= :minRating AND d.profileCompletion = 1")
+    List<DriverProfile> findVerifiedDriversWithMinRating(@Param("minRating") Double minRating);
     
-    @Query("SELECT d FROM DriverProfile d WHERE d.acAvailable = 'Yes' AND d.vehicleType = :vehicleType")
-    List<DriverProfile> findByVehicleTypeWithAC(@Param("vehicleType") String vehicleType);
+    @Query("SELECT d FROM DriverProfile d WHERE d.drivingLicenseVerified = 1 AND d.sltdaLicenseVerified = 1")
+    List<DriverProfile> findFullyVerifiedDrivers();
+    
+    @Query("SELECT d FROM DriverProfile d WHERE d.maximumTripDistance >= :distance")
+    List<DriverProfile> findByMinimumTripDistance(@Param("distance") Integer distance);
 }

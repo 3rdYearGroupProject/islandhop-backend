@@ -22,4 +22,7 @@ public class SupportProfile {
     
     @Column(name = "profile_picture", columnDefinition = "TEXT")
     private String profilePicture; // Base64 encoded image data
+    
+    @Column(name = "profile_completion", nullable = false)
+    private Integer profileCompletion = 0; // 0 = incomplete, 1 = complete
 }

@@ -6,5 +6,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface SupportProfileRepository extends JpaRepository<SupportProfile, UUID> {
-    Optional<SupportProfile> findByEmail(String email);
+    SupportProfile findByEmail(String email);
 }

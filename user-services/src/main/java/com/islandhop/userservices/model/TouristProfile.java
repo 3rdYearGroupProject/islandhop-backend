@@ -24,4 +24,7 @@ public class TouristProfile {
     @CollectionTable(name = "tourist_profile_languages", joinColumns = @JoinColumn(name = "profile_id"))
     @Column(name = "language")
     private List<String> languages;
+    
+    @Column(name = "profile_completion", nullable = false)
+    private Integer profileCompletion = 0; // 0 = incomplete, 1 = complete
 }

@@ -53,51 +53,82 @@ public class DriverService {
             throw new RuntimeException("Driver profile not found");
         }
 
-        // Update profile fields from request body
-        if (requestBody.containsKey("fullName")) {
-            profile.setFullName((String) requestBody.get("fullName"));
+        // Update personal information
+        if (requestBody.containsKey("firstName")) {
+            profile.setFirstName((String) requestBody.get("firstName"));
         }
-        if (requestBody.containsKey("contactNumber")) {
-            profile.setContactNumber((String) requestBody.get("contactNumber"));
+        if (requestBody.containsKey("lastName")) {
+            profile.setLastName((String) requestBody.get("lastName"));
         }
-        if (requestBody.containsKey("nicPassport")) {
-            profile.setNicPassport((String) requestBody.get("nicPassport"));
+        if (requestBody.containsKey("phone")) {
+            profile.setPhoneNumber((String) requestBody.get("phone"));
         }
-        if (requestBody.containsKey("bodyType")) {
-            profile.setBodyType((String) requestBody.get("bodyType"));
+        if (requestBody.containsKey("dateOfBirth")) {
+            String dobStr = (String) requestBody.get("dateOfBirth");
+            if (dobStr != null && !dobStr.trim().isEmpty()) {
+                profile.setDateOfBirth(java.time.LocalDate.parse(dobStr));
+            }
         }
-        if (requestBody.containsKey("acAvailable")) {
-            profile.setAcAvailable((String) requestBody.get("acAvailable"));
+        if (requestBody.containsKey("address")) {
+            profile.setAddress((String) requestBody.get("address"));
         }
-        if (requestBody.containsKey("numberOfSeats")) {
-            profile.setNumberOfSeats((Integer) requestBody.get("numberOfSeats"));
+        if (requestBody.containsKey("emergencyContactName")) {
+            profile.setEmergencyContactName((String) requestBody.get("emergencyContactName"));
         }
-        if (requestBody.containsKey("vehicleNumber")) {
-            profile.setVehicleNumber((String) requestBody.get("vehicleNumber"));
+        if (requestBody.containsKey("emergencyContact")) {
+            profile.setEmergencyContactNumber((String) requestBody.get("emergencyContact"));
         }
-        if (requestBody.containsKey("vehicleType")) {
-            profile.setVehicleType((String) requestBody.get("vehicleType"));
+        if (requestBody.containsKey("profilePicture")) {
+            profile.setProfilePictureUrl((String) requestBody.get("profilePicture"));
         }
-        if (requestBody.containsKey("profilePictureUrl")) {
-            profile.setProfilePictureUrl((String) requestBody.get("profilePictureUrl"));
+
+        // Update trip preferences
+        if (requestBody.containsKey("acceptPartialTrips")) {
+            Object value = requestBody.get("acceptPartialTrips");
+            if (value instanceof Integer) {
+                profile.setAcceptPartialTrips((Integer) value);
+            } else if (value instanceof Boolean) {
+                profile.setAcceptPartialTrips(((Boolean) value) ? 1 : 0);
+            }
+        }
+        if (requestBody.containsKey("autoAcceptTrips")) {
+            Object value = requestBody.get("autoAcceptTrips");
+            if (value instanceof Integer) {
+                profile.setAutoAcceptTrips((Integer) value);
+            } else if (value instanceof Boolean) {
+                profile.setAutoAcceptTrips(((Boolean) value) ? 1 : 0);
+            }
+        }
+        if (requestBody.containsKey("maxDistance")) {
+            Object value = requestBody.get("maxDistance");
+            if (value instanceof Integer) {
+                profile.setMaximumTripDistance((Integer) value);
+            } else if (value instanceof String) {
+                try {
+                    profile.setMaximumTripDistance(Integer.parseInt((String) value));
+                } catch (NumberFormatException e) {
+                    logger.warn("Invalid maxDistance value: {}", value);
+                }
+            }
         }
 
         // Check if profile is complete
         if (isProfileComplete(profile)) {
             profile.setProfileCompletion(1);
+        } else {
+            profile.setProfileCompletion(0);
         }
 
         return profileRepository.save(profile);
     }
 
     private boolean isProfileComplete(DriverProfile profile) {
-        return profile.getFullName() != null && !profile.getFullName().trim().isEmpty() &&
-               profile.getContactNumber() != null && !profile.getContactNumber().trim().isEmpty() &&
-               profile.getNicPassport() != null && !profile.getNicPassport().trim().isEmpty() &&
-               profile.getVehicleType() != null && !profile.getVehicleType().trim().isEmpty() &&
-               profile.getVehicleNumber() != null && !profile.getVehicleNumber().trim().isEmpty() &&
-               profile.getBodyType() != null && !profile.getBodyType().trim().isEmpty() &&
-               profile.getAcAvailable() != null && !profile.getAcAvailable().trim().isEmpty() &&
-               profile.getNumberOfSeats() != null && profile.getNumberOfSeats() > 0;
+        return profile.getFirstName() != null && !profile.getFirstName().trim().isEmpty() &&
+               profile.getLastName() != null && !profile.getLastName().trim().isEmpty() &&
+               profile.getPhoneNumber() != null && !profile.getPhoneNumber().trim().isEmpty() &&
+               profile.getDateOfBirth() != null &&
+               profile.getAddress() != null && !profile.getAddress().trim().isEmpty() &&
+               profile.getEmergencyContactName() != null && !profile.getEmergencyContactName().trim().isEmpty() &&
+               profile.getEmergencyContactNumber() != null && !profile.getEmergencyContactNumber().trim().isEmpty();
     }
 }

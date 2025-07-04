@@ -6,6 +6,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface TouristProfileRepository extends JpaRepository<TouristProfile, UUID> {
-    Optional<TouristProfile> findByEmail(String email);
+    TouristProfile findByEmail(String email);
     boolean existsByEmail(String email);
 }

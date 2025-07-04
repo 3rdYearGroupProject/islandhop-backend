@@ -1,5 +1,6 @@
 package com.islandhop.userservices.controller;
 
+import com.islandhop.userservices.config.CorsConfig;
 import com.islandhop.userservices.model.DriverAccount;
 import com.islandhop.userservices.model.DriverProfile;
 import com.islandhop.userservices.repository.DriverAccountRepository;
@@ -13,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpSession;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,7 +22,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/driver")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = CorsConfig.ALLOWED_ORIGIN, allowCredentials = CorsConfig.ALLOW_CREDENTIALS)
 @RequiredArgsConstructor
 public class DriverController {
 
@@ -76,8 +76,12 @@ public class DriverController {
     public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> requestBody, HttpSession session) {
         logger.info("PUT /driver/profile called with body: {}", requestBody);
         
-        // Get email from session
-        String email = (String) session.getAttribute("driverEmail");
+        // Get email from request body or session
+        String email = (String) requestBody.get("email");
+        if (email == null) {
+            email = (String) session.getAttribute("driverEmail");
+        }
+        
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -102,13 +106,15 @@ public class DriverController {
      * Gets the driver profile.
      */
     @GetMapping("/profile")
-    public ResponseEntity<?> getProfile(HttpSession session) {
-        String email = (String) session.getAttribute("driverEmail");
-        if (email == null) {
+    public ResponseEntity<?> getProfile(@RequestParam(required = false) String email, HttpSession session) {
+        // Use email from parameter if provided, otherwise get from session
+        String profileEmail = email != null ? email : (String) session.getAttribute("driverEmail");
+        
+        if (profileEmail == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
 
-        DriverProfile profile = profileRepository.findByEmail(email);
+        DriverProfile profile = profileRepository.findByEmail(profileEmail);
         if (profile == null) {
             return ResponseEntity.notFound().build();
         }

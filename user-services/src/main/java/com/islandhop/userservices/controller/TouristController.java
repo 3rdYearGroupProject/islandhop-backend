@@ -1,5 +1,6 @@
 package com.islandhop.userservices.controller;
 
+import com.islandhop.userservices.config.CorsConfig;
 import com.islandhop.userservices.model.TouristAccount;
 import com.islandhop.userservices.model.TouristProfile;
 import com.islandhop.userservices.model.TouristStatus;
@@ -24,7 +25,7 @@ import jakarta.servlet.http.HttpSession;
  */
 @RestController
 @RequestMapping("/tourist")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = CorsConfig.ALLOWED_ORIGIN, allowCredentials = CorsConfig.ALLOW_CREDENTIALS)
 @RequiredArgsConstructor
 public class TouristController {
 
