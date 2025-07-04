@@ -11,9 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.WebSession;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.Flux;
+import jakarta.servlet.http.HttpSession;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -73,7 +71,7 @@ public class TripPlanningController {
      */
     @PostMapping("/initiate")
     public ResponseEntity<?> initiateTrip(@Valid @RequestBody CreateTripRequest request, 
-                                         WebSession session) {
+                                         HttpSession session) {
         log.info("🚀 Starting initiate trip endpoint for user: {}", request.getUserId());
         
         try {
@@ -138,7 +136,7 @@ public class TripPlanningController {
     @PostMapping("/{tripId}/add-place")
     public ResponseEntity<?> addPlaceToTrip(@PathVariable String tripId,
                                            @Valid @RequestBody AddPlaceRequest request,
-                                           WebSession session) {
+                                           HttpSession session) {
         log.info("🚀 Starting add-place to trip endpoint - TripId: '{}', Place: '{}', User: '{}'", 
                 tripId, request.getPlaceName(), request.getUserId());
         
@@ -215,7 +213,7 @@ public class TripPlanningController {
     @GetMapping("/{tripId}/suggestions")
     public ResponseEntity<?> getSuggestions(@PathVariable String tripId,
                                           @RequestParam(required = false) Integer day,
-                                          WebSession session) {
+                                          HttpSession session) {
         log.info("🚀 Starting get suggestions endpoint - TripId: '{}', Day: '{}'", tripId, day);
         
         try {
@@ -253,8 +251,14 @@ public class TripPlanningController {
                 "tripId", tripId,
                 "day", day != null ? day : "all"
             );
-            log.info("🎉 Get suggestions completed successfully - TripId: {}, Count: {}", 
-                    tripId, suggestions.getSuggestions() != null ? suggestions.getSuggestions().size() : 0);
+            
+            // Calculate total suggestions count for logging
+            int totalSuggestions = 0;
+            if (suggestions.getAttractions() != null) totalSuggestions += suggestions.getAttractions().size();
+            if (suggestions.getHotels() != null) totalSuggestions += suggestions.getHotels().size();
+            if (suggestions.getRestaurants() != null) totalSuggestions += suggestions.getRestaurants().size();
+            
+            log.info("🎉 Get suggestions completed successfully - TripId: {}, Total Count: {}", tripId, totalSuggestions);
             return ResponseEntity.ok(response);
             
         } catch (SecurityException e) {
@@ -274,7 +278,7 @@ public class TripPlanningController {
      */
     @PostMapping("/{tripId}/optimize-order")
     public ResponseEntity<?> optimizeOrder(@PathVariable String tripId,
-                                         WebSession session) {
+                                         HttpSession session) {
         log.info("🚀 Starting optimize order endpoint - TripId: '{}'", tripId);
         
         try {
@@ -333,7 +337,7 @@ public class TripPlanningController {
     @GetMapping("/{tripId}/day/{day}")
     public ResponseEntity<?> getDayPlan(@PathVariable String tripId,
                                        @PathVariable Integer day,
-                                       WebSession session) {
+                                       HttpSession session) {
         log.info("🚀 Starting get day plan endpoint - TripId: '{}', Day: '{}'", tripId, day);
         
         try {
@@ -396,7 +400,7 @@ public class TripPlanningController {
      */
     @GetMapping("/{tripId}/summary")
     public ResponseEntity<?> getTripSummary(@PathVariable String tripId,
-                                          WebSession session) {
+                                          HttpSession session) {
         log.info("🚀 Starting get trip summary endpoint - TripId: '{}'", tripId);
         
         try {
@@ -453,7 +457,7 @@ public class TripPlanningController {
      */
     @GetMapping("/{tripId}/map-data")
     public ResponseEntity<?> getMapData(@PathVariable String tripId,
-                                      WebSession session) {
+                                      HttpSession session) {
         log.info("🚀 Starting get map data endpoint - TripId: '{}'", tripId);
         
         try {
@@ -504,7 +508,7 @@ public class TripPlanningController {
      * Get user's trips
      */
     @GetMapping("/my-trips")
-    public ResponseEntity<?> getUserTrips(WebSession session) {
+    public ResponseEntity<?> getUserTrips(HttpSession session) {
         log.info("🚀 Starting get user trips endpoint");
         
         try {
@@ -556,7 +560,7 @@ public class TripPlanningController {
                                            @RequestParam(required = false) Double biasLat,
                                            @RequestParam(required = false) Double biasLng,
                                            @RequestParam(required = false, defaultValue = "10") Integer maxResults,
-                                           WebSession session) {
+                                           HttpSession session) {
         log.info("🚀 Starting search locations endpoint - Query: '{}', City: '{}'", query, city);
         
         try {
@@ -621,7 +625,7 @@ public class TripPlanningController {
     public ResponseEntity<?> addPlaceToDay(@PathVariable String tripId,
                                           @PathVariable Integer dayNumber,
                                           @Valid @RequestBody AddPlaceToDayRequest request,
-                                          WebSession session) {
+                                          HttpSession session) {
         log.info("🚀 Starting add place to day endpoint - TripId: '{}', Day: '{}', Place: '{}', User: '{}'", 
                 tripId, dayNumber, request.getPlaceName(), request.getUserId());
         
@@ -706,7 +710,7 @@ public class TripPlanningController {
     public ResponseEntity<?> getContextualSuggestions(@PathVariable String tripId,
                                                      @PathVariable Integer dayNumber,
                                                      @RequestParam(required = false, defaultValue = "initial") String contextType,
-                                                     WebSession session) {
+                                                     HttpSession session) {
         log.info("GET /trip/{}/day/{}/contextual-suggestions called (context: {})", tripId, dayNumber, contextType);
         
         try {
@@ -741,7 +745,7 @@ public class TripPlanningController {
                                                  @RequestParam String placeId,
                                                  @RequestParam(required = false) String placeType,
                                                  @RequestParam(required = false, defaultValue = "10") Integer maxResults,
-                                                 WebSession session) {
+                                                 HttpSession session) {
         log.info("GET /trip/{}/nearby-suggestions called for place: {}", tripId, placeId);
         
         try {
@@ -773,7 +777,7 @@ public class TripPlanningController {
     @GetMapping("/{tripId}/day/{dayNumber}/plan")
     public ResponseEntity<?> getDayPlanWithSuggestions(@PathVariable String tripId,
                                        @PathVariable Integer dayNumber,
-                                       WebSession session) {
+                                       HttpSession session) {
         log.info("GET /trip/{}/day/{}/plan called", tripId, dayNumber);
         
         try {
@@ -803,7 +807,7 @@ public class TripPlanningController {
                                                    @PathVariable Integer dayNumber,
                                                    @RequestParam(required = false) String lastPlaceId,
                                                    @RequestParam(required = false) String category,
-                                                   WebSession session) {
+                                                   HttpSession session) {
         log.info("GET /trip/{}/day/{}/realtime-suggestions called (lastPlace: {}, category: {})", 
                 tripId, dayNumber, lastPlaceId, category);
         
@@ -843,7 +847,7 @@ public class TripPlanningController {
                                           @RequestParam String placeName,
                                           @RequestParam String placeType,
                                           @RequestParam(required = false) String insertAfterPlaceId,
-                                          WebSession session) {
+                                          HttpSession session) {
         log.info("POST /trip/{}/day/{}/quick-add called for place: {}", tripId, dayNumber, placeName);
         
         try {
@@ -892,7 +896,7 @@ public class TripPlanningController {
      * Get available place categories (Google-style)
      */
     @GetMapping("/place-categories")
-    public ResponseEntity<?> getPlaceCategories(WebSession session) {
+    public ResponseEntity<?> getPlaceCategories(HttpSession session) {
         log.info("GET /trip/place-categories called");
         
         try {
@@ -924,7 +928,7 @@ public class TripPlanningController {
     public ResponseEntity<?> getEnhancedTravelInfo(@PathVariable String tripId,
                                                   @RequestParam String fromPlaceId,
                                                   @RequestParam String toPlaceId,
-                                                  WebSession session) {
+                                                  HttpSession session) {
         log.info("GET /trip/{}/enhanced-travel-info called from {} to {}", tripId, fromPlaceId, toPlaceId);
         
         try {
@@ -967,7 +971,7 @@ public class TripPlanningController {
                                                      @RequestParam(required = false) Integer dayNumber,
                                                      @RequestParam(required = false) String lastPlaceId,
                                                      @RequestParam(required = false, defaultValue = "10") Integer maxResults,
-                                                     WebSession session) {
+                                                     HttpSession session) {
         log.info("GET /trip/{}/contextual-search called with query: {}", tripId, query);
         
         try {
@@ -996,7 +1000,7 @@ public class TripPlanningController {
     public ResponseEntity<?> getTravelInfo(@PathVariable String tripId,
                                           @RequestParam String fromPlaceId,
                                           @RequestParam String toPlaceId,
-                                          WebSession session) {
+                                          HttpSession session) {
         log.info("GET /trip/{}/travel-info called from {} to {}", tripId, fromPlaceId, toPlaceId);
         
         try {
@@ -1022,7 +1026,7 @@ public class TripPlanningController {
      */
     @PostMapping("/validate-place")
     public ResponseEntity<?> validatePlace(@Valid @RequestBody AddPlaceRequest request,
-                                         WebSession session) {
+                                         HttpSession session) {
         log.info("POST /trip/validate-place called for: {}", request.getPlaceName());
         
         try {
@@ -1055,7 +1059,7 @@ public class TripPlanningController {
      */
     @GetMapping("/place-details/{placeId}")
     public ResponseEntity<?> getPlaceDetails(@PathVariable String placeId,
-                                           WebSession session) {
+                                           HttpSession session) {
         log.info("GET /trip/place-details/{} called", placeId);
         
         try {
@@ -1112,7 +1116,7 @@ public class TripPlanningController {
      */
     @PostMapping("/create-basic")
     public ResponseEntity<?> createBasicTrip(@Valid @RequestBody CreateTripBasicRequest request,
-                                                   WebSession session) {
+                                                   HttpSession session) {
         log.info("🚀 Starting create-basic trip endpoint - Trip: '{}' for User: '{}'", 
                 request.getTripName(), request.getUserId());
 
@@ -1132,8 +1136,8 @@ public class TripPlanningController {
             log.debug("✅ Input validation passed");
 
             // Step 2: Session validation
-            log.debug("🔐 Step 2: Validating session");
-            sessionValidationService.validateSessionExists(session);
+            // log.debug("🔐 Step 2: Validating session");
+            // sessionValidationService.validateSessionExists(session);
             String userId = request.getUserId();
             log.debug("✅ Session validation completed for userId: {}", userId);
             
@@ -1182,7 +1186,7 @@ public class TripPlanningController {
     @PostMapping("/{tripId}/preferences")
     public ResponseEntity<?> updateTripPreferences(@PathVariable String tripId,
                                                          @Valid @RequestBody UpdatePreferencesRequest request,
-                                                         WebSession session) {
+                                                         HttpSession session) {
         log.info("🚀 Starting update trip preferences endpoint - TripId: '{}', User: '{}'", tripId, request.getUserId());
 
         try {
@@ -1247,7 +1251,7 @@ public class TripPlanningController {
     @PostMapping("/{tripId}/cities")
     public ResponseEntity<?> updateTripCities(@PathVariable String tripId,
                                                     @Valid @RequestBody UpdateCitiesRequest request,
-                                                    WebSession session) {
+                                                    HttpSession session) {
         log.info("🚀 Starting update trip cities endpoint - TripId: '{}', User: '{}'", tripId, request.getUserId());
 
         try {
@@ -1316,7 +1320,7 @@ public class TripPlanningController {
                                                     @RequestParam(required = false) String lastPlaceId,
                                                     @RequestParam(defaultValue = "10") Integer maxResults,
                                                     @RequestParam(required = false) String userId,
-                                                    WebSession session) {
+                                                    HttpSession session) {
         log.info("GET /trip/{}/search/activities called with query: {} for user: {}", tripId, query, userId);
 
         try {
@@ -1358,7 +1362,7 @@ public class TripPlanningController {
                                                        @RequestParam(required = false) String lastPlaceId,
                                                        @RequestParam(defaultValue = "10") Integer maxResults,
                                                        @RequestParam(required = false) String userId,
-                                                       WebSession session) {
+                                                       HttpSession session) {
         log.info("GET /trip/{}/search/accommodation called with query: {} for user: {}", tripId, query, userId);
 
         try {
@@ -1400,7 +1404,7 @@ public class TripPlanningController {
                                                 @RequestParam(required = false) String lastPlaceId,
                                                 @RequestParam(defaultValue = "10") Integer maxResults,
                                                 @RequestParam(required = false) String userId,
-                                                WebSession session) {
+                                                HttpSession session) {
         log.info("GET /trip/{}/search/dining called with query: {} for user: {}", tripId, query, userId);
 
         try {
