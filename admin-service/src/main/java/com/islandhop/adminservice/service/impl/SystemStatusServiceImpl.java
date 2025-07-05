@@ -1,14 +1,19 @@
 package com.islandhop.adminservice.service.impl;
 
+import com.google.cloud.firestore.Firestore;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.cloud.FirestoreClient;
 import com.islandhop.adminservice.model.SystemStatusResponse;
 import com.islandhop.adminservice.service.SystemStatusService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.bson.Document;
+
 
 /**
  * Implementation of SystemStatusService.
@@ -37,55 +42,54 @@ public class SystemStatusServiceImpl implements SystemStatusService {
         return new SystemStatusResponse(redisStatus, firebaseStatus, mongoDbStatus);
     }
 
-    @Override
-    public String getRedisStatus() {
-        try {
-            // Try to ping Redis
-            String pong = redisTemplate.getConnectionFactory()
-                    .getConnection()
-                    .ping();
-            
-            if ("PONG".equals(pong)) {
-                logger.debug("Redis connection successful");
-                return SystemStatusResponse.Status.UP;
-            } else {
-                logger.warn("Redis ping returned unexpected response: {}", pong);
-                return SystemStatusResponse.Status.DOWN;
-            }
-        } catch (Exception e) {
-            logger.error("Redis connection failed: {}", e.getMessage());
-            return SystemStatusResponse.Status.DOWN;
-        }
-    }
+    // Add this method to SystemStatusServiceImpl.java
 
-    @Override
-    public String getFirebaseStatus() {
-        try {
-            // Check if Firebase app is initialized
-            FirebaseApp defaultApp = FirebaseApp.getInstance();
-            if (defaultApp != null && defaultApp.getName() != null) {
-                logger.debug("Firebase connection successful");
-                return SystemStatusResponse.Status.UP;
-            } else {
-                logger.warn("Firebase app not properly initialized");
-                return SystemStatusResponse.Status.DOWN;
-            }
-        } catch (Exception e) {
-            logger.error("Firebase connection failed: {}", e.getMessage());
-            return SystemStatusResponse.Status.DOWN;
-        }
-    }
-
-    @Override
-    public String getMongoDbStatus() {
-        try {
-            // Try to execute a simple command to test MongoDB connection
-            mongoTemplate.getCollection("test");
-            logger.debug("MongoDB connection successful");
+@Override
+public String getRedisStatus() {
+    try {
+        // Simple ping operation with timeout
+        String result = redisTemplate.execute((RedisCallback<String>) connection -> {
+            return connection.ping();
+        });
+        
+        if ("PONG".equals(result)) {
+            logger.debug("Redis connection successful");
             return SystemStatusResponse.Status.UP;
-        } catch (Exception e) {
-            logger.error("MongoDB connection failed: {}", e.getMessage());
+        } else {
+            logger.warn("Redis ping returned unexpected response: {}", result);
             return SystemStatusResponse.Status.DOWN;
         }
+    } catch (Exception e) {
+        logger.error("Redis connection failed: {}", e.getMessage());
+        return SystemStatusResponse.Status.DOWN;
     }
+}
+
+   @Override
+public String getFirebaseStatus() {
+    try {
+        Firestore firestore = FirestoreClient.getFirestore();
+        firestore.collection("ping_check").document("test").get().get(); // blocking call
+        logger.debug("Firebase Firestore connection successful");
+        return SystemStatusResponse.Status.UP;
+    } catch (Exception e) {
+        logger.error("Firebase connection failed: {}", e.getMessage());
+        return SystemStatusResponse.Status.DOWN;
+    }
+}
+
+
+    @Override
+public String getMongoDbStatus() {
+    try {
+        Document ping = new Document("ping", 1);
+        mongoTemplate.getDb().runCommand(ping); // sends real ping to DB
+        logger.debug("MongoDB connection successful (ping)");
+        return SystemStatusResponse.Status.UP;
+    } catch (Exception e) {
+        logger.error("MongoDB ping failed: {}", e.getMessage());
+        return SystemStatusResponse.Status.DOWN;
+    }
+}
+   
 }

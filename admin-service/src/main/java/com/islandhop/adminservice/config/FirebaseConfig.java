@@ -31,34 +31,35 @@ public class FirebaseConfig {
     @PostConstruct
     public void initializeFirebase() {
         try {
-            // Check if Firebase app is already initialized
-            if (FirebaseApp.getApps().isEmpty()) {
-                // Load service account key
-                InputStream serviceAccount;
-                
-                if (serviceAccountKeyPath.startsWith("classpath:")) {
-                    String resourcePath = serviceAccountKeyPath.substring("classpath:".length());
-                    serviceAccount = new ClassPathResource(resourcePath).getInputStream();
-                } else {
-                    throw new IllegalArgumentException("Service account key path must start with 'classpath:'");
-                }
+            // Check if Firebase is already initialized
+            if (!FirebaseApp.getApps().isEmpty()) {
+                logger.info("Firebase app already initialized");
+                return;
+            }
 
+            // Load service account key
+            ClassPathResource resource = new ClassPathResource(serviceAccountKeyPath.replace("classpath:", ""));
+            
+            if (!resource.exists()) {
+                logger.error("Firebase service account key file not found: {}", serviceAccountKeyPath);
+                return;
+            }
+
+            try (InputStream serviceAccount = resource.getInputStream()) {
+                GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
+                
                 FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                        .setProjectId(projectId)
-                        .build();
+                    .setCredentials(credentials)
+                    .setProjectId(projectId)
+                    .build();
 
                 FirebaseApp.initializeApp(options);
                 logger.info("Firebase initialized successfully for project: {}", projectId);
-            } else {
-                logger.info("Firebase app already initialized");
             }
         } catch (IOException e) {
-            logger.error("Failed to initialize Firebase: {}", e.getMessage(), e);
-            // Don't throw exception to prevent application startup failure
+            logger.error("Failed to initialize Firebase: {}", e.getMessage());
         } catch (Exception e) {
-            logger.error("Unexpected error during Firebase initialization: {}", e.getMessage(), e);
-            // Don't throw exception to prevent application startup failure
+            logger.error("Unexpected error during Firebase initialization: {}", e.getMessage());
         }
     }
 }
