@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: admin-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/islandhop}
+      database: ${MONGODB_DATABASE:islandhop}
+
+firebase:
+  service-account-key: ${FIREBASE_SERVICE_ACCOUNT_KEY:classpath:serviceAccountKey.json}
+  project-id: ${FIREBASE_PROJECT_ID:islandhop-project}
+
+server:
+  port: ${SERVER_PORT:8090}
+  servlet:
+    context-path: /api/v1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.islandhop.adminservice: INFO
+    org.springframework.data.redis: WARN
+    org.springframework.data.mongodb: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
