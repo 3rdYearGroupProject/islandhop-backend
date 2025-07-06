@@ -8,39 +8,29 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "guide_profiles")
+@Table(name = "guide_languages")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class GuideProfile {
+public class GuideLanguage {
     
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
     
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String email;
     
-    private String firstName;
-    private String lastName;
-    private String phoneNumber;
-    private LocalDate dateOfBirth;
-    private String address;
-    private String emergencyContactNumber;
-    private String emergencyContactName;
+    @Column(nullable = false)
+    private String language;
     
-    @Lob
-    @Column(columnDefinition = "LONGBLOB")
-    private byte[] profilePicture;
-    
-    @Builder.Default
-    private Integer profileCompletion = 0;
+    @Column(nullable = false)
+    private String level; // Native, Advanced, Intermediate, Basic
     
     @CreationTimestamp
     private LocalDateTime createdAt;

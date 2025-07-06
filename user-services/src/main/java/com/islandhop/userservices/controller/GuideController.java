@@ -1,7 +1,11 @@
 package com.islandhop.userservices.controller;
 
 import com.islandhop.userservices.config.CorsConfig;
+import com.islandhop.userservices.dto.GuideCertificateDTO;
+import com.islandhop.userservices.dto.GuideProfileDTO;
 import com.islandhop.userservices.model.GuideAccount;
+import com.islandhop.userservices.model.GuideCertificate;
+import com.islandhop.userservices.model.GuideLanguage;
 import com.islandhop.userservices.model.GuideProfile;
 import com.islandhop.userservices.repository.GuideAccountRepository;
 import com.islandhop.userservices.repository.GuideProfileRepository;
@@ -109,7 +113,7 @@ public class GuideController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
 
-        GuideProfile profile = profileRepository.findByEmail(email);
+        GuideProfileDTO profile = guideService.getGuideProfileDTO(email);
         if (profile == null) {
             return ResponseEntity.notFound().build();
         }
@@ -200,5 +204,148 @@ public class GuideController {
     public ResponseEntity<String> health() {
         logger.info("GET /guide/health called");
         return ResponseEntity.ok("OK");
+    }
+
+    // Certificate Management Endpoints
+
+    /**
+     * Gets all certificates for the authenticated guide.
+     */
+    @GetMapping("/certificates")
+    public ResponseEntity<?> getCertificates(HttpSession session) {
+        String email = (String) session.getAttribute("guideEmail");
+        if (email == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        try {
+            List<GuideCertificateDTO> certificates = guideService.getCertificates(email);
+            return ResponseEntity.ok(certificates);
+        } catch (Exception e) {
+            logger.error("Error retrieving certificates for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error retrieving certificates: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Updates/replaces all certificates for the authenticated guide.
+     */
+    @PutMapping("/certificates")
+    public ResponseEntity<?> updateCertificates(@RequestBody Map<String, Object> requestBody, HttpSession session) {
+        logger.info("PUT /guide/certificates called with body: {}", requestBody);
+        
+        String email = (String) session.getAttribute("guideEmail");
+        if (email == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        if (!accountRepository.existsByEmail(email)) {
+            logger.warn("Certificate update attempted for non-existent guide: {}", email);
+            return ResponseEntity.badRequest().body("Guide account does not exist");
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> certificatesData = (List<Map<String, Object>>) requestBody.get("certificates");
+            
+            if (certificatesData == null) {
+                return ResponseEntity.badRequest().body("Missing certificates data");
+            }
+
+            List<GuideCertificateDTO> updatedCertificates = guideService.updateCertificates(email, certificatesData);
+            logger.info("Certificates updated for: {}", email);
+            return ResponseEntity.ok(updatedCertificates);
+        } catch (Exception e) {
+            logger.error("Error updating certificates for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error updating certificates: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Adds a single certificate for the authenticated guide.
+     */
+    @PostMapping("/certificates")
+    public ResponseEntity<?> addCertificate(@RequestBody Map<String, Object> requestBody, HttpSession session) {
+        logger.info("POST /guide/certificates called with body: {}", requestBody);
+        
+        String email = (String) session.getAttribute("guideEmail");
+        if (email == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        if (!accountRepository.existsByEmail(email)) {
+            logger.warn("Certificate addition attempted for non-existent guide: {}", email);
+            return ResponseEntity.badRequest().body("Guide account does not exist");
+        }
+
+        try {
+            GuideCertificate certificate = guideService.saveCertificate(email, requestBody);
+            GuideCertificateDTO certificateDTO = GuideCertificateDTO.fromEntity(certificate);
+            logger.info("Certificate added for: {}", email);
+            return ResponseEntity.ok(certificateDTO);
+        } catch (Exception e) {
+            logger.error("Error adding certificate for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error adding certificate: " + e.getMessage());
+        }
+    }
+
+    // Language Management Endpoints
+
+    /**
+     * Gets all languages for the authenticated guide.
+     */
+    @GetMapping("/languages")
+    public ResponseEntity<?> getLanguages(HttpSession session) {
+        String email = (String) session.getAttribute("guideEmail");
+        if (email == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        try {
+            List<GuideLanguage> languages = guideService.getLanguages(email);
+            return ResponseEntity.ok(languages);
+        } catch (Exception e) {
+            logger.error("Error retrieving languages for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error retrieving languages: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Updates/replaces all languages for the authenticated guide.
+     */
+    @PutMapping("/languages")
+    public ResponseEntity<?> updateLanguages(@RequestBody Map<String, Object> requestBody, HttpSession session) {
+        logger.info("PUT /guide/languages called with body: {}", requestBody);
+        
+        String email = (String) session.getAttribute("guideEmail");
+        if (email == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        if (!accountRepository.existsByEmail(email)) {
+            logger.warn("Language update attempted for non-existent guide: {}", email);
+            return ResponseEntity.badRequest().body("Guide account does not exist");
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> languagesData = (List<Map<String, Object>>) requestBody.get("languages");
+            
+            if (languagesData == null) {
+                return ResponseEntity.badRequest().body("Missing languages data");
+            }
+
+            List<GuideLanguage> updatedLanguages = guideService.updateLanguages(email, languagesData);
+            logger.info("Languages updated for: {}", email);
+            return ResponseEntity.ok(updatedLanguages);
+        } catch (Exception e) {
+            logger.error("Error updating languages for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error updating languages: " + e.getMessage());
+        }
     }
 }

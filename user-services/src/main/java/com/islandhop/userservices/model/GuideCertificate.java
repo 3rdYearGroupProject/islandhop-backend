@@ -13,38 +13,48 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "guide_profiles")
+@Table(name = "guide_certificates")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class GuideProfile {
+public class GuideCertificate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
     
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String email;
     
-    private String firstName;
-    private String lastName;
-    private String phoneNumber;
-    private LocalDate dateOfBirth;
-    private String address;
-    private String emergencyContactNumber;
-    private String emergencyContactName;
+    @Column(nullable = false)
+    private String certificateId;
+    
+    @Column(nullable = false)
+    private String certificateIssuer;
+    
+    @Column(nullable = false)
+    private LocalDate issueDate;
+    
+    private LocalDate expiryDate;
+    
+    private String verificationNumber;
     
     @Lob
     @Column(columnDefinition = "LONGBLOB")
-    private byte[] profilePicture;
+    private byte[] certificatePicture;
     
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    private Integer profileCompletion = 0;
+    private CertificateStatus status = CertificateStatus.PENDING;
     
     @CreationTimestamp
     private LocalDateTime createdAt;
     
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+    
+    public enum CertificateStatus {
+        ACTIVE, PENDING, REJECTED
+    }
 }
