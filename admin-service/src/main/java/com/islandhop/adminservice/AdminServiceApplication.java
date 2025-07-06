@@ -1,5 +1,6 @@
 package com.islandhop.adminservice;
 
+import io.github.cdimascio.dotenv.Dotenv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
@@ -15,6 +16,12 @@ public class AdminServiceApplication {
     private static final Logger logger = LoggerFactory.getLogger(AdminServiceApplication.class);
 
     public static void main(String[] args) {
+        // Load .env variables into system properties so Spring can use them
+        Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
+        dotenv.entries().forEach(entry ->
+            System.setProperty(entry.getKey(), entry.getValue())
+        );
+
         SpringApplication.run(AdminServiceApplication.class, args);
     }
 
