@@ -4,13 +4,18 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
 import com.islandhop.userservices.model.DriverAccount;
 import com.islandhop.userservices.model.DriverProfile;
+import com.islandhop.userservices.model.DriverVehicle;
 import com.islandhop.userservices.repository.DriverAccountRepository;
 import com.islandhop.userservices.repository.DriverProfileRepository;
+import com.islandhop.userservices.repository.DriverVehicleRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -21,6 +26,7 @@ public class DriverService {
 
     private final DriverAccountRepository accountRepository;
     private final DriverProfileRepository profileRepository;
+    private final DriverVehicleRepository vehicleRepository;
 
     public String getEmailFromIdToken(String idToken) {
         try {
@@ -44,7 +50,12 @@ public class DriverService {
             .email(email)
             .profileCompletion(0)
             .build();
-        return profileRepository.save(profile);
+        DriverProfile savedProfile = profileRepository.save(profile);
+        
+        // Create a basic driver vehicle record with only email
+        createBasicDriverVehicle(email);
+        
+        return savedProfile;
     }
 
     public DriverProfile updateDriverProfile(String email, Map<String, Object> requestBody) {
@@ -130,5 +141,168 @@ public class DriverService {
                profile.getAddress() != null && !profile.getAddress().trim().isEmpty() &&
                profile.getEmergencyContactName() != null && !profile.getEmergencyContactName().trim().isEmpty() &&
                profile.getEmergencyContactNumber() != null && !profile.getEmergencyContactNumber().trim().isEmpty();
+    }
+
+    public DriverVehicle createBasicDriverVehicle(String email) {
+        // Check if vehicle record already exists
+        if (vehicleRepository.existsByEmail(email)) {
+            return vehicleRepository.findByEmail(email).orElse(null);
+        }
+        
+        DriverVehicle vehicle = DriverVehicle.builder()
+            .email(email)
+            .vehicleRegistrationStatus(2) // pending
+            .insuranceCertificateStatus(2) // pending
+            .build();
+        return vehicleRepository.save(vehicle);
+    }
+    
+    public DriverVehicle getDriverVehicle(String email) {
+        return vehicleRepository.findByEmail(email).orElse(null);
+    }
+    
+    public DriverVehicle updateDriverVehicle(String email, Map<String, Object> requestBody, Map<String, MultipartFile> files) {
+        DriverVehicle vehicle = vehicleRepository.findByEmail(email).orElse(null);
+        if (vehicle == null) {
+            // Create if doesn't exist
+            vehicle = createBasicDriverVehicle(email);
+        }
+        
+        try {
+            // Update text fields - handle both frontend and backend parameter names
+            if (requestBody.containsKey("Fueltype") || requestBody.containsKey("fueltype")) {
+                String value = (String) (requestBody.containsKey("Fueltype") ? 
+                    requestBody.get("Fueltype") : requestBody.get("fueltype"));
+                vehicle.setFueltype(value);
+            }
+            if (requestBody.containsKey("Capacity") || requestBody.containsKey("capacity")) {
+                String value = (String) (requestBody.containsKey("Capacity") ? 
+                    requestBody.get("Capacity") : requestBody.get("capacity"));
+                vehicle.setCapacity(value);
+            }
+            if (requestBody.containsKey("Make") || requestBody.containsKey("make")) {
+                String value = (String) (requestBody.containsKey("Make") ? 
+                    requestBody.get("Make") : requestBody.get("make"));
+                vehicle.setMake(value);
+            }
+            if (requestBody.containsKey("Model") || requestBody.containsKey("model")) {
+                String value = (String) (requestBody.containsKey("Model") ? 
+                    requestBody.get("Model") : requestBody.get("model"));
+                vehicle.setModel(value);
+            }
+            if (requestBody.containsKey("Year") || requestBody.containsKey("year")) {
+                String value = (String) (requestBody.containsKey("Year") ? 
+                    requestBody.get("Year") : requestBody.get("year"));
+                vehicle.setYear(value);
+            }
+            if (requestBody.containsKey("Color") || requestBody.containsKey("color")) {
+                String value = (String) (requestBody.containsKey("Color") ? 
+                    requestBody.get("Color") : requestBody.get("color"));
+                vehicle.setColor(value);
+            }
+            if (requestBody.containsKey("Plate Number") || requestBody.containsKey("plateNumber")) {
+                String value = (String) (requestBody.containsKey("Plate Number") ? 
+                    requestBody.get("Plate Number") : requestBody.get("plateNumber"));
+                vehicle.setPlateNumber(value);
+            }
+            if (requestBody.containsKey("Type") || requestBody.containsKey("type")) {
+                String value = (String) (requestBody.containsKey("Type") ? 
+                    requestBody.get("Type") : requestBody.get("type"));
+                vehicle.setType(value);
+            }
+            
+            // Update image files - handle frontend parameter names
+            if (files != null) {
+                if (files.containsKey("Veh_pic_1") && !files.get("Veh_pic_1").isEmpty()) {
+                    vehicle.setVehiclePic1(files.get("Veh_pic_1").getBytes());
+                }
+                if (files.containsKey("Veh_pic_2") && !files.get("Veh_pic_2").isEmpty()) {
+                    vehicle.setVehiclePic2(files.get("Veh_pic_2").getBytes());
+                }
+                if (files.containsKey("Veh_pic_3") && !files.get("Veh_pic_3").isEmpty()) {
+                    vehicle.setVehiclePic3(files.get("Veh_pic_3").getBytes());
+                }
+                if (files.containsKey("Veh_pic_4") && !files.get("Veh_pic_4").isEmpty()) {
+                    vehicle.setVehiclePic4(files.get("Veh_pic_4").getBytes());
+                }
+                if (files.containsKey("Vehicle_registration(pic)") && !files.get("Vehicle_registration(pic)").isEmpty()) {
+                    vehicle.setVehicleRegistrationPic(files.get("Vehicle_registration(pic)").getBytes());
+                    vehicle.setVehicleRegistrationStatus(2); // pending verification
+                }
+                if (files.containsKey("Insurance Pic") && !files.get("Insurance Pic").isEmpty()) {
+                    vehicle.setInsurancePic(files.get("Insurance Pic").getBytes());
+                    vehicle.setInsuranceCertificateStatus(2); // pending verification
+                }
+            }
+            
+            // Update status fields
+            if (requestBody.containsKey("Vehicle registration status")) {
+                Object value = requestBody.get("Vehicle registration status");
+                if (value instanceof String) {
+                    vehicle.setVehicleRegistrationStatus(Integer.parseInt((String) value));
+                } else if (value instanceof Integer) {
+                    vehicle.setVehicleRegistrationStatus((Integer) value);
+                }
+            }
+            if (requestBody.containsKey("Insurance certificate status")) {
+                Object value = requestBody.get("Insurance certificate status");
+                if (value instanceof String) {
+                    vehicle.setInsuranceCertificateStatus(Integer.parseInt((String) value));
+                } else if (value instanceof Integer) {
+                    vehicle.setInsuranceCertificateStatus((Integer) value);
+                }
+            }
+            
+            return vehicleRepository.save(vehicle);
+        } catch (Exception e) {
+            logger.error("Error updating driver vehicle: {}", e.getMessage());
+            throw new RuntimeException("Failed to update vehicle information");
+        }
+    }
+    
+    public Map<String, Object> getDriverVehicleWithImages(String email) {
+        DriverVehicle vehicle = vehicleRepository.findByEmail(email).orElse(null);
+        if (vehicle == null) {
+            return null;
+        }
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", vehicle.getId());
+        response.put("email", vehicle.getEmail());
+        // Use frontend-expected parameter names
+        response.put("Fueltype", vehicle.getFueltype());
+        response.put("Capacity", vehicle.getCapacity());
+        response.put("Make", vehicle.getMake());
+        response.put("Model", vehicle.getModel());
+        response.put("Year", vehicle.getYear());
+        response.put("Color", vehicle.getColor());
+        response.put("Plate Number", vehicle.getPlateNumber());
+        response.put("Type", vehicle.getType());
+        response.put("Vehicle registration status", vehicle.getVehicleRegistrationStatus());
+        response.put("Insurance certificate status", vehicle.getInsuranceCertificateStatus());
+        response.put("createdAt", vehicle.getCreatedAt());
+        response.put("updatedAt", vehicle.getUpdatedAt());
+        
+        // Convert images to base64 with frontend-expected names
+        if (vehicle.getVehiclePic1() != null) {
+            response.put("Veh_pic_1", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(vehicle.getVehiclePic1()));
+        }
+        if (vehicle.getVehiclePic2() != null) {
+            response.put("Veh_pic_2", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(vehicle.getVehiclePic2()));
+        }
+        if (vehicle.getVehiclePic3() != null) {
+            response.put("Veh_pic_3", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(vehicle.getVehiclePic3()));
+        }
+        if (vehicle.getVehiclePic4() != null) {
+            response.put("Veh_pic_4", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(vehicle.getVehiclePic4()));
+        }
+        if (vehicle.getVehicleRegistrationPic() != null) {
+            response.put("Vehicle_registration(pic)", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(vehicle.getVehicleRegistrationPic()));
+        }
+        if (vehicle.getInsurancePic() != null) {
+            response.put("Insurance Pic", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(vehicle.getInsurancePic()));
+        }
+        
+        return response;
     }
 }
