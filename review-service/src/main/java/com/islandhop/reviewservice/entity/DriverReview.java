@@ -1,68 +1,60 @@
 package com.islandhop.reviewservice.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import com.islandhop.reviewservice.enums.ReviewStatus;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "driver_reviews")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class DriverReview {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "review_id")
     private Long reviewId;
 
-    @Column(name = "driver_email", nullable = false)
-    private String driverEmail;
+    @Column(name = "email", nullable = false)
+    private String email; // Driver's email
 
-    @Column(name = "review", nullable = false)
+    @Column(name = "review", nullable = false, columnDefinition = "TEXT")
     private String review;
 
-    @Column(name = "rating", nullable = false)
-    private int rating; // Rating on a scale of 0-5
-
-    @Enumerated(EnumType.STRING)
+    @Enumerated(EnumType.ORDINAL)
     @Column(name = "status", nullable = false)
-    private ReviewStatus status; // Status can be APPROVED, BANNED, PENDING
+    @Builder.Default
+    private ReviewStatus status = ReviewStatus.PENDING;
 
-    // Getters and Setters
+    @Column(name = "reviewer_email", nullable = false)
+    private String reviewerEmail;
 
-    public Long getReviewId() {
-        return reviewId;
-    }
+    @Column(name = "reviewer_firstname", nullable = false)
+    private String reviewerFirstname;
 
-    public void setReviewId(Long reviewId) {
-        this.reviewId = reviewId;
-    }
+    @Column(name = "reviewer_lastname", nullable = false)
+    private String reviewerLastname;
 
-    public String getDriverEmail() {
-        return driverEmail;
-    }
+    @Column(name = "ai_confidence_score")
+    private Double aiConfidenceScore;
 
-    public void setDriverEmail(String driverEmail) {
-        this.driverEmail = driverEmail;
-    }
+    @Column(name = "ai_analysis", columnDefinition = "TEXT")
+    private String aiAnalysis;
 
-    public String getReview() {
-        return review;
-    }
+    @CreationTimestamp
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
-    public void setReview(String review) {
-        this.review = review;
-    }
-
-    public int getRating() {
-        return rating;
-    }
-
-    public void setRating(int rating) {
-        this.rating = rating;
-    }
-
-    public ReviewStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(ReviewStatus status) {
-        this.status = status;
-    }
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }
