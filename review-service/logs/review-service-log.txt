@@ -453,3 +453,6 @@ You may wish to exclude one of them to ensure predictable runtime behavior
 2025-07-07 20:04:11 [main] INFO  o.a.coyote.http11.Http11NioProtocol - Starting ProtocolHandler ["http-nio-8082"]
 2025-07-07 20:04:11 [main] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port(s): 8082 (http) with context path ''
 2025-07-07 20:04:11 [main] INFO  c.i.r.ReviewServiceApplication - Started ReviewServiceApplication in 6.131 seconds (process running for 6.612)
+2025-07-07 20:07:06 [SpringApplicationShutdownHook] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-07-07 20:07:06 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2025-07-07 20:07:06 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.

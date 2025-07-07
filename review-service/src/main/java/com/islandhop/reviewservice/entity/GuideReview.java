@@ -50,6 +50,9 @@ public class GuideReview {
     @Column(name = "ai_analysis", columnDefinition = "TEXT")
     private String aiAnalysis;
 
+    @Column(name = "rating", nullable = false)
+    private Integer rating;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;

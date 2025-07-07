@@ -25,4 +25,5 @@ public class ReviewResponseDTO {
     private String aiAnalysis;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Integer rating;
 }
