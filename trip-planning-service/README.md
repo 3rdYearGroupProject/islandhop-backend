@@ -1,6 +1,11 @@
-# Trip Planning Assistant Microservice
+# Trip Planning Service
 
 A sophisticated AI-powered trip planning service for the IslandHop tourism platform, featuring hybrid recommendation algorithms and intelligent route optimization.
+
+## 📚 Documentation
+
+- **[Complete API Documentation](API_DOCUMENTATION.md)** - All endpoints with examples
+- **[Frontend Integration Guide](FRONTEND_INTEGRATION_GUIDE.md)** - Detailed integration examples
 
 ## 🎯 Features
 
@@ -31,43 +36,29 @@ A sophisticated AI-powered trip planning service for the IslandHop tourism platf
 
 ### Prerequisites
 - Java 17+
+- MongoDB 7.0+
 - Maven 3.6+
-- MongoDB 4.4+
-- Access to external APIs (TripAdvisor, Google Maps)
+- Docker (optional)
 
-### Installation
+### Running with Docker
+```bash
+docker-compose up
+```
 
-1. **Clone and navigate to the service**:
+### Running Locally
+1. **Start MongoDB**:
    ```bash
-   cd trip-planning-service
+   mongod --dbpath /path/to/your/db
    ```
 
-2. **Set up MongoDB**:
+2. **Run the application**:
    ```bash
-   # Start MongoDB locally
-   mongod --dbpath /path/to/data/db
-   
-   # Or use MongoDB Atlas (update connection string in application.properties)
-   ```
-
-3. **Configure API keys**:
-   ```bash
-   # Edit src/main/resources/api-keys.properties
-   TRIPADVISOR_API_KEY=your-tripadvisor-key
-   GOOGLE_MAPS_API_KEY=your-google-maps-key
-   OPENWEATHER_API_KEY=your-weather-key  # optional
-   ```
-
-4. **Install dependencies and run**:
-   ```bash
-   mvn clean install
    mvn spring-boot:run
    ```
 
-5. **Load sample data** (optional):
+3. **Health Check**:
    ```bash
-   # Import sample data from mongodb-sample-data.md
-   mongoimport --db islandhop_trips --collection trips --file sample-trips.json
+   curl http://localhost:8083/api/v1/trip/health
    ```
 
 ### Configuration
@@ -92,132 +83,47 @@ recommendation.max-attractions-per-day=4
 recommendation.similarity-threshold=0.7
 ```
 
-## 📚 API Documentation
+## 🔗 Key Endpoints
 
-### Core Endpoints
+### Quick Reference
+- **Health Check**: `GET /api/v1/trip/health`
+- **Search Cities**: `GET /api/v1/trip/search-locations?query=Colombo`
+- **Create Trip**: `POST /api/v1/trip/create-basic`
+- **Add Cities**: `POST /api/v1/trip/{tripId}/cities`
 
-#### Create Trip
-```http
-POST /api/trip/initiate
-Content-Type: application/json
+For complete endpoint documentation with examples, see **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)**
 
-{
-  "tripName": "Cultural Tour of Sri Lanka",
-  "startDate": "2025-08-01",
-  "endDate": "2025-08-05",
-  "arrivalTime": "14:30",
-  "baseCity": "Colombo",
-  "multiCity": true,
-  "categories": ["Culture", "Nature"],
-  "pacing": "NORMAL"
-}
+## 🏗️ Project Structure
+
 ```
-
-#### Add Place
-```http
-POST /api/trip/{tripId}/add-place
-Content-Type: application/json
-
-{
-  "placeName": "Temple of the Tooth",
-  "city": "Kandy",
-  "latitude": 7.2906,
-  "longitude": 80.6337,
-  "preferredDay": 2
-}
+trip-planning-service/
+├── src/main/java/
+│   └── com/islandhop/tripplanning/
+│       ├── controller/     # REST controllers
+│       ├── service/        # Business logic
+│       ├── model/          # Data models
+│       ├── dto/            # Data transfer objects
+│       └── config/         # Configuration classes
+├── API_DOCUMENTATION.md    # Complete API reference
+├── FRONTEND_INTEGRATION_GUIDE.md  # Frontend examples
+├── docker-compose.yml      # Docker setup
+└── README.md              # This file
 ```
-
-#### Get Suggestions
-```http
-GET /api/trip/{tripId}/suggestions?day=2
-```
-
-Response:
-```json
-{
-  "tripId": "trip_001",
-  "attractions": [
-    {
-      "recommendationId": "rec_001",
-      "suggestedPlace": {
-        "placeId": "A001",
-        "name": "Gangaramaya Temple",
-        "rating": 4.3,
-        "categories": ["Culture", "Religion"]
-      },
-      "score": 0.85,
-      "reasons": [
-        "Matches your interests in Culture",
-        "Highly rated attraction with excellent reviews"
-      ],
-      "type": "ATTRACTION"
-    }
-  ],
-  "hotels": [...],
-  "restaurants": [...],
-  "insights": [
-    "Found 5 attractions matching your interests in Culture, Nature"
-  ],
-  "warnings": [],
-  "message": "Found 5 recommendations for Day 2 in Kandy"
-}
-```
-
-#### Optimize Route
-```http
-POST /api/trip/{tripId}/optimize-order
-```
-
-#### Get Day Plan
-```http
-GET /api/trip/{tripId}/day/2
-```
-
-#### Get Map Data
-```http
-GET /api/trip/{tripId}/map-data
-```
-
-### Authentication
-All endpoints require valid session authentication. The service validates sessions with the user-services microservice.
 
 ## 🔧 Architecture
 
 ### Service Structure
 ```
 trip-planning-service/
-├── src/main/java/com/islandhop/tripplanning/
-│   ├── controller/          # REST endpoints
-│   ├── service/            # Business logic
-│   │   ├── recommendation/ # AI recommendation engine
-│   │   └── external/      # External API integrations
-│   ├── model/             # Data models
-│   ├── repository/        # MongoDB repositories
-│   ├── dto/              # Data transfer objects
-│   └── config/           # Configuration classes
-├── src/main/resources/
-│   ├── application.properties
-│   └── api-keys.properties
-└── mongodb-sample-data.md  # Sample data for testing
+├── controller/          # REST endpoints
+├── service/            # Business logic
+│   ├── recommendation/ # AI recommendation engine
+│   └── external/      # External API integrations
+├── model/             # Data models
+├── repository/        # MongoDB repositories
+├── dto/              # Data transfer objects
+└── config/           # Configuration classes
 ```
-
-### Recommendation Algorithm Flow
-
-1. **Content-Based Analysis**:
-   - Analyze user trip preferences
-   - Find attractions matching categories
-   - Score based on location proximity
-   - Consider time constraints and pacing
-
-2. **Collaborative Filtering**:
-   - Find users with similar trip patterns
-   - Analyze popular attractions among similar users
-   - Weight by user satisfaction scores
-
-3. **Hybrid Combination**:
-   - Combine scores with 70% content-based, 30% collaborative weights
-   - Apply business rules and constraints
-   - Rank and return top recommendations
 
 ### Database Schema
 
@@ -232,20 +138,7 @@ trip-planning-service/
   endDate: Date,
   places: [PlannedPlace],
   dayPlans: [DayPlan],
-  statistics: TripStatistics,
-  // ... other fields
-}
-```
-
-#### User Preferences Collection
-```javascript
-{
-  _id: String (userId),
-  categoryPreferences: Map<String, Integer>,
-  locationPreferences: Map<String, Double>,
-  visitedAttractions: Map<String, Integer>,
-  similarUsers: [String],
-  // ... other fields
+  statistics: TripStatistics
 }
 ```
 
@@ -256,26 +149,13 @@ trip-planning-service/
 mvn test
 ```
 
-### Test with Sample Data
-1. Import sample data from `mongodb-sample-data.md`
-2. Start the service
-3. Use the provided sample trip data to test endpoints
-
 ### Manual Testing
 ```bash
-# Create a trip
-curl -X POST http://localhost:8083/api/trip/initiate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "startDate": "2025-08-01",
-    "endDate": "2025-08-05",
-    "baseCity": "Colombo",
-    "categories": ["Culture"],
-    "pacing": "NORMAL"
-  }'
+# Health check
+curl http://localhost:8083/api/v1/trip/health
 
-# Get suggestions
-curl http://localhost:8083/api/trip/{tripId}/suggestions
+# Search for cities
+curl "http://localhost:8083/api/v1/trip/search-locations?query=Colombo"
 ```
 
 ## 🔧 Configuration & Deployment
@@ -295,13 +175,6 @@ EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "/app.jar"]
 ```
 
-### Production Considerations
-- Configure proper MongoDB connection pooling
-- Set up external API rate limiting
-- Implement caching for recommendation results
-- Add monitoring and logging
-- Configure proper CORS settings
-
 ## 🤝 Integration with Other Services
 
 ### User Services
@@ -313,29 +186,16 @@ ENTRYPOINT ["java", "-jar", "/app.jar"]
 - RESTful JSON API
 - Map data optimized for visualization libraries
 
-## 📊 Monitoring & Analytics
+## 📊 Monitoring
 
 ### Health Check
 ```http
-GET /api/trip/health
+GET /api/v1/trip/health
 ```
 
-### Metrics
-The service exposes actuator endpoints for monitoring:
-- `/actuator/health`
-- `/actuator/info`
-
-### Recommendation Performance
-Track recommendation acceptance rates and user satisfaction through the statistics stored in trip documents.
-
-## 🔮 Future Enhancements
-
-- **Real-time Weather Integration**: Weather-based recommendations
-- **Machine Learning Improvements**: Advanced ML models for better predictions
-- **Social Features**: Trip sharing and collaborative planning
-- **Budget Optimization**: Cost-aware recommendations
-- **Crowd Prediction**: Real-time crowd level warnings
-- **Multi-language Support**: Internationalization
+### Actuator Endpoints
+- `/actuator/health` - System health
+- `/actuator/info` - Application info
 
 ## 🐛 Troubleshooting
 
@@ -346,22 +206,12 @@ Track recommendation acceptance rates and user satisfaction through the statisti
    - Verify connection string in application.properties
 
 2. **API Key Errors**:
-   - Ensure API keys are properly set in api-keys.properties
+   - Ensure API keys are properly set
    - Check API quotas and limits
 
 3. **Session Validation Failures**:
    - Verify user-services is running on correct port
    - Check CORS configuration
-
-4. **No Recommendations Returned**:
-   - Check sample data is loaded
-   - Verify TripAdvisor service is returning mock data
-
-### Logs
-Check application logs for detailed error information:
-```bash
-tail -f logs/trip-planning-service.log
-```
 
 ## 📄 License
 
@@ -369,80 +219,4 @@ This project is part of the IslandHop tourism platform.
 
 ---
 
-For questions and support, please refer to the main IslandHop documentation or contact the development team.
-
-## API Endpoints
-
-### Trip Management
-- `POST /trip/initiate` - Create a new trip
-- `POST /trip/{tripId}/add-place` - Add a place to a trip
-- `GET /trip/{tripId}/suggestions` - Get contextual recommendations
-- `POST /trip/{tripId}/optimize-order` - Optimize trip route
-- `GET /trip/{tripId}/day/{day}` - Get day plan
-- `GET /trip/{tripId}/summary` - Get trip summary and statistics
-- `GET /trip/{tripId}/map-data` - Get trip data for map visualization
-- `GET /trip/my-trips` - Get user's trips
-
-### Location Search and Validation
-- `GET /trip/search-locations` - Search for locations by text query
-- `POST /trip/validate-place` - Validate and enrich place information
-- `GET /trip/place-details/{placeId}` - Get detailed place information
-
-### Health Check
-- `GET /trip/health` - Service health check
-
-## Location Search Features
-
-The Trip Planning Service now includes robust location search and validation:
-
-### 1. Intelligent Location Search
-- **Hybrid Search**: Combines Google Places API and TripAdvisor for comprehensive results
-- **Sri Lanka Focus**: Automatically filters and biases results to Sri Lankan locations
-- **Smart Query Building**: Automatically appends "Sri Lanka" to queries when needed
-- **Proximity Sorting**: Results can be sorted by distance from a bias location
-
-### 2. Location Validation
-- **Coordinate Validation**: Ensures coordinates are within Sri Lanka bounds
-- **Address Geocoding**: Converts place names to validated coordinates
-- **Reverse Geocoding**: Gets formatted addresses from coordinates
-- **Duplicate Detection**: Filters out duplicate locations from multiple sources
-
-### 3. Enhanced Place Creation
-- **Auto-enrichment**: Automatically enriches user-added places with location data
-- **Type Inference**: Automatically determines place type from Google Places categories
-- **Address Formatting**: Uses Google's formatted addresses for consistent formatting
-- **Validation Feedback**: Provides warnings and suggestions for ambiguous locations
-
-### Location Search API Examples
-
-#### Search for locations:
-```bash
-GET /trip/search-locations?query=Temple of the Tooth&city=Kandy&maxResults=5
-```
-
-#### Validate a place before adding:
-```bash
-POST /trip/validate-place
-{
-  "placeName": "Sigiriya Rock Fortress",
-  "city": "Dambulla",
-  "description": "Ancient rock fortress and palace"
-}
-```
-
-#### Get detailed place information:
-```bash
-GET /trip/place-details/ChIJN1t_tDeuEmsRUsoyG83frY4
-```
-
-## API Configuration
-
-### Google Places API Setup
-1. Get a Google Places API key from Google Cloud Console
-2. Enable the following APIs:
-   - Places API
-   - Geocoding API
-   - Maps JavaScript API (optional, for frontend)
-3. Set the environment variable: `GOOGLE_PLACES_API_KEY=your-key-here`
-
-### TripAdvisor API Setup
+For detailed API documentation and frontend integration examples, see the linked documentation files above.
