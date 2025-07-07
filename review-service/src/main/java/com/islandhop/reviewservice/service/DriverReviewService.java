@@ -119,6 +119,7 @@ public class DriverReviewService {
                 .reviewerEmail(review.getReviewerEmail())
                 .reviewerFirstname(review.getReviewerFirstname())
                 .reviewerLastname(review.getReviewerLastname())
+                .rating(review.getRating())
                 .aiConfidenceScore(review.getAiConfidenceScore())
                 .aiAnalysis(review.getAiAnalysis())
                 .createdAt(review.getCreatedAt())
