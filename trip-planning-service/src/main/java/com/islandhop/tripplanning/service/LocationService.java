@@ -2,11 +2,14 @@ package com.islandhop.tripplanning.service;
 
 import com.islandhop.tripplanning.dto.AddPlaceRequest;
 import com.islandhop.tripplanning.model.PlannedPlace;
+import com.islandhop.tripplanning.model.Trip;
+import com.islandhop.tripplanning.repository.TripRepository;
 import com.islandhop.tripplanning.service.external.GooglePlacesService;
 import com.islandhop.tripplanning.service.external.TripAdvisorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +26,8 @@ public class LocationService {
     
     private final GooglePlacesService googlePlacesService;
     private final TripAdvisorService tripAdvisorService;
+    private final TripRepository tripRepository;
+    private final PreferenceService preferenceService;
     
     /**
      * Search for locations by text query with intelligent fallback
@@ -160,6 +165,80 @@ public class LocationService {
         }
         
         return null;
+    }
+    
+    /**
+     * Search activities for a specific trip with user preferences and nearby recommendations
+     */
+    public Mono<List<LocationSearchResult>> searchActivitiesForTrip(String tripId, String userId, 
+                                                                    String query, String city, 
+                                                                    String lastPlaceId, Integer maxResults) {
+        log.info("Searching activities for trip {} with preferences", tripId);
+        
+        return Mono.fromCallable(() -> {
+            // Get trip to access preferences
+            Trip trip = tripRepository.findByTripIdAndUserId(tripId, userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Trip not found"));
+            
+            // Determine search scope and bias
+            SearchContext context = buildSearchContext(trip, city, lastPlaceId);
+            
+            // Build activity-specific query
+            String activityQuery = buildActivityQuery(query, trip.getActivityPreferences());
+            
+            // Search with preference bias
+            List<LocationSearchResult> results = searchLocations(activityQuery, context.searchCity, 
+                    context.biasLat, context.biasLng, maxResults);
+            
+            // Filter and rank by preferences
+            return rankByPreferences(results, trip.getActivityPreferences(), "ACTIVITY");
+        });
+    }
+    
+    /**
+     * Search accommodation for a specific trip with user preferences and nearby recommendations
+     */
+    public Mono<List<LocationSearchResult>> searchAccommodationForTrip(String tripId, String userId,
+                                                                       String query, String city,
+                                                                       String lastPlaceId, Integer maxResults) {
+        log.info("Searching accommodation for trip {} with preferences", tripId);
+        
+        return Mono.fromCallable(() -> {
+            Trip trip = tripRepository.findByTripIdAndUserId(tripId, userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Trip not found"));
+            
+            SearchContext context = buildSearchContext(trip, city, lastPlaceId);
+            
+            String accommodationQuery = buildAccommodationQuery(query, trip.getTerrainPreferences());
+            
+            List<LocationSearchResult> results = searchLocations(accommodationQuery, context.searchCity,
+                    context.biasLat, context.biasLng, maxResults);
+            
+            return rankByPreferences(results, trip.getTerrainPreferences(), "ACCOMMODATION");
+        });
+    }
+    
+    /**
+     * Search dining options for a specific trip with user preferences and nearby recommendations
+     */
+    public Mono<List<LocationSearchResult>> searchDiningForTrip(String tripId, String userId,
+                                                                String query, String city,
+                                                                String lastPlaceId, Integer maxResults) {
+        log.info("Searching dining for trip {} with preferences", tripId);
+        
+        return Mono.fromCallable(() -> {
+            Trip trip = tripRepository.findByTripIdAndUserId(tripId, userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Trip not found"));
+            
+            SearchContext context = buildSearchContext(trip, city, lastPlaceId);
+            
+            String diningQuery = buildDiningQuery(query, trip.getActivityPreferences());
+            
+            List<LocationSearchResult> results = searchLocations(diningQuery, context.searchCity,
+                    context.biasLat, context.biasLng, maxResults);
+            
+            return rankByPreferences(results, trip.getActivityPreferences(), "DINING");
+        });
     }
     
     // Helper methods
@@ -447,5 +526,112 @@ public class LocationService {
         
         public PlannedPlace.PlaceType getPlaceType() { return placeType; }
         public void setPlaceType(PlannedPlace.PlaceType placeType) { this.placeType = placeType; }
+    }
+    
+    private static class SearchContext {
+        String searchCity;
+        Double biasLat;
+        Double biasLng;
+    }
+    
+    // Helper methods for trip-based search
+    
+    private SearchContext buildSearchContext(Trip trip, String city, String lastPlaceId) {
+        SearchContext context = new SearchContext();
+        
+        // Priority: specified city > planned cities > last place > global search
+        if (city != null && !city.isEmpty()) {
+            context.searchCity = city;
+        } else if (trip.getPlannedCities() != null && !trip.getPlannedCities().isEmpty()) {
+            context.searchCity = trip.getPlannedCities().get(0); // Use first planned city
+        }
+        
+        // Set bias based on last added place for nearby recommendations
+        if (lastPlaceId != null && !lastPlaceId.isEmpty()) {
+            PlannedPlace lastPlace = trip.getPlaces().stream()
+                    .filter(p -> p.getPlaceId().equals(lastPlaceId))
+                    .findFirst()
+                    .orElse(null);
+            
+            if (lastPlace != null) {
+                context.biasLat = lastPlace.getLatitude();
+                context.biasLng = lastPlace.getLongitude();
+            }
+        }
+        
+        return context;
+    }
+    
+    private String buildActivityQuery(String baseQuery, List<String> activityPreferences) {
+        if (baseQuery != null && !baseQuery.isEmpty()) {
+            return baseQuery;
+        }
+        
+        // Build query based on activity preferences
+        if (activityPreferences != null && !activityPreferences.isEmpty()) {
+            return String.join(" OR ", activityPreferences) + " activities attractions";
+        }
+        
+        return "attractions things to do";
+    }
+    
+    private String buildAccommodationQuery(String baseQuery, List<String> terrainPreferences) {
+        if (baseQuery != null && !baseQuery.isEmpty()) {
+            return baseQuery;
+        }
+        
+        String baseAccommodation = "hotels accommodation";
+        
+        if (terrainPreferences != null && terrainPreferences.contains("beaches")) {
+            return "beach resort hotel " + baseAccommodation;
+        } else if (terrainPreferences != null && terrainPreferences.contains("mountains")) {
+            return "mountain resort hotel " + baseAccommodation;
+        }
+        
+        return baseAccommodation;
+    }
+    
+    private String buildDiningQuery(String baseQuery, List<String> activityPreferences) {
+        if (baseQuery != null && !baseQuery.isEmpty()) {
+            return baseQuery;
+        }
+        
+        String baseDining = "restaurants food dining";
+        
+        if (activityPreferences != null && activityPreferences.contains("dining")) {
+            return "fine dining restaurants " + baseDining;
+        } else if (activityPreferences != null && activityPreferences.contains("nightlife")) {
+            return "bars clubs nightlife " + baseDining;
+        }
+        
+        return baseDining;
+    }
+    
+    private List<LocationSearchResult> rankByPreferences(List<LocationSearchResult> results, 
+                                                         List<String> preferences, String searchType) {
+        // Simple preference-based ranking
+        return results.stream()
+                .sorted((a, b) -> {
+                    int scoreA = calculatePreferenceScore(a, preferences, searchType);
+                    int scoreB = calculatePreferenceScore(b, preferences, searchType);
+                    return Integer.compare(scoreB, scoreA); // Descending order
+                })
+                .collect(Collectors.toList());
+    }
+    
+    private int calculatePreferenceScore(LocationSearchResult result, List<String> preferences, String searchType) {
+        int score = 0;
+        String name = result.getName().toLowerCase();
+        String address = result.getFormattedAddress().toLowerCase();
+        
+        if (preferences != null) {
+            for (String preference : preferences) {
+                if (name.contains(preference.toLowerCase()) || address.contains(preference.toLowerCase())) {
+                    score += 10;
+                }
+            }
+        }
+        
+        return score;
     }
 }

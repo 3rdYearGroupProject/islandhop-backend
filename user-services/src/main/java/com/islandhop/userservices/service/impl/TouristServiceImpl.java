@@ -48,6 +48,7 @@ public class TouristServiceImpl implements TouristService {
         profile.setLastName(lastName);
         profile.setNationality(nationality);
         profile.setLanguages(languages);
+        profile.setProfileCompletion(1); // Set profile completion to 1 when profile is completed
         TouristProfile saved = profileRepository.save(profile);
         logger.info("Tourist profile saved: {}", saved);
         return saved;

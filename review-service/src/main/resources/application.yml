@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: review-service
+  datasource:
+    url: jdbc:postgresql://ep-empty-base-a194u9qt-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+    username: neondb_owner
+    password: npg_Ig3thklS7cZm
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Gemini AI Configuration
+gemini:
+  api:
+    key: ${GEMINI_API_KEY:AIzaSyDFfy8AdCiZSwHQy1zLhC96MvWpOLUIjgs}
+    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent
+
+# Review AI Configuration
+review:
+  ai:
+    confidence:
+      threshold: 0.9 # Default confidence threshold
+
+server:
+  port: 8082
+
+logging:
+  level:
+    root: INFO
+    com.islandhop.reviewservice: DEBUG
+    com.islandhop.reviewservice.service.GeminiAIService: DEBUG

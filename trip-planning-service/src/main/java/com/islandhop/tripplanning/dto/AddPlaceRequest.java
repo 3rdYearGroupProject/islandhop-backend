@@ -5,11 +5,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotBlank;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class AddPlaceRequest {
+    
+    @NotBlank(message = "User ID is required")
+    private String userId;
     
     @NotEmpty
     private String placeName;

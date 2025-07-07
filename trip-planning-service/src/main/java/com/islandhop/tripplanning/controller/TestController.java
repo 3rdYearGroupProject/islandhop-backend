@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/test")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 @RequiredArgsConstructor
 @Slf4j
 @Profile("dev")
@@ -68,7 +68,7 @@ public class TestController {
         log.info("TEST: Creating trip with request: {}", request);
         
         try {
-            var trip = tripPlanningService.createTrip(request, MOCK_USER_ID);
+            var trip = tripPlanningService.createTrip(request, MOCK_USER_ID).block();
             
             return ResponseEntity.ok(Map.of(
                 "message", "Trip created successfully",
@@ -209,7 +209,7 @@ public class TestController {
         log.info("TEST: Getting day plans for trip: {}", tripId);
         
         try {
-            var trip = tripPlanningService.getTripSummary(tripId, MOCK_USER_ID);
+            var trip = tripPlanningService.getTripSummary(tripId, MOCK_USER_ID).block();
             var dayPlans = trip.getDayPlans();
             
             return ResponseEntity.ok(Map.of(

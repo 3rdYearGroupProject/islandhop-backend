@@ -1,5 +1,6 @@
 package com.islandhop.userservices.controller;
 
+import com.islandhop.userservices.config.CorsConfig;
 import com.islandhop.userservices.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -13,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/login")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = CorsConfig.ALLOWED_ORIGIN, allowCredentials = CorsConfig.ALLOW_CREDENTIALS)
 @RequiredArgsConstructor
 public class UniversalLoginController {
 

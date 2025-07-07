@@ -7,8 +7,11 @@ import com.islandhop.tripplanning.service.recommendation.RecommendationEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.*;
 
 @Service
@@ -23,140 +26,186 @@ public class TripPlanningService {
     private final RouteOptimizationService routeOptimizationService;
     private final ContextualRecommendationService contextualRecommendationService;
     private final LocationService locationService;
+    private final PreferenceService preferenceService;
     
     /**
      * Create a new trip with user preferences
      */
-    public Trip createTrip(CreateTripRequest request, String userId) {
+    public Mono<Trip> createTrip(CreateTripRequest request, String userId) {
         log.info("Creating new trip for user: {}", userId);
         
-        Trip trip = new Trip();
-        trip.setTripId(UUID.randomUUID().toString());
-        trip.setUserId(userId);
-        trip.setTripName(request.getTripName() != null ? request.getTripName() : 
-                        "Trip to " + request.getBaseCity());
-        trip.setStartDate(request.getStartDate());
-        trip.setEndDate(request.getEndDate());
-        trip.setArrivalTime(request.getArrivalTime());
-        trip.setBaseCity(request.getBaseCity());
-        trip.setMultiCity(request.isMultiCity());
-        trip.setCategories(request.getCategories());
-        trip.setPacing(request.getPacing());
-        trip.setStatus(Trip.TripStatus.PLANNING);
-        trip.setPlaces(new ArrayList<>());
-        trip.setDayPlans(new ArrayList<>());
-        trip.setExcludedAttractions(new ArrayList<>());
-        trip.setCreatedAt(LocalDateTime.now());
-        trip.setUpdatedAt(LocalDateTime.now());
+        return Mono.fromCallable(() -> {
+            Trip trip = new Trip();
+            trip.setTripId(UUID.randomUUID().toString());
+            trip.setUserId(userId);
+            trip.setTripName(request.getTripName() != null ? request.getTripName() : 
+                            "Trip to " + request.getBaseCity());
+            trip.setStartDate(request.getStartDate());
+            trip.setEndDate(request.getEndDate());
+            trip.setArrivalTime(request.getArrivalTime());
+            trip.setBaseCity(request.getBaseCity());
+            trip.setMultiCity(request.isMultiCity());
+            trip.setCategories(request.getCategories());
+            trip.setPacing(request.getPacing());
+            trip.setStatus(Trip.TripStatus.PLANNING);
+            trip.setPlaces(new ArrayList<>());
+            trip.setDayPlans(new ArrayList<>());
+            trip.setExcludedAttractions(new ArrayList<>());
+            trip.setCreatedAt(LocalDateTime.now());
+            trip.setUpdatedAt(LocalDateTime.now());
+            
+            // Initialize preferences map
+            Map<String, Object> preferences = new HashMap<>();
+            preferences.put("maxDailyTravelHours", 8);
+            preferences.put("bufferTimeMinutes", 30);
+            preferences.put("maxAttractionsPerDay", 4);
+            trip.setPreferences(preferences);
+            
+            Trip savedTrip = tripRepository.save(trip);
+            log.info("Trip created successfully with ID: {}", savedTrip.getTripId());
+            
+            return savedTrip;
+        });
+    }
+    
+    /**
+     * Create a basic trip with just name and dates
+     */
+    public Mono<Trip> createBasicTrip(CreateTripBasicRequest request, String userId) {
+        log.info("Creating basic trip '{}' for user: {}", request.getTripName(), userId);
         
-        // Initialize preferences map
-        Map<String, Object> preferences = new HashMap<>();
-        preferences.put("maxDailyTravelHours", 8);
-        preferences.put("bufferTimeMinutes", 30);
-        preferences.put("maxAttractionsPerDay", 4);
-        trip.setPreferences(preferences);
-        
-        Trip savedTrip = tripRepository.save(trip);
-        log.info("Trip created successfully with ID: {}", savedTrip.getTripId());
-        
-        return savedTrip;
+        return Mono.fromCallable(() -> {
+            Trip trip = new Trip();
+            trip.setTripId(UUID.randomUUID().toString());
+            trip.setUserId(userId);
+            trip.setTripName(request.getTripName());
+            trip.setStartDate(LocalDate.parse(request.getStartDate()));
+            trip.setEndDate(LocalDate.parse(request.getEndDate()));
+            trip.setStatus(Trip.TripStatus.DRAFT);
+            trip.setPlaces(new ArrayList<>());
+            trip.setDayPlans(new ArrayList<>());
+            trip.setExcludedAttractions(new ArrayList<>());
+            trip.setCreatedAt(LocalDateTime.now());
+            trip.setUpdatedAt(LocalDateTime.now());
+            
+            // Initialize empty preferences
+            trip.setTerrainPreferences(new ArrayList<>());
+            trip.setActivityPreferences(new ArrayList<>());
+            trip.setPlannedCities(new ArrayList<>());
+            trip.setCityDays(new HashMap<>());
+            
+            Trip savedTrip = tripRepository.save(trip);
+            log.info("Basic trip created successfully with ID: {}", savedTrip.getTripId());
+            
+            return savedTrip;
+        });
     }
     
     /**
      * Add a place to an existing trip
      */
-    public Trip addPlaceToTrip(String tripId, AddPlaceRequest request, String userId) {
+    public Mono<Trip> addPlaceToTrip(String tripId, AddPlaceRequest request, String userId) {
         log.info("Adding place {} to trip {} for user {}", request.getPlaceName(), tripId, userId);
         
-        Trip trip = getTripByIdAndUserId(tripId, userId);
-        
-        // Create planned place
-        PlannedPlace place = placeService.createPlannedPlace(request);
-        place.setUserAdded(true);
-        
-        // Add to trip
-        trip.getPlaces().add(place);
-        trip.setUpdatedAt(LocalDateTime.now());
-        
-        Trip savedTrip = tripRepository.save(trip);
-        log.info("Place added successfully to trip {}", tripId);
-        
-        return savedTrip;
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            // Create planned place
+            PlannedPlace place = placeService.createPlannedPlace(request);
+            place.setUserAdded(true);
+            
+            // Add to trip
+            trip.getPlaces().add(place);
+            trip.setUpdatedAt(LocalDateTime.now());
+            
+            Trip savedTrip = tripRepository.save(trip);
+            log.info("Place added successfully to trip {}", tripId);
+            
+            return savedTrip;
+        });
     }
     
     /**
      * Generate AI-powered suggestions
      */
-    public SuggestionsResponse generateSuggestions(String tripId, Integer day, String userId) {
+    public Mono<SuggestionsResponse> generateSuggestions(String tripId, Integer day, String userId) {
         log.info("Generating suggestions for trip {} day {} for user {}", tripId, day, userId);
         
-        Trip trip = getTripByIdAndUserId(tripId, userId);
-        
-        // Generate recommendations using the hybrid algorithm
-        List<Recommendation> attractions = recommendationEngine.recommendAttractions(trip, day);
-        List<Recommendation> hotels = recommendationEngine.recommendHotels(trip, day);
-        List<Recommendation> restaurants = recommendationEngine.recommendRestaurants(trip, day);
-        
-        // Generate insights and warnings
-        List<String> insights = generateInsights(trip, attractions);
-        List<String> warnings = generateWarnings(trip, day);
-        
-        String message = generateSuggestionsMessage(trip, day, attractions.size());
-        
-        return new SuggestionsResponse(tripId, attractions, hotels, restaurants, 
-                                     insights, warnings, message);
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            // Generate recommendations using the hybrid algorithm
+            List<Recommendation> attractions = recommendationEngine.recommendAttractions(trip, day);
+            List<Recommendation> hotels = recommendationEngine.recommendHotels(trip, day);
+            List<Recommendation> restaurants = recommendationEngine.recommendRestaurants(trip, day);
+            
+            // Generate insights and warnings
+            List<String> insights = generateInsights(trip, attractions);
+            List<String> warnings = generateWarnings(trip, day);
+            
+            String message = generateSuggestionsMessage(trip, day, attractions.size());
+            
+            return new SuggestionsResponse(tripId, attractions, hotels, restaurants, 
+                                         insights, warnings, message);
+        });
     }
     
     /**
      * Optimize visiting order using travel time and constraints
      */
-    public Trip optimizeVisitingOrder(String tripId, String userId) {
+    public Mono<Trip> optimizeVisitingOrder(String tripId, String userId) {
         log.info("Optimizing visiting order for trip {} for user {}", tripId, userId);
         
-        Trip trip = getTripByIdAndUserId(tripId, userId);
-        
-        // Use route optimization service
-        Trip optimizedTrip = routeOptimizationService.optimizeRoute(trip);
-        optimizedTrip.setUpdatedAt(LocalDateTime.now());
-        
-        Trip savedTrip = tripRepository.save(optimizedTrip);
-        log.info("Trip order optimized successfully for {}", tripId);
-        
-        return savedTrip;
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            // Use route optimization service
+            Trip optimizedTrip = routeOptimizationService.optimizeRoute(trip);
+            optimizedTrip.setUpdatedAt(LocalDateTime.now());
+            
+            Trip savedTrip = tripRepository.save(optimizedTrip);
+            log.info("Trip order optimized successfully for {}", tripId);
+            
+            return savedTrip;
+        });
     }
     
     /**
      * Get detailed day plan
      */
-    public DayPlan getDayPlan(String tripId, Integer day, String userId) {
+    public Mono<DayPlan> getDayPlan(String tripId, Integer day, String userId) {
         log.info("Getting day plan for trip {} day {} for user {}", tripId, day, userId);
         
-        Trip trip = getTripByIdAndUserId(tripId, userId);
-        
-        // Find or create day plan
-        DayPlan dayPlan = trip.getDayPlans().stream()
-                .filter(dp -> dp.getDayNumber().equals(day))
-                .findFirst()
-                .orElse(createDayPlan(trip, day));
-        
-        return dayPlan;
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            // Find or create day plan
+            DayPlan dayPlan = trip.getDayPlans().stream()
+                    .filter(dp -> dp.getDayNumber().equals(day))
+                    .findFirst()
+                    .orElse(createDayPlan(trip, day));
+            
+            return dayPlan;
+        });
     }
     
     /**
      * Get trip summary
      */
-    public Trip getTripSummary(String tripId, String userId) {
+    public Mono<Trip> getTripSummary(String tripId, String userId) {
         log.info("Getting trip summary for {} for user {}", tripId, userId);
         
-        Trip trip = getTripByIdAndUserId(tripId, userId);
-        
-        // Calculate and update statistics if needed
-        if (trip.getStatistics() == null) {
-            trip.setStatistics(calculateTripStatistics(trip));
-            tripRepository.save(trip);
-        }
-        
-        return trip;
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            // Calculate and update statistics if needed
+            if (trip.getStatistics() == null) {
+                trip.setStatistics(calculateTripStatistics(trip));
+                tripRepository.save(trip);
+            }
+            
+            return trip;
+        });
     }
     
     /**
@@ -276,6 +325,57 @@ public class TripPlanningService {
         log.info("Place added successfully to trip {} day {}", tripId, request.getDayNumber());
         
         return savedTrip;
+    }
+    
+    /**
+     * Update trip preferences from frontend
+     */
+    public Mono<Trip> updateTripPreferences(String tripId, String userId, UpdatePreferencesRequest request) {
+        log.info("Updating preferences for trip {} for user {}", tripId, userId);
+        
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            // Update frontend preferences
+            trip.setTerrainPreferences(request.getTerrainPreferences());
+            trip.setActivityPreferences(request.getActivityPreferences());
+            
+            // Map to backend categories
+            List<String> backendCategories = preferenceService.combinePreferences(
+                request.getTerrainPreferences(), 
+                request.getActivityPreferences()
+            );
+            trip.setCategories(backendCategories);
+            
+            // Update status to planning
+            trip.setStatus(Trip.TripStatus.PLANNING);
+            trip.setUpdatedAt(LocalDateTime.now());
+            
+            Trip savedTrip = tripRepository.save(trip);
+            log.info("Preferences updated successfully for trip {}", tripId);
+            
+            return savedTrip;
+        });
+    }
+    
+    /**
+     * Update cities for trip
+     */
+    public Mono<Trip> updateTripCities(String tripId, String userId, UpdateCitiesRequest request) {
+        log.info("Updating cities for trip {} for user {}", tripId, userId);
+        
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            trip.setPlannedCities(request.getCities());
+            trip.setCityDays(request.getCityDays());
+            trip.setUpdatedAt(LocalDateTime.now());
+            
+            Trip savedTrip = tripRepository.save(trip);
+            log.info("Cities updated successfully for trip {}", tripId);
+            
+            return savedTrip;
+        });
     }
     
     /**

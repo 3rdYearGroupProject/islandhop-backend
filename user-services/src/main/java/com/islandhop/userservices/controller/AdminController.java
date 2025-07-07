@@ -1,6 +1,8 @@
 package com.islandhop.userservices.controller;
 
+import com.islandhop.userservices.config.CorsConfig;
 import com.islandhop.userservices.service.AdminService;
+import com.islandhop.userservices.service.SupportAccountCreationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,13 +19,14 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/admin")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = CorsConfig.ALLOWED_ORIGIN, allowCredentials = CorsConfig.ALLOW_CREDENTIALS)
 @RequiredArgsConstructor
 public class AdminController {
 
     private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
 
     private final AdminService adminService;
+    private final SupportAccountCreationService supportAccountCreationService;
 
     /**
      * Admin login using Firebase ID token.
@@ -103,5 +106,73 @@ public class AdminController {
     public ResponseEntity<String> health() {
         logger.info("GET /admin/health called");
         return ResponseEntity.ok("OK");
+    }
+
+    /**
+     * Creates a support account and sends credentials via email.
+     *
+     * @param request Map containing "email" field
+     * @return ResponseEntity with account creation status
+     */
+    @PostMapping("/create/support")
+    public ResponseEntity<?> createSupportAccount(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        logger.info("POST /admin/create/support called with email: {}", email);
+
+        if (email == null) {
+            logger.warn("Support account creation failed: Email is required");
+            return ResponseEntity.badRequest().body(Map.of("message", "Email is required"));
+        }
+        try {
+            logger.info("Checking if support account already exists for email: {}", email);
+            boolean created = supportAccountCreationService.createSupportAccount(email);
+            if (!created) {
+                logger.warn("Support account creation failed: Account already exists for email: {}", email);
+                return ResponseEntity.status(409).body(Map.of("message", "Account already exists"));
+            }
+            logger.info("Support account created and credentials emailed for email: {}", email);
+            return ResponseEntity.ok(Map.of("message", "Support account created and credentials emailed"));
+        } catch (Exception e) {
+            logger.error("Error creating support account for email {}: {}", email, e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of("message", "Error: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Registers a new admin session using a Firebase ID token.
+     *
+     * @param requestBody Map containing "idToken" and "role"
+     * @param session     HTTP session to store authentication state
+     * @return ResponseEntity with account info or error status
+     */
+    @PostMapping("/session-register")
+    public ResponseEntity<?> sessionRegister(@RequestBody Map<String, String> requestBody, HttpSession session) {
+        logger.info("POST /admin/session-register called with body: {}", requestBody);
+        String idToken = requestBody.get("idToken");
+        String role = requestBody.get("role");
+
+        // Validate input
+        if (idToken == null || role == null || !"admin".equalsIgnoreCase(role)) {
+            logger.warn("Invalid session-register request: missing idToken or role");
+            return ResponseEntity.badRequest().body("Missing or invalid idToken/role");
+        }
+
+        // Extract email from Firebase token
+        String email = adminService.getEmailFromIdToken(idToken);
+        if (email == null) {
+            logger.warn("Invalid Firebase token during session-register");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Firebase token");
+        }
+
+
+        // Create new admin account
+        var account = adminService.createAdminAccount(email);
+        logger.info("Admin account created for email: {}", email);
+
+        // Set session attributes
+        session.setAttribute("adminEmail", email);
+        session.setAttribute("isAdminAuthenticated", true);
+
+        return ResponseEntity.ok(account);
     }
 }

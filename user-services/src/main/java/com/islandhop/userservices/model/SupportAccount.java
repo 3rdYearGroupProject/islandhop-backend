@@ -15,6 +15,7 @@ public class SupportAccount {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status; // e.g., ACTIVE, DEACTIVATED
+    private SupportStatus status = SupportStatus.ACTIVE;
 }
