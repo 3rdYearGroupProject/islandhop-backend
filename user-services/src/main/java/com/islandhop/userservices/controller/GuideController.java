@@ -82,7 +82,7 @@ public class GuideController {
         logger.info("PUT /guide/profile called with body: {}", requestBody);
         
         // Get email from session
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -108,7 +108,7 @@ public class GuideController {
      */
     @GetMapping("/profile")
     public ResponseEntity<?> getProfile(HttpSession session) {
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -146,7 +146,7 @@ public class GuideController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Guide account not found");
         }
 
-        session.setAttribute("guideEmail", email);
+        session.setAttribute("userEmail", email);
         session.setAttribute("isGuideAuthenticated", true);
         logger.info("Guide logged in: {}", email);
 
@@ -166,7 +166,7 @@ public class GuideController {
      */
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpSession session) {
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         session.invalidate();
         logger.info("Guide logged out: {}", email);
         return ResponseEntity.ok(Map.of("message", "Logged out"));
@@ -178,7 +178,7 @@ public class GuideController {
     @GetMapping("/session/validate")
     public ResponseEntity<?> validateSession(HttpSession session) {
         Boolean isAuthenticated = (Boolean) session.getAttribute("isGuideAuthenticated");
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
 
         logger.info("GET /guide/session/validate called. Authenticated: {}, Email: {}", isAuthenticated, email);
 
@@ -213,7 +213,7 @@ public class GuideController {
      */
     @GetMapping("/certificates")
     public ResponseEntity<?> getCertificates(HttpSession session) {
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -235,7 +235,7 @@ public class GuideController {
     public ResponseEntity<?> updateCertificates(@RequestBody Map<String, Object> requestBody, HttpSession session) {
         logger.info("PUT /guide/certificates called with body: {}", requestBody);
         
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -270,7 +270,7 @@ public class GuideController {
     public ResponseEntity<?> addCertificate(@RequestBody Map<String, Object> requestBody, HttpSession session) {
         logger.info("POST /guide/certificates called with body: {}", requestBody);
         
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -299,7 +299,7 @@ public class GuideController {
      */
     @GetMapping("/languages")
     public ResponseEntity<?> getLanguages(HttpSession session) {
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -321,7 +321,7 @@ public class GuideController {
     public ResponseEntity<?> updateLanguages(@RequestBody Map<String, Object> requestBody, HttpSession session) {
         logger.info("PUT /guide/languages called with body: {}", requestBody);
         
-        String email = (String) session.getAttribute("guideEmail");
+        String email = (String) session.getAttribute("userEmail");
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }

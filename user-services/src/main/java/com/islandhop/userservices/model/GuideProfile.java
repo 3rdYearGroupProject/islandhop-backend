@@ -35,8 +35,7 @@ public class GuideProfile {
     private String emergencyContactNumber;
     private String emergencyContactName;
     
-    @Lob
-    @Column(columnDefinition = "LONGBLOB")
+    @Column(columnDefinition = "BYTEA")
     private byte[] profilePicture;
     
     @Builder.Default
