@@ -359,20 +359,97 @@ public class TripPlanningService {
     }
     
     /**
-     * Update cities for trip
+     * Update cities for trip with incremental support only
      */
     public Mono<Trip> updateTripCities(String tripId, String userId, UpdateCitiesRequest request) {
-        log.info("Updating cities for trip {} for user {}", tripId, userId);
+        log.info("Updating cities incrementally for trip {} for user {}", tripId, userId);
         
         return Mono.fromCallable(() -> {
             Trip trip = getTripByIdAndUserId(tripId, userId);
             
-            trip.setPlannedCities(request.getCities());
-            trip.setCityDays(request.getCityDays());
+            // Handle dayToCityMap format (incremental merge)
+            if (request.getDayToCityMap() != null) {
+                Map<Integer, List<String>> existing = trip.getDayToCityMap() != null ? 
+                    new HashMap<>(trip.getDayToCityMap()) : new HashMap<>();
+                
+                // Merge new data with existing
+                for (Map.Entry<Integer, List<String>> entry : request.getDayToCityMap().entrySet()) {
+                    List<String> existingCities = existing.getOrDefault(entry.getKey(), new ArrayList<>());
+                    List<String> newCities = entry.getValue();
+                    
+                    // Add cities that don't already exist
+                    for (String city : newCities) {
+                        if (!existingCities.contains(city)) {
+                            existingCities.add(city);
+                        }
+                    }
+                    existing.put(entry.getKey(), existingCities);
+                }
+                
+                trip.setDayToCityMap(existing);
+            }
+            
+            // Handle legacy format (incremental merge)
+            if (request.getCities() != null) {
+                List<String> existingCities = trip.getPlannedCities() != null ? 
+                    new ArrayList<>(trip.getPlannedCities()) : new ArrayList<>();
+                
+                // Add new cities that don't already exist
+                for (String city : request.getCities()) {
+                    if (!existingCities.contains(city)) {
+                        existingCities.add(city);
+                    }
+                }
+                trip.setPlannedCities(existingCities);
+            }
+            
+            if (request.getCityDays() != null) {
+                Map<String, Integer> existingCityDays = trip.getCityDays() != null ? 
+                    new HashMap<>(trip.getCityDays()) : new HashMap<>();
+                
+                // Merge city days
+                existingCityDays.putAll(request.getCityDays());
+                trip.setCityDays(existingCityDays);
+            }
+            
+            trip.setUpdatedAt(LocalDateTime.now());
+            Trip savedTrip = tripRepository.save(trip);
+            log.info("Cities updated incrementally for trip {}", trip.getTripId());
+            return savedTrip;
+        });
+    }
+    
+    /**
+     * Add a single city to a specific day in the trip
+     */
+    public Mono<Trip> addCityToDay(String tripId, String userId, String city, Integer dayNumber) {
+        log.info("Adding city {} to day {} of trip {} for user {}", city, dayNumber, tripId, userId);
+        
+        return Mono.fromCallable(() -> {
+            Trip trip = getTripByIdAndUserId(tripId, userId);
+            
+            // Initialize day to city map if null
+            Map<Integer, List<String>> dayToCityMap = trip.getDayToCityMap() != null ? 
+                new HashMap<>(trip.getDayToCityMap()) : new HashMap<>();
+            
+            // Get existing cities for the day or create new list
+            List<String> citiesForDay = dayToCityMap.getOrDefault(dayNumber, new ArrayList<>());
+            
+            // Add city if not already present
+            if (!citiesForDay.contains(city)) {
+                citiesForDay.add(city);
+                dayToCityMap.put(dayNumber, citiesForDay);
+                log.info("Added city {} to day {}", city, dayNumber);
+            } else {
+                log.info("City {} already exists on day {}", city, dayNumber);
+            }
+            
+            // Update trip
+            trip.setDayToCityMap(dayToCityMap);
             trip.setUpdatedAt(LocalDateTime.now());
             
             Trip savedTrip = tripRepository.save(trip);
-            log.info("Cities updated successfully for trip {}", tripId);
+            log.info("City {} added successfully to day {} of trip {}", city, dayNumber, tripId);
             
             return savedTrip;
         });

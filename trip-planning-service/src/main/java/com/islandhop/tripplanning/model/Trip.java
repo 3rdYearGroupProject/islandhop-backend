@@ -38,6 +38,7 @@ public class Trip {
     private List<String> activityPreferences; // surfing, hiking, photography, etc.
     private List<String> plannedCities; // cities user wants to visit
     private Map<String, Integer> cityDays; // city -> number of days
+    private Map<Integer, List<String>> dayToCityMap; // day -> list of cities for flexible mapping
     
     private List<PlannedPlace> places;
     private List<DayPlan> dayPlans;
