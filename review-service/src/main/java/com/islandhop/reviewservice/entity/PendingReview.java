@@ -24,6 +24,12 @@ public class PendingReview {
     @Column(name = "status", nullable = false)
     private ReviewStatus status = ReviewStatus.PENDING;
 
+    @Column(nullable = false)
+    private String source; // 'driver' or 'guide'
+
+    @Column(nullable = false)
+    private String reviewerEmail;
+
     // Getters and Setters
 
     public Long getReviewId() {
@@ -64,5 +70,21 @@ public class PendingReview {
 
     public void setStatus(ReviewStatus status) {
         this.status = status;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getReviewerEmail() {
+        return reviewerEmail;
+    }
+
+    public void setReviewerEmail(String reviewerEmail) {
+        this.reviewerEmail = reviewerEmail;
     }
 }

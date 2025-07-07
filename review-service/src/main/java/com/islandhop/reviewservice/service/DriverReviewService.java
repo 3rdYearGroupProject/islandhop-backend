@@ -4,8 +4,10 @@ import com.islandhop.reviewservice.dto.AIAnalysisResult;
 import com.islandhop.reviewservice.dto.ReviewRequestDTO;
 import com.islandhop.reviewservice.dto.ReviewResponseDTO;
 import com.islandhop.reviewservice.entity.DriverReview;
+import com.islandhop.reviewservice.entity.PendingReview;
 import com.islandhop.reviewservice.enums.ReviewStatus;
 import com.islandhop.reviewservice.repository.DriverReviewRepository;
+import com.islandhop.reviewservice.repository.PendingReviewRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
 public class DriverReviewService {
 
     private final DriverReviewRepository driverReviewRepository;
+    private final PendingReviewRepository pendingReviewRepository;
     private final GeminiAIService geminiAIService;
     private final ConfigurationService configurationService;
 
@@ -31,6 +34,19 @@ public class DriverReviewService {
         double confidenceThreshold = configurationService.getConfidenceThreshold();
         AIAnalysisResult aiResult = geminiAIService.analyzeReview(request.getReview(), confidenceThreshold);
 
+        // If AI confidence is below 0.95, add to pending_reviews
+        if (aiResult.getConfidenceScore() < 0.95) {
+            PendingReview pending = new PendingReview();
+            pending.setReview(request.getReview());
+            pending.setApproved(0);
+            pending.setApprovedBy("");
+            pending.setStatus(ReviewStatus.PENDING);
+            pending.setSource("driver");
+            pending.setReviewerEmail(request.getReviewerEmail());
+            pendingReviewRepository.save(pending);
+            log.info("Review added to pending_reviews due to low AI confidence: {}", aiResult.getConfidenceScore());
+        }
+
         // Create and save driver review
         DriverReview review = DriverReview.builder()
                 .email(request.getEmail())
@@ -38,6 +54,7 @@ public class DriverReviewService {
                 .reviewerEmail(request.getReviewerEmail())
                 .reviewerFirstname(request.getReviewerFirstname())
                 .reviewerLastname(request.getReviewerLastname())
+                .rating(request.getRating())
                 .status(aiResult.getRecommendedStatus())
                 .aiConfidenceScore(aiResult.getConfidenceScore())
                 .aiAnalysis(aiResult.getAnalysis())
