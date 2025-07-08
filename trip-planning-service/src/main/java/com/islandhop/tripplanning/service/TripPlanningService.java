@@ -319,12 +319,79 @@ public class TripPlanningService {
         
         // Add to trip
         trip.getPlaces().add(place);
+        
+        // Update dayPlans array with categorized place storage
+        updateDayPlan(trip, request.getDayNumber(), place);
+        
         trip.setUpdatedAt(LocalDateTime.now());
         
         Trip savedTrip = tripRepository.save(trip);
         log.info("Place added successfully to trip {} day {}", tripId, request.getDayNumber());
         
         return savedTrip;
+    }
+    
+    /**
+     * Update or create day plan with categorized place storage
+     */
+    private void updateDayPlan(Trip trip, Integer dayNumber, PlannedPlace place) {
+        // Initialize dayPlans if null
+        if (trip.getDayPlans() == null) {
+            trip.setDayPlans(new ArrayList<>());
+        }
+        
+        // Find existing day plan or create new one
+        DayPlan dayPlan = trip.getDayPlans().stream()
+            .filter(dp -> dp.getDayNumber().equals(dayNumber))
+            .findFirst()
+            .orElse(null);
+            
+        if (dayPlan == null) {
+            dayPlan = new DayPlan();
+            dayPlan.setDayNumber(dayNumber);
+            dayPlan.setActivities(new ArrayList<>());
+            dayPlan.setDining(new ArrayList<>());
+            trip.getDayPlans().add(dayPlan);
+        }
+        
+        // Categorize and add place based on type
+        switch (place.getType()) {
+            case ACCOMMODATION:
+            case HOTEL:
+                dayPlan.setAccommodation(place);
+                log.info("Added accommodation {} to day {}", place.getName(), dayNumber);
+                break;
+            case RESTAURANT:
+            case CAFE:
+                if (dayPlan.getDining() == null) {
+                    dayPlan.setDining(new ArrayList<>());
+                }
+                dayPlan.getDining().add(place);
+                log.info("Added dining {} to day {}", place.getName(), dayNumber);
+                break;
+            case ATTRACTION:
+            case ACTIVITY:
+            case LANDMARK:
+            case MUSEUM:
+            case PARK:
+            case SHOPPING:
+            case ENTERTAINMENT:
+            default:
+                // Convert to PlannedActivity for activities to maintain compatibility
+                if (dayPlan.getActivities() == null) {
+                    dayPlan.setActivities(new ArrayList<>());
+                }
+                PlannedActivity activity = new PlannedActivity();
+                activity.setActivityId(place.getPlaceId());
+                activity.setPlace(place); // Set the place object directly
+                activity.setDurationMinutes(place.getEstimatedVisitDurationMinutes() != null ? 
+                    place.getEstimatedVisitDurationMinutes() : 60);
+                activity.setType(PlannedActivity.ActivityType.VISIT);
+                activity.setConfirmed(place.isConfirmed());
+                dayPlan.getActivities().add(activity);
+                log.info("Added activity {} to day {}", place.getName(), dayNumber);
+                break;
+        }
     }
     
     /**

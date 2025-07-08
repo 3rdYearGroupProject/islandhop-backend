@@ -42,6 +42,7 @@ public class PlannedPlace {
     private boolean confirmed; // true if user confirmed this suggestion
     
     public enum PlaceType {
-        ATTRACTION, HOTEL, RESTAURANT, TRANSPORT_HUB, VIEWPOINT, SHOPPING
+        ATTRACTION, HOTEL, ACCOMMODATION, RESTAURANT, CAFE, TRANSPORT_HUB, VIEWPOINT, SHOPPING,
+        ACTIVITY, LANDMARK, MUSEUM, PARK, ENTERTAINMENT
     }
 }

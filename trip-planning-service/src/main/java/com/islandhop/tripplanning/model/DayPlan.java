@@ -19,7 +19,11 @@ public class DayPlan {
     private LocalTime startTime;
     private LocalTime endTime;
     
-    private List<PlannedActivity> activities;
+    // Per-day categorized places
+    private List<PlannedActivity> activities;   // Keep original for compatibility
+    private PlannedPlace accommodation;         // Accommodation for this day  
+    private List<PlannedPlace> dining;          // Restaurants/dining for this day
+    
     private List<TravelSegment> travelSegments;
     
     // Day statistics
