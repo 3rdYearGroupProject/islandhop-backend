@@ -15,6 +15,21 @@ spring:
     mongodb:
       uri: ${MONGODB_URI:mongodb+srv://2022cs056:dH4aTFn3IOerWlVZ@cluster0.9ccambx.mongodb.net/islandhop_trips?retryWrites=true&w=majority}
       database: islandhop_trips
+  cache:
+    type: simple  # Use in-memory cache instead of Redis
+    # type: redis
+    redis:
+      cache-null-values: false
+      time-to-live: 86400000 # 24 hours in milliseconds
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}  # Use localhost to connect to Docker Redis
+    port: ${SPRING_REDIS_PORT:6379}
+    password: ${SPRING_REDIS_PASSWORD:redis123}
+    timeout: 3000ms
+    connection-pool:
+      max-active: 20
+      max-idle: 8
+      min-idle: 0
 
 management:
   endpoints:
@@ -33,3 +48,18 @@ cors:
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   allowed-headers: "*"
   allow-credentials: true
+
+# External API Configuration
+external-apis:
+  tripadvisor:
+    base-url: https://api.content.tripadvisor.com/api/v1
+    api-key: ${TRIPADVISOR_API_KEY:demo-key}
+  google-places:
+    base-url: https://maps.googleapis.com/maps/api/place
+    api-key: ${GOOGLE_PLACES_API_KEY:demo-key}
+
+# Caching Configuration
+cache:
+  suggestions:
+    ttl: 86400 # 24 hours in seconds
+    negative-ttl: 300 # 5 minutes in seconds for empty results

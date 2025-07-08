@@ -1,21 +1,28 @@
 package com.islandhop.trip.service;
 
+import com.islandhop.trip.dto.AddPlaceResponse;
 import com.islandhop.trip.dto.CreateTripRequest;
 import com.islandhop.trip.dto.CreateTripResponse;
+import com.islandhop.trip.dto.SuggestionResponse;
 import com.islandhop.trip.dto.UpdateCityRequest;
 import com.islandhop.trip.dto.UpdateCityResponse;
 import com.islandhop.trip.exception.InvalidDayException;
+import com.islandhop.trip.exception.InvalidTypeException;
 import com.islandhop.trip.exception.TripNotFoundException;
 import com.islandhop.trip.exception.UnauthorizedTripAccessException;
 import com.islandhop.trip.model.DailyPlan;
+import com.islandhop.trip.model.Location;
+import com.islandhop.trip.model.Place;
 import com.islandhop.trip.model.TripPlan;
 import com.islandhop.trip.repository.TripPlanRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -26,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service class for handling trip planning operations.
@@ -38,6 +46,8 @@ public class TripService {
 
     private final TripPlanRepository tripPlanRepository;
     private final MongoTemplate mongoTemplate;
+    private final ExternalApiService externalApiService;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     /**
      * Creates a new trip plan based on the provided request.
@@ -257,4 +267,375 @@ public class TripService {
                 "City updated successfully"
         );
     }
+
+    /**
+     * Fetches preference-based suggestions for a specific day and type.
+     * Uses caching to improve performance and reduce external API calls.
+     *
+     * @param tripId The trip ID
+     * @param day The day number (1-based)
+     * @param type The suggestion type (attractions, hotels, restaurants)
+     * @param userId The user ID for ownership validation
+     * @return List of suggestions filtered by user preferences
+     * @throws TripNotFoundException if the trip doesn't exist
+     * @throws UnauthorizedTripAccessException if the user doesn't own the trip
+     * @throws InvalidDayException if the day number is invalid
+     * @throws IllegalArgumentException if the type is invalid or city is not set
+     */
+    @Cacheable(value = "suggestions", 
+               key = "#tripId + ':' + #day + ':' + #type + ':' + #userId + ':' + @tripService.getCacheKey(#tripId, #day)",
+               condition = "#result != null && !#result.isEmpty()")
+    public List<SuggestionResponse> getSuggestions(String tripId, int day, String type, String userId) {
+        log.info("Fetching {} suggestions for trip: {}, day: {}, user: {}", type, tripId, day, userId);
+
+        // Check negative cache first (for empty results) - handle Redis connection failures gracefully
+        try {
+            String negativeCacheKey = "empty:" + tripId + ":" + day + ":" + type + ":" + userId + ":" + getCacheKey(tripId, day);
+            Boolean hasEmptyCache = redisTemplate.hasKey(negativeCacheKey);
+            if (Boolean.TRUE.equals(hasEmptyCache)) {
+                log.info("Returning empty result from negative cache for trip: {}, day: {}, type: {}", tripId, day, type);
+                return List.of();
+            }
+        } catch (Exception e) {
+            log.warn("Redis connection failed, skipping negative cache check: {}", e.getMessage());
+        }
+
+        // Validate input parameters
+        if (!List.of("attractions", "hotels", "restaurants").contains(type)) {
+            throw new IllegalArgumentException("Invalid suggestion type: " + type + 
+                    ". Must be one of: attractions, hotels, restaurants");
+        }
+        if (day < 1) {
+            throw new InvalidDayException("Day number must be positive (1-based indexing)");
+        }
+        if (tripId == null || tripId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Trip ID cannot be null or empty");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        // Find the trip and validate ownership
+        Optional<TripPlan> tripOptional = tripPlanRepository.findById(tripId);
+        if (tripOptional.isEmpty()) {
+            log.warn("Trip not found: {} for user: {}", tripId, userId);
+            throw new TripNotFoundException("Trip not found with ID: " + tripId);
+        }
+
+        TripPlan trip = tripOptional.get();
+        if (!trip.getUserId().equals(userId)) {
+            log.warn("Unauthorized access attempt: user {} trying to access trip {} owned by {}", 
+                    userId, tripId, trip.getUserId());
+            throw new UnauthorizedTripAccessException("You are not authorized to access this trip");
+        }
+
+        // Validate day number against trip duration
+        if (day > trip.getDailyPlans().size()) {
+            log.warn("Invalid day number: {} for trip: {} which has {} days", 
+                    day, tripId, trip.getDailyPlans().size());
+            throw new InvalidDayException("Day " + day + " is invalid. Trip has only " + 
+                    trip.getDailyPlans().size() + " days");
+        }
+
+        // Get the specific day's plan
+        DailyPlan dailyPlan = trip.getDailyPlans().get(day - 1);
+        String city = dailyPlan.getCity();
+        
+        if (city == null || city.trim().isEmpty()) {
+            throw new IllegalArgumentException("City not set for day " + day + 
+                    ". Please set a city first before getting suggestions.");
+        }
+
+        // Get user preferences
+        List<String> preferredActivities = trip.getPreferredActivities() != null ? 
+                trip.getPreferredActivities() : List.of();
+        List<String> preferredTerrains = trip.getPreferredTerrains() != null ? 
+                trip.getPreferredTerrains() : List.of();
+        String budgetLevel = trip.getBudgetLevel() != null ? trip.getBudgetLevel() : "Medium";
+
+        try {
+            // Fetch suggestions from external APIs
+            List<SuggestionResponse> suggestions = externalApiService.fetchSuggestions(
+                    type, city.trim(), preferredActivities, preferredTerrains, budgetLevel);
+
+            // Sort by relevance (distance, rating, preferences match)
+            suggestions = suggestions.stream()
+                    .sorted((a, b) -> {
+                        // Primary sort: recommendation status
+                        if (!a.getIsRecommended().equals(b.getIsRecommended())) {
+                            return Boolean.compare(b.getIsRecommended(), a.getIsRecommended());
+                        }
+                        // Secondary sort: distance
+                        if (a.getDistanceKm() != null && b.getDistanceKm() != null) {
+                            return Double.compare(a.getDistanceKm(), b.getDistanceKm());
+                        }
+                        // Tertiary sort: rating
+                        if (a.getRating() != null && b.getRating() != null) {
+                            return Double.compare(b.getRating(), a.getRating());
+                        }
+                        return 0;
+                    })
+                    .collect(Collectors.toList());
+
+            log.info("Successfully fetched {} {} suggestions for trip: {}, day: {}", 
+                    suggestions.size(), type, tripId, day);
+            
+            // Cache empty results with shorter TTL (negative caching) - handle Redis connection failures gracefully
+            if (suggestions.isEmpty()) {
+                try {
+                    String emptyCacheKey = "empty:" + tripId + ":" + day + ":" + type + ":" + userId + ":" + getCacheKey(tripId, day);
+                    redisTemplate.opsForValue().set(emptyCacheKey, true, 
+                            java.time.Duration.ofSeconds(300)); // 5 minutes TTL for empty results
+                    log.debug("Cached empty result for key: {}", emptyCacheKey);
+                } catch (Exception cacheException) {
+                    log.warn("Failed to cache empty result, Redis connection failed: {}", cacheException.getMessage());
+                }
+            }
+            
+            return suggestions;
+
+        } catch (Exception e) {
+            log.error("Failed to fetch suggestions for trip: {}, day: {}, type: {}", 
+                    tripId, day, type, e);
+            throw new RuntimeException("Failed to fetch suggestions: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generates a cache key that includes city and preferences hash for consistent caching.
+     * This method is used by the @Cacheable annotation to create stable cache keys.
+     *
+     * @param tripId The trip ID
+     * @param day The day number
+     * @return A cache key component including city and preferences
+     */
+    public String getCacheKey(String tripId, int day) {
+        try {
+            Optional<TripPlan> tripOptional = tripPlanRepository.findById(tripId);
+            if (tripOptional.isEmpty()) {
+                return "notfound";
+            }
+
+            TripPlan trip = tripOptional.get();
+            if (day > trip.getDailyPlans().size()) {
+                return "invalidday";
+            }
+
+            DailyPlan dailyPlan = trip.getDailyPlans().get(day - 1);
+            String city = dailyPlan.getCity();
+            if (city == null || city.trim().isEmpty()) {
+                return "nocity";
+            }
+
+            // Create a hash of preferences to ensure cache uniqueness when preferences change
+            List<String> preferredActivities = trip.getPreferredActivities() != null ? 
+                    trip.getPreferredActivities() : List.of();
+            List<String> preferredTerrains = trip.getPreferredTerrains() != null ? 
+                    trip.getPreferredTerrains() : List.of();
+            String budgetLevel = trip.getBudgetLevel() != null ? trip.getBudgetLevel() : "Medium";
+
+            // Create a simple hash of preferences for cache key
+            String preferencesString = preferredActivities.toString() + preferredTerrains.toString() + budgetLevel;
+            int preferencesHash = preferencesString.hashCode();
+
+            return city.trim().toLowerCase() + ":" + preferencesHash;
+        } catch (Exception e) {
+            log.warn("Error generating cache key for trip: {}, day: {}", tripId, day, e);
+            return "error:" + System.currentTimeMillis(); // Prevent caching on error
+        }
+    }
+
+    /**
+     * Adds a selected place to a specific day and type in the trip itinerary.
+     * Validates trip ownership, day validity, and converts SuggestionResponse to Place.
+     *
+     * @param tripId The trip ID
+     * @param day The day number (1-based)
+     * @param type The place type (attractions, hotels, restaurants)
+     * @param userId The user ID for ownership validation
+     * @param suggestionResponse The place data to add
+     * @return AddPlaceResponse with confirmation details
+     * @throws TripNotFoundException if the trip doesn't exist
+     * @throws UnauthorizedTripAccessException if the user doesn't own the trip
+     * @throws InvalidDayException if the day number is invalid
+     * @throws InvalidTypeException if the type is invalid
+     * @throws IllegalArgumentException if required fields are missing
+     */
+    public AddPlaceResponse addPlaceToItinerary(String tripId, int day, String type, String userId, SuggestionResponse suggestionResponse) {
+        log.info("Adding place to itinerary for trip: {}, day: {}, type: {}, user: {}, place: {}", 
+                tripId, day, type, userId, suggestionResponse.getName());
+
+        // Validate input parameters
+        if (suggestionResponse == null || suggestionResponse.getId() == null || 
+            suggestionResponse.getName() == null || suggestionResponse.getCategory() == null) {
+            throw new IllegalArgumentException("Place must include id, name, and category");
+        }
+
+        // Validate type
+        String normalizedType = type.toLowerCase();
+        if (!List.of("attractions", "hotels", "restaurants").contains(normalizedType)) {
+            throw new InvalidTypeException("Invalid suggestion type: " + type + 
+                    ". Must be one of: attractions, hotels, restaurants");
+        }
+
+        if (day < 1) {
+            throw new InvalidDayException("Day number must be positive (1-based indexing)");
+        }
+        if (tripId == null || tripId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Trip ID cannot be null or empty");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        // Find the trip and validate ownership
+        Optional<TripPlan> tripOptional = tripPlanRepository.findById(tripId);
+        if (tripOptional.isEmpty()) {
+            log.warn("Trip not found: {} for user: {}", tripId, userId);
+            throw new TripNotFoundException("Trip not found with ID: " + tripId);
+        }
+
+        TripPlan trip = tripOptional.get();
+        if (!trip.getUserId().equals(userId)) {
+            log.warn("Unauthorized access attempt: user {} trying to access trip {} owned by {}", 
+                    userId, tripId, trip.getUserId());
+            throw new UnauthorizedTripAccessException("You are not authorized to modify this trip");
+        }
+
+        // Validate day number against trip duration
+        if (day > trip.getDailyPlans().size()) {
+            log.warn("Invalid day number: {} for trip: {} which has {} days", 
+                    day, tripId, trip.getDailyPlans().size());
+            throw new InvalidDayException("Day " + day + " is invalid. Trip has only " + 
+                    trip.getDailyPlans().size() + " days");
+        }
+
+        // Get the specific day's plan
+        DailyPlan dailyPlan = trip.getDailyPlans().get(day - 1);
+
+        // Convert SuggestionResponse to Place
+        Place place = convertSuggestionToPlace(suggestionResponse);
+
+        // Add place to the appropriate list based on type
+        try {
+            switch (normalizedType) {
+                case "attractions":
+                    dailyPlan.getAttractions().add(place);
+                    break;
+                case "hotels":
+                    dailyPlan.getHotels().add(place);
+                    break;
+                case "restaurants":
+                    dailyPlan.getRestaurants().add(place);
+                    break;
+            }
+
+            // Update lastUpdated timestamp
+            trip.setLastUpdated(Instant.now());
+
+            // Save the updated trip plan
+            tripPlanRepository.save(trip);
+
+            log.info("Successfully added place {} to {} for trip: {}, day: {}", 
+                    place.getName(), normalizedType, tripId, day);
+
+            return new AddPlaceResponse(
+                    "success",
+                    "Place added to itinerary successfully",
+                    place.getPlaceId(),
+                    tripId,
+                    day,
+                    normalizedType
+            );
+
+        } catch (Exception e) {
+            log.error("Failed to add place to itinerary for trip: {}, day: {}, type: {}", 
+                    tripId, day, type, e);
+            throw new RuntimeException("Failed to add place to itinerary: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Converts a SuggestionResponse DTO to a Place entity for persistence.
+     * Maps relevant fields and handles missing data gracefully.
+     *
+     * @param suggestion The suggestion response to convert
+     * @return Place entity ready for persistence
+     */
+    private Place convertSuggestionToPlace(SuggestionResponse suggestion) {
+        Place place = new Place();
+        
+        // Basic information
+        place.setName(suggestion.getName());
+        place.setType(suggestion.getCategory());
+        place.setPlaceId(suggestion.getId());
+        place.setGooglePlaceId(suggestion.getGooglePlaceId());
+        place.setSource(suggestion.getSource() != null ? suggestion.getSource() : "External API");
+        place.setUserSelected(true); // Mark as user-selected since they're adding it
+        
+        // Location data
+        if (suggestion.getLatitude() != null && suggestion.getLongitude() != null) {
+            Location location = new Location();
+            location.setLat(suggestion.getLatitude());
+            location.setLng(suggestion.getLongitude());
+            place.setLocation(location);
+        }
+        
+        // Distance and rating
+        place.setDistanceFromCenterKm(suggestion.getDistanceKm());
+        place.setRating(suggestion.getRating());
+        
+        // Operational information
+        place.setOpenHours(suggestion.getOpenHours());
+        place.setPopularityLevel(suggestion.getPopularityLevel());
+        
+        // Media
+        place.setThumbnailUrl(suggestion.getImage());
+        
+        // Activity and terrain tags from matched preferences
+        place.setActivityTags(suggestion.getMatchedActivities() != null ? 
+                suggestion.getMatchedActivities() : List.of());
+        place.setTerrainTags(suggestion.getMatchedTerrains() != null ? 
+                suggestion.getMatchedTerrains() : List.of());
+        
+        // Additional tags
+        place.setWarnings(List.of()); // No warnings for user-selected places
+        
+        // Duration estimation based on type
+        if (suggestion.getDuration() != null) {
+            try {
+                // Try to extract minutes from duration string (e.g., "3-4 hours" -> 180-240 minutes)
+                String duration = suggestion.getDuration().toLowerCase();
+                if (duration.contains("hour")) {
+                    // Simple estimation: take first number found and multiply by 60
+                    String[] parts = duration.split("\\D+");
+                    if (parts.length > 0 && !parts[0].isEmpty()) {
+                        int hours = Integer.parseInt(parts[0]);
+                        place.setVisitDurationMinutes(hours * 60);
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Could not parse duration '{}' for place '{}'", suggestion.getDuration(), suggestion.getName());
+            }
+        }
+        
+        // Default visit duration if not specified
+        if (place.getVisitDurationMinutes() == null) {
+            switch (suggestion.getCategory().toLowerCase()) {
+                case "restaurant":
+                case "cafe":
+                    place.setVisitDurationMinutes(90); // 1.5 hours
+                    break;
+                case "hotel":
+                    place.setVisitDurationMinutes(0); // Hotels don't have visit duration
+                    break;
+                default:
+                    place.setVisitDurationMinutes(120); // 2 hours for attractions
+            }
+        }
+        
+        return place;
+    }
+
+    // ...existing methods...
 }

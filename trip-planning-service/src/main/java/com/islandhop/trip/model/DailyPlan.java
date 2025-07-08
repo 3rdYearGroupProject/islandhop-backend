@@ -2,6 +2,7 @@ package com.islandhop.trip.model;
 
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -14,8 +15,8 @@ public class DailyPlan {
     private Integer day;
     private String city = "";
     private Boolean userSelected = false;
-    private List<Place> attractions = List.of();
-    private List<Place> restaurants = List.of();
-    private List<Place> hotels = List.of();
-    private List<String> notes = List.of();
+    private List<Place> attractions = new ArrayList<>();
+    private List<Place> restaurants = new ArrayList<>();
+    private List<Place> hotels = new ArrayList<>();
+    private List<String> notes = new ArrayList<>();
 }
