@@ -2,6 +2,11 @@ package com.islandhop.trip.controller;
 
 import com.islandhop.trip.dto.CreateTripRequest;
 import com.islandhop.trip.dto.CreateTripResponse;
+import com.islandhop.trip.dto.UpdateCityRequest;
+import com.islandhop.trip.dto.UpdateCityResponse;
+import com.islandhop.trip.exception.InvalidDayException;
+import com.islandhop.trip.exception.TripNotFoundException;
+import com.islandhop.trip.exception.UnauthorizedTripAccessException;
 import com.islandhop.trip.service.TripService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -95,5 +100,98 @@ public class TripController {
         log.error("Runtime error in trip controller: {}", ex.getMessage(), ex);
         CreateTripResponse errorResponse = new CreateTripResponse("error", null, "Internal server error");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+    }
+
+    /**
+     * Global exception handler for trip not found errors.
+     *
+     * @param ex The trip not found exception
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(TripNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ResponseEntity<CreateTripResponse> handleTripNotFoundException(TripNotFoundException ex) {
+        log.warn("Trip not found: {}", ex.getMessage());
+        CreateTripResponse errorResponse = new CreateTripResponse("error", null, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
+    /**
+     * Global exception handler for unauthorized trip access errors.
+     *
+     * @param ex The unauthorized access exception
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(UnauthorizedTripAccessException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ResponseEntity<CreateTripResponse> handleUnauthorizedTripAccessException(UnauthorizedTripAccessException ex) {
+        log.warn("Unauthorized trip access: {}", ex.getMessage());
+        CreateTripResponse errorResponse = new CreateTripResponse("error", null, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+    }
+
+    /**
+     * Global exception handler for invalid day errors.
+     *
+     * @param ex The invalid day exception
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(InvalidDayException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<CreateTripResponse> handleInvalidDayException(InvalidDayException ex) {
+        log.warn("Invalid day: {}", ex.getMessage());
+        CreateTripResponse errorResponse = new CreateTripResponse("error", null, ex.getMessage());
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    /**
+     * Updates the city for a specific day in a trip itinerary.
+     * Validates trip ownership and day validity before updating.
+     *
+     * @param tripId The ID of the trip to update
+     * @param day The day number to update (1-based)
+     * @param request The update request containing userId and new city
+     * @return ResponseEntity with the updated city details
+     */
+    @PostMapping("/{tripId}/day/{day}/city")
+    public ResponseEntity<?> updateCity(
+            @PathVariable String tripId,
+            @PathVariable int day,
+            @Valid @RequestBody UpdateCityRequest request) {
+        
+        log.info("Received city update request for trip: {}, day: {}, user: {}, city: {}", 
+                tripId, day, request.getUserId(), request.getCity());
+
+        try {
+            UpdateCityResponse response = tripService.updateCity(tripId, day, request.getUserId(), request);
+            log.info("Successfully updated city for trip: {}, day: {}, new city: {}", 
+                    tripId, day, request.getCity());
+            return ResponseEntity.ok(response);
+            
+        } catch (TripNotFoundException e) {
+            log.warn("Trip not found: {} for user: {}", tripId, request.getUserId());
+            CreateTripResponse errorResponse = new CreateTripResponse("error", null, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            
+        } catch (UnauthorizedTripAccessException e) {
+            log.warn("Unauthorized access attempt: user {} for trip {}", request.getUserId(), tripId);
+            CreateTripResponse errorResponse = new CreateTripResponse("error", null, e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+            
+        } catch (InvalidDayException e) {
+            log.warn("Invalid day number: {} for trip: {}", day, tripId);
+            CreateTripResponse errorResponse = new CreateTripResponse("error", null, e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error updating city for trip {}: {}", tripId, e.getMessage());
+            CreateTripResponse errorResponse = new CreateTripResponse("error", null, e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (Exception e) {
+            log.error("Unexpected error updating city for trip {}: {}", tripId, e.getMessage(), e);
+            CreateTripResponse errorResponse = new CreateTripResponse("error", null, "Internal server error");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 }

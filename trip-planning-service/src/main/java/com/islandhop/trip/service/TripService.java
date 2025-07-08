@@ -2,11 +2,20 @@ package com.islandhop.trip.service;
 
 import com.islandhop.trip.dto.CreateTripRequest;
 import com.islandhop.trip.dto.CreateTripResponse;
+import com.islandhop.trip.dto.UpdateCityRequest;
+import com.islandhop.trip.dto.UpdateCityResponse;
+import com.islandhop.trip.exception.InvalidDayException;
+import com.islandhop.trip.exception.TripNotFoundException;
+import com.islandhop.trip.exception.UnauthorizedTripAccessException;
 import com.islandhop.trip.model.DailyPlan;
 import com.islandhop.trip.model.TripPlan;
 import com.islandhop.trip.repository.TripPlanRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -15,6 +24,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -27,6 +37,7 @@ import java.util.UUID;
 public class TripService {
 
     private final TripPlanRepository tripPlanRepository;
+    private final MongoTemplate mongoTemplate;
 
     /**
      * Creates a new trip plan based on the provided request.
@@ -166,5 +177,84 @@ public class TripService {
         tripPlan.setLastUpdated(now);
 
         return tripPlan;
+    }
+
+
+
+    /**
+     * Updates the city for a specific day in a trip plan.
+     * Validates trip existence, user ownership, and day validity before updating.
+     *
+     * @param tripId The ID of the trip to update
+     * @param day The day number to update (1-based)
+     * @param userId The ID of the user making the request
+     * @param request The update request containing the new city
+     * @return UpdateCityResponse with the updated details
+     * @throws TripNotFoundException if the trip doesn't exist
+     * @throws UnauthorizedTripAccessException if the user doesn't own the trip
+     * @throws InvalidDayException if the day number is invalid
+     */
+    public UpdateCityResponse updateCity(String tripId, int day, String userId, UpdateCityRequest request) {
+        log.info("Updating city for trip: {}, day: {}, user: {}, city: {}", 
+                tripId, day, userId, request.getCity());
+
+        // Validate input parameters
+        if (tripId == null || tripId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Trip ID cannot be null or empty");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+        if (day < 1) {
+            throw new InvalidDayException("Day number must be positive (1-based indexing)");
+        }
+
+        // Find the trip and validate ownership
+        Optional<TripPlan> tripOptional = tripPlanRepository.findById(tripId);
+        if (tripOptional.isEmpty()) {
+            log.warn("Trip not found: {} for user: {}", tripId, userId);
+            throw new TripNotFoundException("Trip not found with ID: " + tripId);
+        }
+
+        TripPlan trip = tripOptional.get();
+        if (!trip.getUserId().equals(userId)) {
+            log.warn("Unauthorized access attempt: user {} trying to access trip {} owned by {}", 
+                    userId, tripId, trip.getUserId());
+            throw new UnauthorizedTripAccessException("You are not authorized to modify this trip");
+        }
+
+        // Validate day number against trip duration
+        if (day > trip.getDailyPlans().size()) {
+            log.warn("Invalid day number: {} for trip: {} which has {} days", 
+                    day, tripId, trip.getDailyPlans().size());
+            throw new InvalidDayException("Day " + day + " is invalid. Trip has only " + 
+                    trip.getDailyPlans().size() + " days");
+        }
+
+        // Update the specific day's city using MongoDB array update
+        Query query = new Query(Criteria.where("id").is(tripId)
+                .and("dailyPlans.day").is(day));
+        
+        Update update = new Update()
+                .set("dailyPlans.$.city", request.getCity().trim())
+                .set("dailyPlans.$.userSelected", true)
+                .set("lastUpdated", Instant.now());
+
+        try {
+            mongoTemplate.updateFirst(query, update, TripPlan.class);
+            log.info("Successfully updated city for trip: {}, day: {}, new city: {}", 
+                    tripId, day, request.getCity());
+        } catch (Exception e) {
+            log.error("Failed to update city for trip: {}, day: {}", tripId, day, e);
+            throw new RuntimeException("Failed to update trip plan", e);
+        }
+
+        return new UpdateCityResponse(
+                "success",
+                tripId,
+                day,
+                request.getCity().trim(),
+                "City updated successfully"
+        );
     }
 }
