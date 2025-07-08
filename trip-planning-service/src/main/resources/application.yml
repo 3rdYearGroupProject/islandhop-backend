@@ -1,0 +1,35 @@
+server:
+  port: 8084
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: trip-planning-service
+  profiles:
+    active: dev
+  main:
+    allow-bean-definition-overriding: true
+    web-application-type: servlet
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb+srv://2022cs056:dH4aTFn3IOerWlVZ@cluster0.9ccambx.mongodb.net/islandhop_trips?retryWrites=true&w=majority}
+      database: islandhop_trips
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.islandhop: DEBUG
+    root: INFO
+
+# CORS Configuration
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
