@@ -4,6 +4,7 @@ import com.islandhop.trip.dto.AddPlaceResponse;
 import com.islandhop.trip.dto.CreateTripRequest;
 import com.islandhop.trip.dto.CreateTripResponse;
 import com.islandhop.trip.dto.SuggestionResponse;
+import com.islandhop.trip.dto.TripPlanResponse;
 import com.islandhop.trip.dto.UpdateCityRequest;
 import com.islandhop.trip.dto.UpdateCityResponse;
 import com.islandhop.trip.exception.InvalidDayException;
@@ -29,6 +30,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -635,6 +637,64 @@ public class TripService {
         }
         
         return place;
+    }
+
+    /**
+     * Retrieves the complete trip plan information for a given trip ID.
+     * Validates trip existence and user ownership before returning the trip details.
+     *
+     * @param tripId The ID of the trip to retrieve
+     * @param userId The ID of the user requesting the trip information
+     * @return TripPlanResponse containing the complete trip details
+     * @throws TripNotFoundException if the trip doesn't exist
+     * @throws UnauthorizedTripAccessException if the user doesn't own the trip
+     */
+    public TripPlanResponse getTripPlan(String tripId, String userId) {
+        log.info("Retrieving trip plan for tripId: {} and userId: {}", tripId, userId);
+
+        // Validate input parameters
+        if (tripId == null || tripId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Trip ID cannot be null or empty");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        // Find the trip in database
+        Optional<TripPlan> tripPlanOpt = tripPlanRepository.findById(tripId);
+        if (tripPlanOpt.isEmpty()) {
+            log.warn("Trip not found: {}", tripId);
+            throw new TripNotFoundException("Trip not found with ID: " + tripId);
+        }
+
+        TripPlan tripPlan = tripPlanOpt.get();
+
+        // Verify user authorization
+        if (!tripPlan.getUserId().equals(userId)) {
+            log.warn("Unauthorized access attempt: user {} for trip {}", userId, tripId);
+            throw new UnauthorizedTripAccessException("You are not authorized to access this trip");
+        }
+
+        // Parse dates and calculate number of days
+        LocalDate startDate = LocalDate.parse(tripPlan.getStartDate());
+        LocalDate endDate = LocalDate.parse(tripPlan.getEndDate());
+        int numberOfDays = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+
+        // Create and return response
+        TripPlanResponse response = new TripPlanResponse(
+                tripPlan.getId(),
+                tripPlan.getUserId(),
+                tripPlan.getBaseCity(), // Using baseCity as destination
+                startDate,
+                endDate,
+                numberOfDays,
+                tripPlan.getDailyPlans()
+        );
+
+        log.info("Successfully retrieved trip plan for tripId: {} with {} daily plans", 
+                tripId, tripPlan.getDailyPlans().size());
+
+        return response;
     }
 
     // ...existing methods...

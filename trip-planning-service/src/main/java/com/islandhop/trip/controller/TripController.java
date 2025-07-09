@@ -5,6 +5,7 @@ import com.islandhop.trip.dto.CreateTripRequest;
 import com.islandhop.trip.dto.CreateTripResponse;
 import com.islandhop.trip.dto.SuggestionErrorResponse;
 import com.islandhop.trip.dto.SuggestionResponse;
+import com.islandhop.trip.dto.TripPlanResponse;
 import com.islandhop.trip.dto.UpdateCityRequest;
 import com.islandhop.trip.dto.UpdateCityResponse;
 import com.islandhop.trip.exception.InvalidDayException;
@@ -328,6 +329,54 @@ public class TripController {
             log.error("Unexpected error adding place to trip {}: {}", tripId, e.getMessage(), e);
             SuggestionErrorResponse errorResponse = new SuggestionErrorResponse("error", tripId, day, type, 
                     "Failed to add place to itinerary. Please try again later.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Retrieves the complete trip plan for a given trip ID.
+     * Returns all trip details including daily plans with their places.
+     *
+     * @param tripId The unique ID of the trip to retrieve
+     * @param userId Query parameter for user authentication
+     * @return ResponseEntity with TripPlanResponse or error details
+     */
+    @GetMapping("/{tripId}")
+    public ResponseEntity<?> getTripPlan(
+            @PathVariable String tripId,
+            @RequestParam String userId) {
+        
+        log.info("Received request to retrieve trip plan - Trip: {}, User: {}", tripId, userId);
+
+        try {
+            // Retrieve trip plan through service layer
+            TripPlanResponse response = tripService.getTripPlan(tripId, userId);
+            
+            log.info("Successfully retrieved trip plan for trip: {} with {} daily plans", 
+                    tripId, response.getDailyPlans().size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (TripNotFoundException e) {
+            log.warn("Trip not found: {} for user: {}", tripId, userId);
+            TripPlanResponse errorResponse = new TripPlanResponse("error", tripId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            
+        } catch (UnauthorizedTripAccessException e) {
+            log.warn("Unauthorized access attempt: user {} for trip {}", userId, tripId);
+            TripPlanResponse errorResponse = new TripPlanResponse("error", tripId, 
+                    "You are not authorized to access this trip");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error retrieving trip {}: {}", tripId, e.getMessage());
+            TripPlanResponse errorResponse = new TripPlanResponse("error", tripId, e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (Exception e) {
+            log.error("Unexpected error retrieving trip {}: {}", tripId, e.getMessage(), e);
+            TripPlanResponse errorResponse = new TripPlanResponse("error", tripId, 
+                    "Failed to retrieve trip plan. Please try again later.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
