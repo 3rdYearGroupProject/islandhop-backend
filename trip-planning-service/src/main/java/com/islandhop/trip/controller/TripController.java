@@ -6,6 +6,7 @@ import com.islandhop.trip.dto.CreateTripResponse;
 import com.islandhop.trip.dto.SuggestionErrorResponse;
 import com.islandhop.trip.dto.SuggestionResponse;
 import com.islandhop.trip.dto.TripPlanResponse;
+import com.islandhop.trip.dto.TripSummaryResponse;
 import com.islandhop.trip.dto.UpdateCityRequest;
 import com.islandhop.trip.dto.UpdateCityResponse;
 import com.islandhop.trip.exception.InvalidDayException;
@@ -377,6 +378,39 @@ public class TripController {
             log.error("Unexpected error retrieving trip {}: {}", tripId, e.getMessage(), e);
             TripPlanResponse errorResponse = new TripPlanResponse("error", tripId, 
                     "Failed to retrieve trip plan. Please try again later.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Retrieves all trips for a specific user.
+     * Returns a list of trip summaries without detailed daily plans.
+     *
+     * @param userId Query parameter for user identification
+     * @return ResponseEntity with list of TripSummaryResponse or error details
+     */
+    @GetMapping
+    public ResponseEntity<?> getUserTrips(@RequestParam String userId) {
+        
+        log.info("Received request to retrieve all trips for user: {}", userId);
+
+        try {
+            // Retrieve all trips for the user through service layer
+            List<TripSummaryResponse> userTrips = tripService.getUserTrips(userId);
+            
+            log.info("Successfully retrieved {} trips for user: {}", userTrips.size(), userId);
+            
+            return ResponseEntity.ok(userTrips);
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error retrieving trips for user {}: {}", userId, e.getMessage());
+            TripSummaryResponse errorResponse = new TripSummaryResponse("error", null, e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (Exception e) {
+            log.error("Unexpected error retrieving trips for user {}: {}", userId, e.getMessage(), e);
+            TripSummaryResponse errorResponse = new TripSummaryResponse("error", null, 
+                    "Failed to retrieve trips. Please try again later.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }

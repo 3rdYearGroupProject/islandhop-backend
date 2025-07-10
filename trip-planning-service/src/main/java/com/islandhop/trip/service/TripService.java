@@ -5,6 +5,7 @@ import com.islandhop.trip.dto.CreateTripRequest;
 import com.islandhop.trip.dto.CreateTripResponse;
 import com.islandhop.trip.dto.SuggestionResponse;
 import com.islandhop.trip.dto.TripPlanResponse;
+import com.islandhop.trip.dto.TripSummaryResponse;
 import com.islandhop.trip.dto.UpdateCityRequest;
 import com.islandhop.trip.dto.UpdateCityResponse;
 import com.islandhop.trip.exception.InvalidDayException;
@@ -675,13 +676,30 @@ public class TripService {
             throw new UnauthorizedTripAccessException("You are not authorized to access this trip");
         }
 
+        // Convert to response DTO using helper method
+        TripPlanResponse response = convertToTripPlanResponse(tripPlan);
+
+        log.info("Successfully retrieved trip plan for tripId: {} with {} daily plans", 
+                tripId, tripPlan.getDailyPlans().size());
+
+        return response;
+    }
+
+    /**
+     * Converts a TripPlan entity to a TripPlanResponse DTO.
+     * Helper method for consistent response formatting.
+     *
+     * @param tripPlan The TripPlan entity to convert
+     * @return TripPlanResponse DTO
+     */
+    private TripPlanResponse convertToTripPlanResponse(TripPlan tripPlan) {
         // Parse dates and calculate number of days
         LocalDate startDate = LocalDate.parse(tripPlan.getStartDate());
         LocalDate endDate = LocalDate.parse(tripPlan.getEndDate());
         int numberOfDays = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
 
         // Create and return response
-        TripPlanResponse response = new TripPlanResponse(
+        return new TripPlanResponse(
                 tripPlan.getId(),
                 tripPlan.getUserId(),
                 tripPlan.getBaseCity(), // Using baseCity as destination
@@ -690,11 +708,66 @@ public class TripService {
                 numberOfDays,
                 tripPlan.getDailyPlans()
         );
+    }
 
-        log.info("Successfully retrieved trip plan for tripId: {} with {} daily plans", 
-                tripId, tripPlan.getDailyPlans().size());
+    /**
+     * Converts a TripPlan entity to a TripSummaryResponse DTO.
+     * Helper method for trip listing without detailed daily plans.
+     *
+     * @param tripPlan The TripPlan entity to convert
+     * @return TripSummaryResponse DTO
+     */
+    private TripSummaryResponse convertToTripSummaryResponse(TripPlan tripPlan) {
+        // Parse dates and calculate number of days
+        LocalDate startDate = LocalDate.parse(tripPlan.getStartDate());
+        LocalDate endDate = LocalDate.parse(tripPlan.getEndDate());
+        int numberOfDays = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
 
-        return response;
+        // Create and return response without daily plans
+        return new TripSummaryResponse(
+                "success",
+                tripPlan.getId(),
+                tripPlan.getUserId(),
+                tripPlan.getTripName(), // Include trip name
+                tripPlan.getBaseCity(), // Using baseCity as destination
+                startDate,
+                endDate,
+                numberOfDays,
+                "Trip retrieved successfully"
+        );
+    }
+
+    /**
+     * Retrieves all trips for a specific user.
+     * Returns a list of trip summaries without detailed daily plans.
+     *
+     * @param userId The ID of the user whose trips to retrieve
+     * @return List of TripSummaryResponse objects for the user
+     * @throws IllegalArgumentException if userId is null or empty
+     */
+    public List<TripSummaryResponse> getUserTrips(String userId) {
+        log.info("Retrieving all trips for user: {}", userId);
+        
+        // Validate input
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+        
+        try {
+            // Find all trips for the user
+            List<TripPlan> userTrips = tripPlanRepository.findByUserId(userId);
+            
+            log.info("Found {} trips for user: {}", userTrips.size(), userId);
+            
+            // Convert to response DTOs
+            return userTrips.stream()
+                    .map(this::convertToTripSummaryResponse)
+                    .collect(Collectors.toList());
+                    
+        } catch (Exception e) {
+            log.error("Error retrieving trips for user {}: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("Failed to retrieve user trips", e);
+        }
     }
 
     // ...existing methods...
