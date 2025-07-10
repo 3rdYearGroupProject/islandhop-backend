@@ -27,4 +27,7 @@ public class TouristProfile {
     
     @Column(name = "profile_completion", nullable = false)
     private Integer profileCompletion = 0; // 0 = incomplete, 1 = complete
+
+    @Column(name = "profile_pic", columnDefinition = "bytea")
+    private byte[] profilePic; // Store as bytea to avoid oid issues
 }

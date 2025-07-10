@@ -35,6 +35,19 @@ public class TouristServiceImpl implements TouristService {
         account.setStatus(TouristStatus.ACTIVE);
         TouristAccount saved = accountRepository.save(account);
         logger.info("Tourist account saved: {}", saved);
+        // Also create a blank profile row with null/defaults
+        if (!profileRepository.existsByEmail(email)) {
+            TouristProfile profile = new TouristProfile();
+            profile.setEmail(email);
+            profile.setFirstName(null);
+            profile.setLastName(null);
+            profile.setNationality(null);
+            profile.setLanguages(null);
+            profile.setProfileCompletion(0);
+            profile.setProfilePic(null);
+            profileRepository.save(profile);
+            logger.info("Blank tourist profile created for email: {}", email);
+        }
         return saved;
     }
 

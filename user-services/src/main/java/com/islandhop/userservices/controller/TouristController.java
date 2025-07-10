@@ -106,6 +106,137 @@ public class TouristController {
     }
 
     /**
+     * Gets the tourist profile.
+     * 
+     * @param email Optional email parameter, otherwise uses session
+     * @param session HTTP session
+     * @return ResponseEntity with profile info or error status
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<?> getProfile(@RequestParam(required = false) String email, HttpSession session) {
+        logger.info("GET /tourist/profile called with email parameter: {}", email);
+        
+        // Use email from parameter if provided, otherwise get from session
+        String profileEmail = email != null ? email : (String) session.getAttribute("userEmail");
+        
+        if (profileEmail == null) {
+            logger.warn("No email provided and no email in session for profile request");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        TouristProfile profile = profileRepository.findByEmail(profileEmail);
+        if (profile == null) {
+            logger.warn("Profile not found for email: {}", profileEmail);
+            return ResponseEntity.notFound().build();
+        }
+
+        logger.info("Tourist profile retrieved for: {}", profileEmail);
+        return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Updates the tourist profile with new information.
+     * 
+     * @param requestBody Map containing profile fields to update
+     * @param session HTTP session
+     * @return ResponseEntity with updated profile info or error status
+     */
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> requestBody, HttpSession session) {
+        logger.info("PUT /tourist/profile called with body: {}", requestBody);
+        
+        // Get email from request body or session
+        String email = (String) requestBody.get("email");
+        if (email == null) {
+            email = (String) session.getAttribute("userEmail");
+        }
+        
+        if (email == null) {
+            logger.warn("No email provided for profile update");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        if (!accountRepository.existsByEmail(email)) {
+            logger.warn("Profile update attempted for non-existent tourist: {}", email);
+            return ResponseEntity.badRequest().body("Tourist account does not exist");
+        }
+
+        try {
+            // Find existing profile
+            TouristProfile profile = profileRepository.findByEmail(email);
+            if (profile == null) {
+                logger.warn("Profile not found for update: {}", email);
+                return ResponseEntity.badRequest().body("Profile does not exist");
+            }
+
+            // Update profile fields
+            if (requestBody.containsKey("firstName")) {
+                profile.setFirstName((String) requestBody.get("firstName"));
+            }
+            if (requestBody.containsKey("lastName")) {
+                profile.setLastName((String) requestBody.get("lastName"));
+            }
+            if (requestBody.containsKey("nationality")) {
+                profile.setNationality((String) requestBody.get("nationality"));
+            }
+            if (requestBody.containsKey("languages")) {
+                profile.setLanguages((List<String>) requestBody.get("languages"));
+            }
+            // Update profile picture if provided (byte array)
+            if (requestBody.containsKey("profilePicture")) {
+                Object picObj = requestBody.get("profilePicture");
+                logger.info("Profile picture object type: {}", picObj != null ? picObj.getClass().getName() : "null");
+                
+                if (picObj instanceof List<?>) {
+                    List<?> picList = (List<?>) picObj;
+                    logger.info("Profile picture list size: {}", picList.size());
+                    
+                    if (picList.isEmpty()) {
+                        profile.setProfilePic(null);
+                        logger.info("Empty profile picture list, setting to null");
+                    } else {
+                        byte[] picBytes = new byte[picList.size()];
+                        for (int i = 0; i < picList.size(); i++) {
+                            Object val = picList.get(i);
+                            if (val instanceof Number) {
+                                int intVal = ((Number) val).intValue();
+                                // Ensure value is in valid byte range (-128 to 127)
+                                picBytes[i] = (byte) (intVal & 0xFF);
+                            } else {
+                                logger.warn("Non-numeric value at index {}: {}", i, val);
+                                picBytes[i] = 0;
+                            }
+                        }
+                        
+                        profile.setProfilePic(picBytes);
+                        logger.info("Profile picture byte array set, length: {}", picBytes.length);
+                    }
+                } else if (picObj == null) {
+                    profile.setProfilePic(null);
+                    logger.info("Profile picture set to null");
+                } else {
+                    logger.warn("Unexpected profile picture object type: {}, converting to string and ignoring", picObj.getClass().getName());
+                    // Don't update profile picture if it's not in expected format
+                }
+            }
+            // Update profile completion status if all required fields are present
+            if (profile.getFirstName() != null && profile.getLastName() != null && 
+                profile.getNationality() != null && profile.getLanguages() != null) {
+                profile.setProfileCompletion(1);
+            }
+
+            TouristProfile updatedProfile = profileRepository.save(profile);
+            logger.info("Tourist profile updated for: {}", email);
+            return ResponseEntity.ok(updatedProfile);
+            
+        } catch (Exception e) {
+            logger.error("Error updating tourist profile for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error updating profile: " + e.getMessage());
+        }
+    }
+
+    /**
      * Authenticates a tourist using a Firebase ID token and starts a session.
      * 
      * @param requestBody Map containing "idToken"
@@ -128,12 +259,27 @@ public class TouristController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Firebase token");
         }
 
+        // Check if tourist account exists
+        if (!accountRepository.existsByEmail(email)) {
+            logger.warn("Tourist login failed: account not found for {}", email);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Tourist account not found");
+        }
+
         // Set session attributes
         session.setAttribute("userEmail", email);
+        session.setAttribute("userRole", "tourist");
         session.setAttribute("isAuthenticated", true);
-        logger.info("User logged in and session started: {}", email);
+        logger.info("Tourist logged in: {}", email);
 
-        return ResponseEntity.ok(Map.of("message", "Login successful", "email", email));
+        // Get profile completion status
+        TouristProfile profile = profileRepository.findByEmail(email);
+        boolean profileComplete = profile != null && profile.getProfileCompletion() == 1;
+
+        return ResponseEntity.ok(Map.of(
+            "message", "Login successful", 
+            "email", email,
+            "profileComplete", profileComplete
+        ));
     }
 
     /**
@@ -190,9 +336,20 @@ public class TouristController {
     public ResponseEntity<?> validateSession(HttpSession session) {
         Boolean isAuthenticated = (Boolean) session.getAttribute("isAuthenticated");
         String email = (String) session.getAttribute("userEmail");
-        logger.info("GET /tourist/session/validate called. Authenticated: {}, Email: {}", isAuthenticated, email);
-        if (isAuthenticated != null && isAuthenticated && email != null) {
-            return ResponseEntity.ok(Map.of("valid", true, "email", email));
+        String role = (String) session.getAttribute("userRole");
+
+        logger.info("GET /tourist/session/validate called. Authenticated: {}, Email: {}, Role: {}", isAuthenticated, email, role);
+
+        if (Boolean.TRUE.equals(isAuthenticated) && email != null && "tourist".equals(role)) {
+            // Get profile completion status
+            TouristProfile profile = profileRepository.findByEmail(email);
+            boolean profileComplete = profile != null && profile.getProfileCompletion() == 1;
+            
+            return ResponseEntity.ok(Map.of(
+                "valid", true, 
+                "email", email,
+                "profileComplete", profileComplete
+            ));
         } else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("valid", false));
         }
