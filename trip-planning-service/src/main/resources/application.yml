@@ -16,13 +16,13 @@ spring:
       uri: ${MONGODB_URI:mongodb+srv://2022cs056:dH4aTFn3IOerWlVZ@cluster0.9ccambx.mongodb.net/islandhop_trips?retryWrites=true&w=majority}
       database: islandhop_trips
   cache:
-    type: simple  # Use in-memory cache instead of Redis
+    type: simple # Use in-memory cache instead of Redis
     # type: redis
     redis:
       cache-null-values: false
       time-to-live: 86400000 # 24 hours in milliseconds
   redis:
-    host: ${SPRING_REDIS_HOST:localhost}  # Use localhost to connect to Docker Redis
+    host: ${SPRING_REDIS_HOST:localhost} # Use localhost to connect to Docker Redis
     port: ${SPRING_REDIS_PORT:6379}
     password: ${SPRING_REDIS_PASSWORD:redis123}
     timeout: 3000ms
