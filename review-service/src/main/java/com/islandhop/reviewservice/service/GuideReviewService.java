@@ -99,6 +99,11 @@ public class GuideReviewService {
                 reviewId, review.getStatus(), newStatus);
 
         review.setStatus(newStatus);
+        // If status is 1 (approved), set ai_confidence_score to 1.0
+        if (newStatus != null && newStatus.ordinal() == 1) {
+            review.setAiConfidenceScore(1.0);
+            log.info("Set ai_confidence_score to 1.0 for review {}", reviewId);
+        }
         GuideReview updatedReview = guideReviewRepository.save(review);
 
         return mapToResponseDTO(updatedReview);
@@ -108,6 +113,14 @@ public class GuideReviewService {
         GuideReview review = guideReviewRepository.findById(reviewId)
                 .orElseThrow(() -> new RuntimeException("Guide review not found with ID: " + reviewId));
         return mapToResponseDTO(review);
+    }
+
+    @Transactional
+    public List<ReviewResponseDTO> getLowConfidenceReviews() {
+        log.info("Fetching guide reviews with AI confidence below threshold using stored procedure");
+        List<GuideReview> reviews = guideReviewRepository.findLowConfidenceReviews();
+        log.info("Found {} guide reviews with low AI confidence", reviews.size());
+        return reviews.stream().map(this::mapToResponseDTO).collect(Collectors.toList());
     }
 
     private ReviewResponseDTO mapToResponseDTO(GuideReview review) {
