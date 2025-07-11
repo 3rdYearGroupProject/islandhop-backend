@@ -11,6 +11,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -207,6 +210,161 @@ public class GroupChatService {
         logger.debug("Found {} groups for user", groups.size());
         
         return groups;
+    }
+
+    /**
+     * Get all messages from a group with pagination.
+     * 
+     * @param groupId The group's ID
+     * @param pageable Pagination information
+     * @return Page of messages in the group
+     */
+    public Page<GroupMessage> getGroupMessages(String groupId, Pageable pageable) {
+        logger.info("Retrieving messages for group {} with pagination", groupId);
+        
+        List<GroupMessage> messages = groupMessageRepository.findByGroupIdOrderByTimestampAsc(groupId);
+        logger.debug("Found {} messages in group", messages.size());
+        
+        return new PageImpl<>(messages, pageable, messages.size());
+    }
+
+    /**
+     * Get group by ID.
+     * 
+     * @param groupId The group's ID
+     * @return The Group entity
+     */
+    public Optional<Group> getGroupById(String groupId) {
+        logger.info("Retrieving group by ID: {}", groupId);
+        
+        Optional<Group> group = groupRepository.findById(groupId);
+        logger.debug("Group found: {}", group.isPresent());
+        
+        return group;
+    }
+
+    /**
+     * Update group information.
+     * 
+     * @param groupId The group's ID
+     * @param groupDTO The updated group data
+     * @return The updated Group entity
+     */
+    public Group updateGroup(String groupId, GroupDTO groupDTO) {
+        logger.info("Updating group: {}", groupId);
+        
+        Optional<Group> groupOpt = groupRepository.findById(groupId);
+        if (groupOpt.isEmpty()) {
+            throw new IllegalArgumentException("Group not found");
+        }
+        
+        Group group = groupOpt.get();
+        group.setGroupName(groupDTO.getGroupName());
+        group.setDescription(groupDTO.getDescription());
+        group.setGroupType(groupDTO.getGroupType());
+        
+        Group updatedGroup = groupRepository.save(group);
+        logger.debug("Group updated successfully");
+        
+        return updatedGroup;
+    }
+
+    /**
+     * Delete a group.
+     * 
+     * @param groupId The group's ID
+     * @param requesterId The ID of user requesting deletion
+     */
+    public void deleteGroup(String groupId, String requesterId) {
+        logger.info("Deleting group {} by user {}", groupId, requesterId);
+        
+        Optional<Group> groupOpt = groupRepository.findById(groupId);
+        if (groupOpt.isEmpty()) {
+            throw new IllegalArgumentException("Group not found");
+        }
+        
+        Group group = groupOpt.get();
+        
+        // Check if user is admin
+        if (!group.getAdminId().equals(requesterId)) {
+            throw new IllegalArgumentException("Only group admin can delete the group");
+        }
+        
+        groupRepository.deleteById(groupId);
+        logger.debug("Group deleted successfully");
+    }
+
+    /**
+     * Search group messages by content with pagination.
+     * 
+     * @param groupId The group's ID
+     * @param searchTerm The search term
+     * @param pageable Pagination information
+     * @return Page of matching messages
+     */
+    public Page<GroupMessage> searchGroupMessages(String groupId, String searchTerm, Pageable pageable) {
+        logger.info("Searching messages in group {} using term: {}", groupId, searchTerm);
+        
+        List<GroupMessage> allMessages = groupMessageRepository.findByGroupIdOrderByTimestampAsc(groupId);
+        List<GroupMessage> matchingMessages = allMessages.stream()
+                .filter(msg -> msg.getContent().toLowerCase().contains(searchTerm.toLowerCase()))
+                .collect(java.util.stream.Collectors.toList());
+        
+        logger.debug("Found {} matching messages", matchingMessages.size());
+        
+        return new PageImpl<>(matchingMessages, pageable, matchingMessages.size());
+    }
+
+    /**
+     * Get group members.
+     * 
+     * @param groupId The group's ID
+     * @return List of member IDs
+     */
+    public List<String> getGroupMembers(String groupId) {
+        logger.info("Retrieving members for group: {}", groupId);
+        
+        Optional<Group> groupOpt = groupRepository.findById(groupId);
+        if (groupOpt.isEmpty()) {
+            throw new IllegalArgumentException("Group not found");
+        }
+        
+        List<String> members = groupOpt.get().getMemberIds();
+        logger.debug("Found {} members in group", members.size());
+        
+        return members;
+    }
+
+    /**
+     * Leave a group.
+     * 
+     * @param groupId The group's ID
+     * @param userId The user's ID
+     */
+    public void leaveGroup(String groupId, String userId) {
+        logger.info("User {} leaving group {}", userId, groupId);
+        
+        Optional<Group> groupOpt = groupRepository.findById(groupId);
+        if (groupOpt.isEmpty()) {
+            throw new IllegalArgumentException("Group not found");
+        }
+        
+        Group group = groupOpt.get();
+        
+        // Check if user is a member
+        if (!group.getMemberIds().contains(userId)) {
+            throw new IllegalArgumentException("User is not a member of this group");
+        }
+        
+        // Remove user from group
+        group.getMemberIds().remove(userId);
+        groupRepository.save(group);
+        
+        logger.debug("User {} left group {}", userId, groupId);
+        
+        // Notify group members
+        notifyGroupMembers(group, "MEMBER_LEFT", 
+                          "User " + userId + " left the group");
     }
 
     /**

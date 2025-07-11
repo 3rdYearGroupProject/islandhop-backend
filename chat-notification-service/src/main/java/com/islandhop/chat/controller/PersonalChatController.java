@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST Controller for handling personal chat operations.
@@ -94,7 +95,7 @@ public class PersonalChatController {
         logger.info("Retrieving conversations for user: {}", userId);
 
         try {
-            List<String> conversations = personalChatService.getUserConversations(userId);
+            List<Map<String, Object>> conversations = personalChatService.getUserConversations(userId);
             logger.debug("Found {} conversations for user", conversations.size());
             
             return ResponseEntity.ok(conversations);

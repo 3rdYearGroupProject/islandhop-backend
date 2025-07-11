@@ -71,4 +71,8 @@ public class GroupDTO {
     public void setGroupType(String groupType) {
         this.groupType = groupType;
     }
+
+    public String getCreatedBy() {
+        return adminId; // Return adminId as createdBy
+    }
 }

@@ -85,13 +85,9 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
             
-        } catch (FirebaseAuthException e) {
-            logger.error("Firebase authentication failed: {}", e.getMessage());
-            handleAuthenticationError(response, "Authentication failed: " + e.getMessage());
-            return;
         } catch (Exception e) {
-            logger.error("Unexpected authentication error: {}", e.getMessage());
-            handleAuthenticationError(response, "Authentication error occurred");
+            logger.error("Authentication error: {}", e.getMessage());
+            handleAuthenticationError(response, "Authentication failed: " + e.getMessage());
             return;
         }
 

@@ -48,7 +48,7 @@ public class FirebaseAuthService {
             throw e;
         } catch (Exception e) {
             logger.error("Unexpected error during token verification: {}", e.getMessage());
-            throw new FirebaseAuthException("TOKEN_VERIFICATION_ERROR", "Token verification failed", e);
+            throw new RuntimeException("Token verification failed: " + e.getMessage(), e);
         }
     }
 

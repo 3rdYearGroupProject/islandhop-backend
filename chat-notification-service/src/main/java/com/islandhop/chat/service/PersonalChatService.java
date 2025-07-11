@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -67,6 +69,24 @@ public class PersonalChatService {
     }
 
     /**
+     * Get all messages between two users with pagination.
+     * 
+     * @param userId1 First user's ID
+     * @param userId2 Second user's ID
+     * @param pageable Pagination information
+     * @return Page of messages between the users
+     */
+    public Page<PersonalMessage> getMessagesBetweenUsers(String userId1, String userId2, Pageable pageable) {
+        logger.info("Retrieving messages between users {} and {} with pagination", userId1, userId2);
+        
+        // For now, convert to list and return as page - you may need to implement pagination in repository
+        List<PersonalMessage> messages = messageRepository.findMessagesBetweenUsers(userId1, userId2);
+        logger.debug("Found {} messages between users", messages.size());
+        
+        return new org.springframework.data.domain.PageImpl<>(messages, pageable, messages.size());
+    }
+
+    /**
      * Get all messages between two users.
      * 
      * @param userId1 First user's ID
@@ -80,6 +100,17 @@ public class PersonalChatService {
         logger.debug("Found {} messages between users", messages.size());
         
         return messages;
+    }
+
+    /**
+     * Get conversation list for a user.
+     * Returns the latest message from each conversation.
+     * 
+     * @param userId The user's ID
+     * @return List of conversations with latest messages
+     */
+    public List<Map<String, Object>> getUserConversations(String userId) {
+        return getConversations(userId);
     }
 
     /**
@@ -139,6 +170,78 @@ public class PersonalChatService {
         messageRepository.saveAll(unreadMessages);
 
         logger.debug("Marked {} messages as read", unreadMessages.size());
+    }
+
+    /**
+     * Get recent messages for a user with limit.
+     * 
+     * @param userId The user's ID
+     * @param limit Maximum number of messages to return
+     * @return List of recent messages
+     */
+    public List<PersonalMessage> getRecentMessagesForUser(String userId, int limit) {
+        logger.info("Retrieving {} recent messages for user: {}", limit, userId);
+        
+        // Get messages where user is sender or receiver, ordered by timestamp desc
+        List<PersonalMessage> messages = messageRepository.findConversationsByUserId(userId);
+        List<PersonalMessage> recentMessages = messages.stream()
+                .sorted((m1, m2) -> m2.getTimestamp().compareTo(m1.getTimestamp()))
+                .limit(limit)
+                .collect(Collectors.toList());
+        
+        logger.debug("Found {} recent messages for user", recentMessages.size());
+        return recentMessages;
+    }
+
+    /**
+     * Get unread message count for a user.
+     * 
+     * @param userId The user's ID
+     * @return Number of unread messages
+     */
+    public long getUnreadMessageCount(String userId) {
+        logger.info("Getting unread message count for user: {}", userId);
+        
+        long count = messageRepository.countByReceiverIdAndIsReadFalse(userId);
+        logger.debug("User {} has {} unread messages", userId, count);
+        
+        return count;
+    }
+
+    /**
+     * Search messages by content with pagination.
+     * 
+     * @param userId The user's ID
+     * @param partnerId The conversation partner's ID
+     * @param searchTerm The search term
+     * @param pageable Pagination information
+     * @return Page of matching messages
+     */
+    public Page<PersonalMessage> searchMessages(String userId, String partnerId, String searchTerm, Pageable pageable) {
+        logger.info("Searching messages for user {} with partner {} using term: {}", userId, partnerId, searchTerm);
+        
+        // Simple implementation - get all messages and filter by search term
+        List<PersonalMessage> allMessages = messageRepository.findMessagesBetweenUsers(userId, partnerId);
+        List<PersonalMessage> matchingMessages = allMessages.stream()
+                .filter(msg -> msg.getContent().toLowerCase().contains(searchTerm.toLowerCase()))
+                .collect(Collectors.toList());
+        
+        logger.debug("Found {} matching messages", matchingMessages.size());
+        
+        // Return as empty page for now - implement proper pagination in repository later
+        return new org.springframework.data.domain.PageImpl<>(matchingMessages, pageable, matchingMessages.size());
+    }
+
+    /**
+     * Delete a message by ID.
+     * 
+     * @param messageId The message ID to delete
+     */
+    public void deleteMessage(String messageId) {
+        logger.info("Deleting message with ID: {}", messageId);
+        
+        messageRepository.deleteById(messageId);
+        logger.debug("Message deleted successfully");
     }
 
     /**

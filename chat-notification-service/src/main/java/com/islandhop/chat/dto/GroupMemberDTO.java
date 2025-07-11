@@ -59,4 +59,8 @@ public class GroupMemberDTO {
     public void setRequesterId(String requesterId) {
         this.requesterId = requesterId;
     }
+
+    public String getAddedBy() {
+        return requesterId; // Return requesterId as addedBy
+    }
 }
