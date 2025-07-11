@@ -110,6 +110,14 @@ public class DriverReviewService {
         return mapToResponseDTO(review);
     }
 
+    @Transactional
+    public List<ReviewResponseDTO> getLowConfidenceReviews() {
+        log.info("Fetching reviews with AI confidence below threshold using stored procedure");
+        List<DriverReview> reviews = driverReviewRepository.findLowConfidenceReviews();
+        log.info("Found {} reviews with low AI confidence", reviews.size());
+        return reviews.stream().map(this::mapToResponseDTO).collect(Collectors.toList());
+    }
+
     private ReviewResponseDTO mapToResponseDTO(DriverReview review) {
         return ReviewResponseDTO.builder()
                 .reviewId(review.getReviewId())

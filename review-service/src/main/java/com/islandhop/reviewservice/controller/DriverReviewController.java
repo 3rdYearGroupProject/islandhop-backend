@@ -83,4 +83,12 @@ public class DriverReviewController {
         log.info("[API] Updated review: reviewId={}, status={}", updatedReview.getReviewId(), updatedReview.getStatus());
         return ResponseEntity.ok(updatedReview);
     }
+
+    @GetMapping("/low-confidence")
+    public ResponseEntity<List<ReviewResponseDTO>> getLowConfidenceReviews() {
+        log.info("[API] Fetching reviews with AI confidence below threshold");
+        List<ReviewResponseDTO> reviews = driverReviewService.getLowConfidenceReviews();
+        log.info("[API] Found {} reviews with low AI confidence", reviews.size());
+        return ResponseEntity.ok(reviews);
+    }
 }

@@ -23,4 +23,7 @@ public interface GuideReviewRepository extends JpaRepository<GuideReview, Long> 
     
     @Query("SELECT gr FROM GuideReview gr WHERE gr.email = :email AND gr.status = :status")
     List<GuideReview> findByEmailAndStatus(@Param("email") String email, @Param("status") ReviewStatus status);
+
+    @Query(value = "SELECT * FROM get_low_confidence_guide_reviews()", nativeQuery = true)
+    List<GuideReview> findLowConfidenceReviews();
 }

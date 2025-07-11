@@ -23,4 +23,7 @@ public interface DriverReviewRepository extends JpaRepository<DriverReview, Long
     
     @Query("SELECT dr FROM DriverReview dr WHERE dr.email = :email AND dr.status = :status")
     List<DriverReview> findByEmailAndStatus(@Param("email") String email, @Param("status") ReviewStatus status);
+
+    @Query(value = "SELECT * FROM get_low_confidence_driver_reviews()", nativeQuery = true)
+    List<DriverReview> findLowConfidenceReviews();
 }
