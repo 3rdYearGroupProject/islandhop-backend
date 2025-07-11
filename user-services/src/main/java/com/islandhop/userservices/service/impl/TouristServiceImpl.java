@@ -41,6 +41,7 @@ public class TouristServiceImpl implements TouristService {
             profile.setEmail(email);
             profile.setFirstName(null);
             profile.setLastName(null);
+            profile.setDob(null);
             profile.setNationality(null);
             profile.setLanguages(null);
             profile.setProfileCompletion(0);

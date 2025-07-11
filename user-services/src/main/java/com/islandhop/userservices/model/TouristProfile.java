@@ -2,6 +2,7 @@ package com.islandhop.userservices.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +19,10 @@ public class TouristProfile {
 
     private String firstName;
     private String lastName;
+    
+    @Column(name = "dob")
+    private LocalDate dob;
+    
     private String nationality;
 
     @ElementCollection

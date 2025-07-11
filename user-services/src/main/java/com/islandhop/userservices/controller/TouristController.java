@@ -3,9 +3,10 @@ package com.islandhop.userservices.controller;
 import com.islandhop.userservices.config.CorsConfig;
 import com.islandhop.userservices.model.TouristAccount;
 import com.islandhop.userservices.model.TouristProfile;
-import com.islandhop.userservices.model.TouristStatus;
+import com.islandhop.userservices.model.TouristSettings;
 import com.islandhop.userservices.repository.TouristAccountRepository;
 import com.islandhop.userservices.repository.TouristProfileRepository;
+import com.islandhop.userservices.repository.TouristSettingsRepository;
 import com.islandhop.userservices.service.TouristService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -13,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import jakarta.servlet.http.HttpSession;
@@ -33,6 +36,7 @@ public class TouristController {
 
     private final TouristAccountRepository accountRepository;
     private final TouristProfileRepository profileRepository;
+    private final TouristSettingsRepository settingsRepository;
     private final TouristService touristService;
 
     /**
@@ -131,7 +135,17 @@ public class TouristController {
         }
 
         logger.info("Tourist profile retrieved for: {}", profileEmail);
-        return ResponseEntity.ok(profile);
+        // Return dob as ISO string if present
+        Map<String, Object> response = new HashMap<>();
+        response.put("email", profile.getEmail());
+        response.put("firstName", profile.getFirstName());
+        response.put("lastName", profile.getLastName());
+        response.put("dob", profile.getDob() != null ? profile.getDob().toString() : null);
+        response.put("nationality", profile.getNationality());
+        response.put("languages", profile.getLanguages());
+        response.put("profilePic", profile.getProfilePic());
+        response.put("profileCompletion", profile.getProfileCompletion());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -219,6 +233,22 @@ public class TouristController {
                     // Don't update profile picture if it's not in expected format
                 }
             }
+            // Update date of birth if provided
+            if (requestBody.containsKey("dob")) {
+                Object dobObj = requestBody.get("dob");
+                if (dobObj instanceof String && !((String) dobObj).isBlank()) {
+                    try {
+                        String dobStr = (String) dobObj;
+                        profile.setDob(LocalDate.parse(dobStr));
+                        logger.info("Set date of birth to: {}", dobStr);
+                    } catch (Exception ex) {
+                        logger.warn("Invalid dob format: {}", dobObj);
+                    }
+                } else if (dobObj == null) {
+                    profile.setDob(null);
+                    logger.info("Date of birth set to null");
+                }
+            }
             // Update profile completion status if all required fields are present
             if (profile.getFirstName() != null && profile.getLastName() != null && 
                 profile.getNationality() != null && profile.getLanguages() != null) {
@@ -227,8 +257,17 @@ public class TouristController {
 
             TouristProfile updatedProfile = profileRepository.save(profile);
             logger.info("Tourist profile updated for: {}", email);
-            return ResponseEntity.ok(updatedProfile);
-            
+            // Return dob as ISO string if present
+            Map<String, Object> response = new HashMap<>();
+            response.put("email", updatedProfile.getEmail());
+            response.put("firstName", updatedProfile.getFirstName());
+            response.put("lastName", updatedProfile.getLastName());
+            response.put("dob", updatedProfile.getDob() != null ? updatedProfile.getDob().toString() : null);
+            response.put("nationality", updatedProfile.getNationality());
+            response.put("languages", updatedProfile.getLanguages());
+            response.put("profilePic", updatedProfile.getProfilePic());
+            response.put("profileCompletion", updatedProfile.getProfileCompletion());
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error updating tourist profile for {}: {}", email, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -352,6 +391,229 @@ public class TouristController {
             ));
         } else {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("valid", false));
+        }
+    }
+
+    /**
+     * Gets the tourist settings (currency, units, etc.).
+     * 
+     * @param email Optional email parameter, otherwise uses session
+     * @param session HTTP session
+     * @return ResponseEntity with settings info or default values if not found
+     */
+    @GetMapping("/settings")
+    public ResponseEntity<?> getSettings(@RequestParam(required = false) String email, HttpSession session) {
+        logger.info("GET /tourist/settings called with email parameter: {}", email);
+        
+        // Use email from parameter if provided, otherwise get from session
+        String settingsEmail = email != null ? email : (String) session.getAttribute("userEmail");
+        
+        if (settingsEmail == null) {
+            logger.warn("No email provided and no email in session for settings request");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        // Check if tourist account exists
+        if (!accountRepository.existsByEmail(settingsEmail)) {
+            logger.warn("Settings request for non-existent tourist: {}", settingsEmail);
+            return ResponseEntity.badRequest().body("Tourist account does not exist");
+        }
+
+        TouristSettings settings = settingsRepository.findByEmail(settingsEmail).orElse(null);
+        
+        if (settings == null) {
+            logger.info("No settings found for email: {}, returning default values", settingsEmail);
+            // Return default values when no settings exist
+            Map<String, Object> response = new HashMap<>();
+            response.put("email", settingsEmail);
+            response.put("currency", null);
+            response.put("units", null);
+            return ResponseEntity.ok(response);
+        }
+
+        logger.info("Tourist settings retrieved for: {}", settingsEmail);
+        Map<String, Object> response = new HashMap<>();
+        response.put("email", settings.getEmail());
+        response.put("currency", settings.getCurrency());
+        response.put("units", settings.getUnits());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Updates or creates tourist settings.
+     * 
+     * @param requestBody Map containing settings fields to update
+     * @param session HTTP session
+     * @return ResponseEntity with updated settings info or error status
+     */
+    @PutMapping("/settings")
+    public ResponseEntity<?> updateSettings(@RequestBody Map<String, Object> requestBody, HttpSession session) {
+        logger.info("PUT /tourist/settings called with body: {}", requestBody);
+        
+        // Get email from request body or session
+        String email = (String) requestBody.get("email");
+        if (email == null) {
+            email = (String) session.getAttribute("userEmail");
+        }
+        
+        if (email == null) {
+            logger.warn("No email provided for settings update");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        // Check if tourist account exists
+        if (!accountRepository.existsByEmail(email)) {
+            logger.warn("Settings update attempted for non-existent tourist: {}", email);
+            return ResponseEntity.badRequest().body("Tourist account does not exist");
+        }
+
+        try {
+            // Find existing settings or create new one
+            TouristSettings settings = settingsRepository.findByEmail(email)
+                .orElse(new TouristSettings());
+
+            // Set email for new settings
+            if (settings.getEmail() == null) {
+                settings.setEmail(email);
+                logger.info("Creating new settings for email: {}", email);
+            } else {
+                logger.info("Updating existing settings for email: {}", email);
+            }
+
+            // Update settings fields
+            if (requestBody.containsKey("currency")) {
+                String currency = (String) requestBody.get("currency");
+                settings.setCurrency(currency);
+                logger.info("Setting currency to: {}", currency);
+            }
+            
+            if (requestBody.containsKey("units")) {
+                String units = (String) requestBody.get("units");
+                settings.setUnits(units);
+                logger.info("Setting units to: {}", units);
+            }
+
+            TouristSettings savedSettings = settingsRepository.save(settings);
+            logger.info("Tourist settings updated for: {}", email);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("email", savedSettings.getEmail());
+            response.put("currency", savedSettings.getCurrency());
+            response.put("units", savedSettings.getUnits());
+            response.put("message", "Settings updated successfully");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Error updating tourist settings for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error updating settings: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Checks for null values in all tourist-related tables for a given email.
+     * 
+     * @param email Optional email parameter, otherwise uses session
+     * @param session HTTP session
+     * @return ResponseEntity with null field information
+     */
+    @GetMapping("/check-null-values")
+    public ResponseEntity<?> checkNullValues(@RequestParam(required = false) String email, HttpSession session) {
+        logger.info("GET /tourist/check-null-values called with email parameter: {}", email);
+        
+        // Use email from parameter if provided, otherwise get from session
+        String checkEmail = email != null ? email : (String) session.getAttribute("userEmail");
+        
+        if (checkEmail == null) {
+            logger.warn("No email provided and no email in session for null check request");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        // Check if tourist account exists
+        if (!accountRepository.existsByEmail(checkEmail)) {
+            logger.warn("Null check request for non-existent tourist: {}", checkEmail);
+            return ResponseEntity.badRequest().body("Tourist account does not exist");
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("email", checkEmail);
+        Map<String, Object> nullFields = new HashMap<>();
+        response.put("nullFields", nullFields);
+        
+        try {
+            // Check tourist_accounts table
+            TouristAccount account = accountRepository.findByEmail(checkEmail).orElse(null);
+            if (account != null) {
+                Map<String, Object> accountNulls = new HashMap<>();
+                if (account.getId() == null) accountNulls.put("id", "null");
+                if (account.getEmail() == null) accountNulls.put("email", "null");
+                if (account.getStatus() == null) accountNulls.put("status", "null");
+                
+                if (!accountNulls.isEmpty()) {
+                    nullFields.put("tourist_accounts", accountNulls);
+                }
+            }
+            
+            // Check tourist_profiles table
+            TouristProfile profile = profileRepository.findByEmail(checkEmail);
+            if (profile != null) {
+                Map<String, Object> profileNulls = new HashMap<>();
+                if (profile.getId() == null) profileNulls.put("id", "null");
+                if (profile.getEmail() == null) profileNulls.put("email", "null");
+                if (profile.getFirstName() == null) profileNulls.put("firstName", "null");
+                if (profile.getLastName() == null) profileNulls.put("lastName", "null");
+                if (profile.getDob() == null) profileNulls.put("dob", "null");
+                if (profile.getNationality() == null) profileNulls.put("nationality", "null");
+                if (profile.getLanguages() == null) profileNulls.put("languages", "null");
+                if (profile.getProfileCompletion() == null) profileNulls.put("profileCompletion", "null");
+                if (profile.getProfilePic() == null) profileNulls.put("profilePic", "null");
+                
+                if (!profileNulls.isEmpty()) {
+                    nullFields.put("tourist_profiles", profileNulls);
+                }
+                
+                // Check tourist_profile_languages table (implicitly checked via languages field)
+                if (profile.getLanguages() == null || profile.getLanguages().isEmpty()) {
+                    Map<String, Object> languageNulls = new HashMap<>();
+                    languageNulls.put("languages", "empty/null");
+                    nullFields.put("tourist_profile_languages", languageNulls);
+                }
+            } else {
+                // Profile doesn't exist - all fields are null
+                Map<String, Object> profileNulls = new HashMap<>();
+                profileNulls.put("entire_profile", "null");
+                nullFields.put("tourist_profiles", profileNulls);
+            }
+            
+            // Check tourist_settings table
+            TouristSettings settings = settingsRepository.findByEmail(checkEmail).orElse(null);
+            if (settings != null) {
+                Map<String, Object> settingsNulls = new HashMap<>();
+                if (settings.getId() == null) settingsNulls.put("id", "null");
+                if (settings.getEmail() == null) settingsNulls.put("email", "null");
+                if (settings.getCurrency() == null) settingsNulls.put("currency", "null");
+                if (settings.getUnits() == null) settingsNulls.put("units", "null");
+                if (settings.getCreatedAt() == null) settingsNulls.put("createdAt", "null");
+                if (settings.getUpdatedAt() == null) settingsNulls.put("updatedAt", "null");
+                
+                if (!settingsNulls.isEmpty()) {
+                    nullFields.put("tourist_settings", settingsNulls);
+                }
+            } else {
+                // Settings don't exist - all fields are null
+                Map<String, Object> settingsNulls = new HashMap<>();
+                settingsNulls.put("entire_settings", "null");
+                nullFields.put("tourist_settings", settingsNulls);
+            }
+            
+            logger.info("Null value check completed for: {}", checkEmail);
+            response.put("message", "Null value check completed");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Error checking null values for {}: {}", checkEmail, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error checking null values: " + e.getMessage());
         }
     }
 }
