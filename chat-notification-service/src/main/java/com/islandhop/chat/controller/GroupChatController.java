@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * REST Controller for handling group chat operations.
@@ -86,11 +87,7 @@ public class GroupChatController {
         logger.info("Adding member {} to group {}", groupMemberDTO.getUserId(), groupMemberDTO.getGroupId());
 
         try {
-            Group updatedGroup = groupChatService.addMemberToGroup(
-                    groupMemberDTO.getGroupId(), 
-                    groupMemberDTO.getUserId(),
-                    groupMemberDTO.getAddedBy()
-            );
+            Group updatedGroup = groupChatService.addMemberToGroup(groupMemberDTO);
             logger.debug("Member added to group successfully");
             
             return ResponseEntity.ok(updatedGroup);
@@ -117,7 +114,11 @@ public class GroupChatController {
         logger.info("Removing member {} from group {} by user {}", userId, groupId, removedBy);
 
         try {
-            Group updatedGroup = groupChatService.removeMemberFromGroup(groupId, userId, removedBy);
+            // Create GroupMemberDTO for the service call
+            GroupMemberDTO groupMemberDTO = new GroupMemberDTO(groupId, userId);
+            groupMemberDTO.setRequesterId(removedBy);
+            
+            Group updatedGroup = groupChatService.removeMemberFromGroup(groupMemberDTO);
             logger.debug("Member removed from group successfully");
             
             return ResponseEntity.ok(updatedGroup);
@@ -187,7 +188,12 @@ public class GroupChatController {
         logger.info("Retrieving group details for ID: {}", groupId);
 
         try {
-            Group group = groupChatService.getGroupById(groupId);
+            Optional<Group> groupOpt = groupChatService.getGroupById(groupId);
+            if (groupOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Group group = groupOpt.get();
             logger.debug("Retrieved group details successfully");
             
             return ResponseEntity.ok(group);
