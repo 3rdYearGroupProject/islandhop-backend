@@ -1,29 +1,23 @@
 version: '3.8'
 
 services:
-  # MongoDB Database
-  mongodb:
-    image: mongo:7.0
-    container_name: islandhop-mongodb
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: islandhop-redis
     restart: unless-stopped
     ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
-      MONGO_INITDB_DATABASE: islandhop_trips
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
     volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+      - redis_data:/data
     networks:
       - islandhop-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      timeout: 3s
+      retries: 5
 
   # Trip Planning Service
   trip-planning-service:
@@ -33,15 +27,13 @@ services:
     container_name: islandhop-trip-planning
     restart: unless-stopped
     ports:
-      - "8083:8083"
+      - "8085:8085"
     environment:
-      # MongoDB Configuration
-      SPRING_DATA_MONGODB_HOST: mongodb
-      SPRING_DATA_MONGODB_PORT: 27017
-      SPRING_DATA_MONGODB_DATABASE: islandhop_trips
-      SPRING_DATA_MONGODB_USERNAME: admin
-      SPRING_DATA_MONGODB_PASSWORD: password123
-      SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE: admin
+      
+      # Redis Configuration
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
       
       # User Services Integration
       USER_SERVICE_BASE_URL: http://host.docker.internal:8081/api
@@ -59,7 +51,7 @@ services:
       LOGGING_LEVEL_ROOT: INFO
       
     depends_on:
-      mongodb:
+      redis:
         condition: service_healthy
     networks:
       - islandhop-network
@@ -70,29 +62,9 @@ services:
       retries: 3
       start_period: 60s
 
-  # MongoDB Express (Optional - for database management)
-  mongo-express:
-    image: mongo-express:1.0.0
-    container_name: islandhop-mongo-express
-    restart: unless-stopped
-    ports:
-      - "8084:8081"
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
-      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
-      ME_CONFIG_BASICAUTH_USERNAME: admin
-      ME_CONFIG_BASICAUTH_PASSWORD: admin123
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    networks:
-      - islandhop-network
 
 volumes:
-  mongodb_data:
-    driver: local
-  mongodb_config:
+  redis_data:
     driver: local
 
 networks:

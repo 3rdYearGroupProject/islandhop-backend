@@ -10,7 +10,7 @@ RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appus
 WORKDIR /app
 
 # Copy the Maven build output
-COPY target/trip-planning-service-0.0.1-SNAPSHOT.jar app.jar
+COPY target/trip-planner-1.0-SNAPSHOT.jar app.jar
 
 # Change ownership to non-root user
 RUN chown appuser:appgroup app.jar
@@ -19,7 +19,7 @@ RUN chown appuser:appgroup app.jar
 USER appuser
 
 # Expose the port the app runs on
-EXPOSE 8083
+EXPOSE 8085
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \

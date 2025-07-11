@@ -3,6 +3,7 @@ package com.islandhop.userservices.service;
 import com.islandhop.userservices.dto.TouristRegistrationRequest;
 import com.islandhop.userservices.model.TouristAccount;
 import com.islandhop.userservices.model.TouristProfile;
+import java.time.LocalDate;
 
 public interface TouristService {
     // Creates a minimal account after Firebase auth (session-register)

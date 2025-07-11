@@ -95,7 +95,6 @@ node_modules/
 .env.production.local
 
 # API Keys and Secrets
-api-keys.properties
 secrets/
 *.key
 *.pem

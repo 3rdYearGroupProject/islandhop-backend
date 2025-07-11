@@ -62,10 +62,18 @@ public class GuideReviewController {
 
     @PutMapping("/{reviewId}/status")
     public ResponseEntity<ReviewResponseDTO> updateReviewStatus(
-            @PathVariable Long reviewId, 
+            @PathVariable Long reviewId,
             @RequestParam int status) {
         ReviewStatus newStatus = ReviewStatus.fromValue(status);
         ReviewResponseDTO updatedReview = guideReviewService.updateReviewStatus(reviewId, newStatus);
         return ResponseEntity.ok(updatedReview);
+    }
+
+    @GetMapping("/low-confidence")
+    public ResponseEntity<List<ReviewResponseDTO>> getLowConfidenceReviews() {
+        log.info("[API] Fetching guide reviews with AI confidence below threshold");
+        List<ReviewResponseDTO> reviews = guideReviewService.getLowConfidenceReviews();
+        log.info("[API] Found {} guide reviews with low AI confidence", reviews.size());
+        return ResponseEntity.ok(reviews);
     }
 }

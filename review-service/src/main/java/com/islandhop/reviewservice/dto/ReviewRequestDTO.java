@@ -30,4 +30,6 @@ public class ReviewRequestDTO {
 
     @NotBlank(message = "Reviewer last name is required")
     private String reviewerLastname;
+
+    private Integer rating; // Rating for the review (optional, can be null)
 }
