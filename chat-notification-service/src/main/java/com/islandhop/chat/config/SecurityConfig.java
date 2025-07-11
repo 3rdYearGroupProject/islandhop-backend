@@ -45,7 +45,8 @@ public class SecurityConfig {
             // Configure authorization rules
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints (no authentication required)
-                .requestMatchers("/api/v1/**/health").permitAll()
+                .requestMatchers("/api/v1/*/health").permitAll()
+                .requestMatchers("/api/v1/*/*/health").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()  // WebSocket endpoint
                 .requestMatchers("/error").permitAll()
@@ -68,15 +69,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Allow frontend origins
-        configuration.setAllowedOriginPatterns(Arrays.asList(
-            "http://localhost:3000",    // React development server
-            "http://localhost:3001",    // Alternative React port
-            "https://localhost:3000",   // HTTPS React
-            "https://*.vercel.app",     // Vercel deployments
-            "https://*.netlify.app",    // Netlify deployments
-            "*"                         // Allow all origins (adjust for production)
-        ));
+        // Allow all origins
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         
         // Allow common HTTP methods
         configuration.setAllowedMethods(Arrays.asList(

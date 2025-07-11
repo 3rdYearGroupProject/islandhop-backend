@@ -21,7 +21,7 @@ import java.util.Map;
  * Provides endpoints for sending and retrieving personal messages.
  */
 @RestController
-@RequestMapping("/api/v1/chat/personal")
+@RequestMapping("/v1/chat/personal")
 @CrossOrigin(origins = "*")
 public class PersonalChatController {
 
