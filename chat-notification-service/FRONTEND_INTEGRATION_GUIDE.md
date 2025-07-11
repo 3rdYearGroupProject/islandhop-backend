@@ -10,12 +10,127 @@ This guide provides comprehensive documentation for integrating with the Chat an
 http://localhost:8083/api/v1
 ```
 
+## Firebase Authentication Setup
+
+### Backend Configuration
+
+1. **Add Firebase Service Account:**
+
+   - Download your Firebase service account key from Firebase Console
+   - Save it as `firebase-service-account.json` in `src/main/resources/`
+   - Update `application.properties` with your Firebase project ID:
+
+   ```properties
+   firebase.project.id=your-firebase-project-id
+   firebase.config.path=firebase-service-account.json
+   ```
+
+2. **Environment Variables (Alternative):**
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/firebase-service-account.json
+   export FIREBASE_PROJECT_ID=your-firebase-project-id
+   ```
+
+### Frontend Integration
+
+Your existing Firebase configuration should work seamlessly:
+
+```javascript
+// Your existing firebase.js is compatible
+import { auth } from "./firebase";
+import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+
+// Authentication state listener
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    // User is signed in, get ID token for API calls
+    const idToken = await user.getIdToken();
+    // Store token for API requests
+    localStorage.setItem("firebaseToken", idToken);
+  } else {
+    // User is signed out
+    localStorage.removeItem("firebaseToken");
+  }
+});
+```
+
 ## Authentication
 
-All endpoints require proper authentication. Include the user's authentication token in the request headers:
+This microservice uses **Firebase Authentication** for securing API endpoints. All requests must include a valid Firebase ID token in the Authorization header.
+
+### Getting Firebase ID Token
+
+On your frontend, after a user signs in with Firebase Auth, get the ID token:
+
+```javascript
+import { auth } from "./firebase"; // Your Firebase config
+import { getUserData } from "./utils/userStorage"; // Your user storage
+
+// Get current user's ID token
+async function getAuthToken() {
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      const idToken = await user.getIdToken();
+      return idToken;
+    } catch (error) {
+      console.error("Error getting ID token:", error);
+      return null;
+    }
+  }
+  return null;
+}
+
+// Alternative: Get token from your user storage if available
+function getStoredAuthToken() {
+  const userData = getUserData();
+  return userData ? userData.accessToken : null;
+}
+```
+
+### Request Headers
+
+Include the Firebase ID token in the Authorization header for all API requests:
 
 ```
-Authorization: Bearer <your-jwt-token>
+Authorization: Bearer <firebase-id-token>
+```
+
+### Frontend Integration with Authentication
+
+```javascript
+// Enhanced function with Firebase authentication
+async function sendPersonalMessage(senderId, receiverId, content) {
+  // Get Firebase ID token
+  const authToken = await getAuthToken();
+
+  if (!authToken) {
+    throw new Error("User not authenticated");
+  }
+
+  const response = await fetch("/api/v1/chat/personal/send", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`, // Firebase ID token
+    },
+    body: JSON.stringify({
+      senderId,
+      receiverId,
+      content,
+      messageType: "TEXT",
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication failed - please sign in again");
+    }
+    throw new Error("Failed to send message");
+  }
+
+  return await response.json();
+}
 ```
 
 ## API Endpoints
