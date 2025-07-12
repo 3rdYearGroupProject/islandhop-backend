@@ -1,15 +1,12 @@
 package com.islandhop.pooling.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 /**
  * Response DTO for group creation.
+ * Follows the same patterns as CreateTripResponse for consistency.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class CreateGroupResponse {
     
     private String status;

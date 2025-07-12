@@ -1,8 +1,6 @@
 package com.islandhop.pooling.model;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -15,15 +13,14 @@ import java.util.Map;
 /**
  * MongoDB entity representing a travel group.
  * Stores group metadata and links to TripPlan via tripId.
+ * Follows the same patterns as TripPlan entity for consistency.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 @Document(collection = "groups")
 public class Group {
     
     @Id
-    private String groupId;
+    private String id;
     
     private String groupName;
     

@@ -1,15 +1,12 @@
 package com.islandhop.pooling.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 /**
  * Response DTO for join group request.
+ * Follows the same patterns as other response DTOs for consistency.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class JoinGroupResponse {
     
     private String status;

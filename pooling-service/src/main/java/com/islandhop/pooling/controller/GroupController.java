@@ -3,287 +3,237 @@ package com.islandhop.pooling.controller;
 import com.islandhop.pooling.dto.*;
 import com.islandhop.pooling.exception.*;
 import com.islandhop.pooling.service.GroupService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.validation.annotation.Validated;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * REST controller for group management operations.
+ * Handles HTTP requests for creating and managing travel groups.
+ * Follows the same patterns as TripController for consistency.
  */
 @RestController
-@RequestMapping("/api/v1/groups")
+@RequestMapping("/v1/groups")
 @RequiredArgsConstructor
-@Validated
 @Slf4j
-@Tag(name = "Group Management", description = "APIs for managing travel groups and collaborative trip planning")
 public class GroupController {
     
     private final GroupService groupService;
     
     /**
-     * Create a new group.
+     * Creates a new travel group.
+     * Can be linked to an existing trip or create a new one.
+     *
+     * @param request The group creation request containing user input
+     * @return ResponseEntity with the created group details
      */
     @PostMapping
-    @Operation(summary = "Create a new group", description = "Create a private or public group, linking to an existing or new TripPlan")
-    public ResponseEntity<?> createGroup(
-            @Valid @RequestBody CreateGroupRequest request,
-            @Parameter(description = "User ID from JWT token") @RequestParam String userId) {
-        
+    public ResponseEntity<CreateGroupResponse> createGroup(@Valid @RequestBody CreateGroupRequest request) {
         try {
-            CreateGroupResponse response = groupService.createGroup(request, userId);
+            log.info("Creating group '{}' for user '{}'", request.getGroupName(), request.getUserId());
+            CreateGroupResponse response = groupService.createGroup(request);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (GroupCreationException e) {
-            log.warn("Group creation failed for user {}: {}", userId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new PoolingErrorResponse("error", e.getMessage()));
+            log.warn("Group creation failed for user {}: {}", request.getUserId(), e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Unexpected error creating group for user {}: {}", userId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", "Internal server error"));
+            log.error("Unexpected error creating group for user {}: {}", request.getUserId(), e.getMessage(), e);
+            throw new GroupCreationException("Failed to create group: " + e.getMessage());
         }
     }
     
     /**
-     * Invite a user to a private group.
+     * Invites a user to a private group.
+     *
+     * @param groupId The ID of the group
+     * @param request The invitation request
+     * @return ResponseEntity with the invitation response
      */
     @PostMapping("/{groupId}/invite")
-    @Operation(summary = "Invite user to private group", description = "Invite a known user to a private group")
-    public ResponseEntity<?> inviteUser(
+    public ResponseEntity<InviteUserResponse> inviteUser(
             @PathVariable String groupId,
-            @Valid @RequestBody InviteUserRequest request,
-            @Parameter(description = "Group creator's user ID") @RequestParam String userId) {
-        
+            @Valid @RequestBody InviteUserRequest request) {
         try {
-            InviteUserResponse response = groupService.inviteUser(groupId, request, userId);
+            log.info("Inviting user to group '{}' by user '{}'", groupId, request.getUserId());
+            InviteUserResponse response = groupService.inviteUser(groupId, request);
             return ResponseEntity.ok(response);
         } catch (GroupNotFoundException e) {
             log.warn("Group not found for invite: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
+            throw e;
         } catch (UnauthorizedGroupAccessException | InvalidGroupOperationException e) {
             log.warn("Unauthorized group access or invalid operation: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
+            throw e;
         } catch (Exception e) {
-            log.error("Unexpected error inviting user to group {}: {}", groupId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, "Internal server error"));
+            log.error("Unexpected error inviting user to group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to invite user: " + e.getMessage());
         }
     }
     
     /**
-     * Add a place to group itinerary.
+     * Requests to join a public group.
+     *
+     * @param groupId The ID of the group
+     * @param request The join request
+     * @return ResponseEntity with the join response
      */
-    @PostMapping("/{groupId}/itinerary/day/{day}/{type}")
-    @Operation(summary = "Add place to group itinerary", description = "Add a place (attraction, hotel, restaurant) to a specific day in the group's TripPlan")
-    public ResponseEntity<?> addPlaceToItinerary(
+    @PostMapping("/{groupId}/join")
+    public ResponseEntity<JoinGroupResponse> joinGroup(
             @PathVariable String groupId,
-            @PathVariable int day,
-            @PathVariable String type,
-            @Valid @RequestBody SuggestionResponse place,
-            @Parameter(description = "User ID from JWT token") @RequestParam String userId) {
-        
+            @Valid @RequestBody JoinGroupRequest request) {
         try {
-            GroupItineraryResponse response = groupService.addPlaceToGroupItinerary(groupId, day, type, place, userId);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (GroupNotFoundException e) {
-            log.warn("Group not found for itinerary update: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (UnauthorizedGroupAccessException e) {
-            log.warn("Unauthorized group access: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (InvalidDayException | InvalidTypeException e) {
-            log.warn("Invalid day or type: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (GroupItineraryException e) {
-            log.error("Group itinerary error: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (Exception e) {
-            log.error("Unexpected error adding place to group {} itinerary: {}", groupId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, "Internal server error"));
-        }
-    }
-    
-    /**
-     * Update city in group itinerary.
-     */
-    @PatchMapping("/{groupId}/itinerary/day/{day}/city")
-    @Operation(summary = "Update city in group itinerary", description = "Update the city for a specific day in the group's TripPlan")
-    public ResponseEntity<?> updateCity(
-            @PathVariable String groupId,
-            @PathVariable int day,
-            @Valid @RequestBody UpdateCityRequest request,
-            @Parameter(description = "User ID from JWT token") @RequestParam String userId) {
-        
-        try {
-            GroupItineraryResponse response = groupService.updateCityInGroupItinerary(groupId, day, request, userId);
+            log.info("User '{}' requesting to join group '{}'", request.getUserId(), groupId);
+            JoinGroupResponse response = groupService.joinGroup(groupId, request);
             return ResponseEntity.ok(response);
         } catch (GroupNotFoundException e) {
-            log.warn("Group not found for city update: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (UnauthorizedGroupAccessException e) {
-            log.warn("Unauthorized group access: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (InvalidDayException e) {
-            log.warn("Invalid day: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (GroupItineraryException e) {
-            log.error("Group itinerary error: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
+            log.warn("Group not found for join request: {}", e.getMessage());
+            throw e;
+        } catch (InvalidGroupOperationException e) {
+            log.warn("Invalid join operation: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Unexpected error updating city for group {} itinerary: {}", groupId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, "Internal server error"));
+            log.error("Unexpected error joining group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to join group: " + e.getMessage());
         }
     }
     
     /**
-     * Get group details.
+     * Gets group details.
+     *
+     * @param groupId The ID of the group
+     * @param userId The requesting user's ID
+     * @return ResponseEntity with group details
      */
     @GetMapping("/{groupId}")
-    @Operation(summary = "Get group details", description = "Retrieve group details, including members, preferences, and actions")
-    public ResponseEntity<?> getGroupDetails(
+    public ResponseEntity<GroupDetailsResponse> getGroupDetails(
             @PathVariable String groupId,
-            @Parameter(description = "User ID from JWT token") @RequestParam String userId) {
-        
+            @RequestParam String userId) {
         try {
+            log.info("Getting group details for '{}' by user '{}'", groupId, userId);
             GroupDetailsResponse response = groupService.getGroupDetails(groupId, userId);
             return ResponseEntity.ok(response);
         } catch (GroupNotFoundException e) {
             log.warn("Group not found: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
+            throw e;
         } catch (UnauthorizedGroupAccessException e) {
-            log.warn("Unauthorized group access: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
+            log.warn("Unauthorized access to group: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Unexpected error getting group {} details: {}", groupId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, "Internal server error"));
+            log.error("Unexpected error getting group details for {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get group details: " + e.getMessage());
         }
     }
     
     /**
-     * List public groups.
+     * Gets list of public groups.
+     *
+     * @param userId The requesting user's ID
+     * @return ResponseEntity with list of public groups
      */
     @GetMapping("/public")
-    @Operation(summary = "List public groups", description = "List public groups for users to browse and join")
-    public ResponseEntity<?> listPublicGroups(
-            @Parameter(description = "User ID from JWT token") @RequestParam String userId,
-            @Parameter(description = "Optional filters") @RequestParam(required = false) Map<String, String> filters) {
-        
+    public ResponseEntity<List<PublicGroupResponse>> getPublicGroups(@RequestParam String userId) {
         try {
-            List<PublicGroupResponse> response = groupService.listPublicGroups(userId, filters);
-            if (response.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(new PoolingErrorResponse("error", "No public groups found"));
-            }
+            log.info("Getting public groups for user '{}'", userId);
+            List<PublicGroupResponse> response = groupService.getPublicGroups(userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Unexpected error listing public groups: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", "Internal server error"));
+            log.error("Unexpected error getting public groups for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get public groups: " + e.getMessage());
         }
     }
     
     /**
-     * Request to join a public group.
+     * Health check endpoint for Pooling Service.
      */
-    @PostMapping("/{groupId}/join")
-    @Operation(summary = "Request to join public group", description = "Submit a join request for a public group with user preferences")
-    public ResponseEntity<?> requestToJoinGroup(
-            @PathVariable String groupId,
-            @Valid @RequestBody JoinGroupRequest request,
-            @Parameter(description = "User ID from JWT token") @RequestParam String userId) {
-        
-        try {
-            JoinGroupResponse response = groupService.requestToJoinGroup(groupId, request, userId);
-            return ResponseEntity.ok(response);
-        } catch (GroupNotFoundException e) {
-            log.warn("Group not found for join request: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (InvalidGroupOperationException e) {
-            log.warn("Invalid group operation: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (Exception e) {
-            log.error("Unexpected error joining group {}: {}", groupId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, "Internal server error"));
-        }
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> healthCheck() {
+        Map<String, String> status = new HashMap<>();
+        status.put("status", "ok");
+        status.put("service", "pooling-service");
+        return ResponseEntity.ok(status);
     }
     
     /**
-     * Approve or reject join request.
+     * Handles validation errors.
      */
-    @PatchMapping("/{groupId}/join/{joinerUserId}")
-    @Operation(summary = "Approve/reject join request", description = "Approve or reject a join request for a public group")
-    public ResponseEntity<?> processJoinRequest(
-            @PathVariable String groupId,
-            @PathVariable String joinerUserId,
-            @Valid @RequestBody JoinRequestDecisionRequest request,
-            @Parameter(description = "Group creator's user ID") @RequestParam String creatorUserId) {
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, Object> errors = new HashMap<>();
+        errors.put("status", "error");
+        errors.put("message", "Validation failed");
         
-        try {
-            JoinRequestDecisionResponse response = groupService.processJoinRequest(groupId, joinerUserId, request, creatorUserId);
-            return ResponseEntity.ok(response);
-        } catch (GroupNotFoundException | JoinRequestNotFoundException e) {
-            log.warn("Group or join request not found: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (UnauthorizedGroupAccessException e) {
-            log.warn("Unauthorized group access: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new PoolingErrorResponse("error", groupId, e.getMessage()));
-        } catch (Exception e) {
-            log.error("Unexpected error processing join request for group {}: {}", groupId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", groupId, "Internal server error"));
-        }
+        Map<String, String> fieldErrors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            fieldErrors.put(fieldName, errorMessage);
+        });
+        errors.put("errors", fieldErrors);
+        
+        return ResponseEntity.badRequest().body(errors);
     }
     
     /**
-     * Get scored trip suggestions.
+     * Handles group creation exceptions.
      */
-    @PostMapping("/public/suggestions")
-    @Operation(summary = "Get scored trip suggestions", description = "Suggest public trips based on user preferences and travel dates, ranked by compatibility score")
-    public ResponseEntity<?> getScoredTripSuggestions(
-            @Valid @RequestBody TripSuggestionsRequest request,
-            @Parameter(description = "User ID from JWT token") @RequestParam String userId) {
-        
-        try {
-            List<TripSuggestionResponse> response = groupService.getScoredTripSuggestions(request, userId);
-            if (response.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(new PoolingErrorResponse("error", "No matching trips found"));
-            }
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Unexpected error getting trip suggestions: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new PoolingErrorResponse("error", "Internal server error"));
-        }
+    @ExceptionHandler(GroupCreationException.class)
+    public ResponseEntity<Map<String, String>> handleGroupCreationException(GroupCreationException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("status", "error");
+        error.put("message", ex.getMessage());
+        return ResponseEntity.badRequest().body(error);
+    }
+    
+    /**
+     * Handles group not found exceptions.
+     */
+    @ExceptionHandler(GroupNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleGroupNotFoundException(GroupNotFoundException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("status", "error");
+        error.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+    
+    /**
+     * Handles unauthorized access exceptions.
+     */
+    @ExceptionHandler(UnauthorizedGroupAccessException.class)
+    public ResponseEntity<Map<String, String>> handleUnauthorizedAccessException(UnauthorizedGroupAccessException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("status", "error");
+        error.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+    
+    /**
+     * Handles invalid group operation exceptions.
+     */
+    @ExceptionHandler(InvalidGroupOperationException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidGroupOperationException(InvalidGroupOperationException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("status", "error");
+        error.put("message", ex.getMessage());
+        return ResponseEntity.badRequest().body(error);
+    }
+    
+    /**
+     * Handles all other exceptions.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleGenericException(Exception ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("status", "error");
+        error.put("message", "An unexpected error occurred");
+        log.error("Unexpected error: ", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 }

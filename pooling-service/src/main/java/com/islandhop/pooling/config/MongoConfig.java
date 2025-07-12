@@ -1,6 +1,5 @@
 package com.islandhop.pooling.config;
 
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.config.AbstractMongoClientConfiguration;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -21,7 +20,6 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
     /**
      * Create indexes for optimal query performance.
      */
-    @Bean
     public void createIndexes(MongoTemplate mongoTemplate) {
         IndexOperations indexOps = mongoTemplate.indexOps("groups");
         
