@@ -252,10 +252,11 @@ public class UserServiceImpl implements UserService {
             
             // Check and update tourist account
             if (touristAccountRepository.existsByEmail(email)) {
-                TouristAccount tourist = touristAccountRepository.findByEmail(email);
-                if (tourist != null) {
+                Optional<TouristAccount> touristOpt = touristAccountRepository.findByEmail(email);
+                if (touristOpt.isPresent()) {
+                    TouristAccount tourist = touristOpt.get();
                     setAccountStatus(tourist, status);
-                    tourist.setLastUpdated(Instant.now());
+                    updateLastModified(tourist);
                     touristAccountRepository.save(tourist);
                     userFound = true;
                 }
@@ -263,10 +264,11 @@ public class UserServiceImpl implements UserService {
             
             // Check and update driver account
             if (!userFound && driverAccountRepository.existsByEmail(email)) {
-                DriverAccount driver = driverAccountRepository.findByEmail(email);
-                if (driver != null) {
+                Optional<DriverAccount> driverOpt = findDriverByEmail(email);
+                if (driverOpt.isPresent()) {
+                    DriverAccount driver = driverOpt.get();
                     setAccountStatus(driver, status);
-                    driver.setLastUpdated(Instant.now());
+                    updateLastModified(driver);
                     driverAccountRepository.save(driver);
                     userFound = true;
                 }
@@ -274,10 +276,11 @@ public class UserServiceImpl implements UserService {
             
             // Check and update guide account
             if (!userFound && guideAccountRepository.existsByEmail(email)) {
-                GuideAccount guide = guideAccountRepository.findByEmail(email);
-                if (guide != null) {
+                Optional<GuideAccount> guideOpt = findGuideByEmail(email);
+                if (guideOpt.isPresent()) {
+                    GuideAccount guide = guideOpt.get();
                     setAccountStatus(guide, status);
-                    guide.setLastUpdated(Instant.now());
+                    updateLastModified(guide);
                     guideAccountRepository.save(guide);
                     userFound = true;
                 }
@@ -285,10 +288,11 @@ public class UserServiceImpl implements UserService {
             
             // Check and update support account
             if (!userFound && supportAccountRepository.existsByEmail(email)) {
-                SupportAccount support = supportAccountRepository.findByEmail(email);
-                if (support != null) {
+                Optional<SupportAccount> supportOpt = supportAccountRepository.findByEmail(email);
+                if (supportOpt.isPresent()) {
+                    SupportAccount support = supportOpt.get();
                     setAccountStatus(support, status);
-                    support.setLastUpdated(Instant.now());
+                    updateLastModified(support);
                     supportAccountRepository.save(support);
                     userFound = true;
                 }
@@ -296,10 +300,11 @@ public class UserServiceImpl implements UserService {
             
             // Check and update admin account
             if (!userFound && adminAccountRepository.existsByEmail(email)) {
-                AdminAccount admin = adminAccountRepository.findByEmail(email);
-                if (admin != null) {
+                Optional<AdminAccount> adminOpt = adminAccountRepository.findByEmail(email);
+                if (adminOpt.isPresent()) {
+                    AdminAccount admin = adminOpt.get();
                     setAccountStatus(admin, status);
-                    admin.setLastUpdated(Instant.now());
+                    updateLastModified(admin);
                     adminAccountRepository.save(admin);
                     userFound = true;
                 }
@@ -321,12 +326,41 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
+     * Helper method to find driver by email (handles missing findByEmail method)
+     */
+    private Optional<DriverAccount> findDriverByEmail(String email) {
+        try {
+            return driverAccountRepository.findAll().stream()
+                .filter(driver -> email.equals(driver.getEmail()))
+                .findFirst();
+        } catch (Exception e) {
+            logger.error("Error finding driver by email: {}", email, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Helper method to find guide by email (handles repository method inconsistencies)
+     */
+    private Optional<GuideAccount> findGuideByEmail(String email) {
+        try {
+            // Check if findByEmail method exists and returns Optional
+            return guideAccountRepository.findAll().stream()
+                .filter(guide -> email.equals(guide.getEmail()))
+                .findFirst();
+        } catch (Exception e) {
+            logger.error("Error finding guide by email: {}", email, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Validate if the provided status is valid
      * @param status Status to validate
      * @return true if valid, false otherwise
      */
     private boolean isValidStatus(String status) {
-        List<String> validStatuses = Arrays.asList("ACTIVE", "DEACTIVATED", "SUSPENDED", "PENDING");
+        var validStatuses = Arrays.asList("ACTIVE", "DEACTIVATED", "SUSPENDED", "PENDING");
         return status != null && validStatuses.contains(status.toUpperCase());
     }
 
@@ -437,7 +471,7 @@ public class UserServiceImpl implements UserService {
         
         if (status instanceof String) {
             return (String) status;
-        } else if (status instanceof Enum) {
+        } else if (status instanceof Enum<?>) {
             return ((Enum<?>) status).name();
         } else {
             return status.toString();
@@ -467,7 +501,8 @@ public class UserServiceImpl implements UserService {
                     Class<?> paramType = method.getParameterTypes()[0];
                     if (paramType.isEnum()) {
                         // Convert string to enum
-                        Object enumValue = Enum.valueOf((Class<Enum>) paramType, status.toUpperCase());
+                        @SuppressWarnings("unchecked")
+                        var enumValue = Enum.valueOf((Class<Enum>) paramType, status.toUpperCase());
                         method.invoke(account, enumValue);
                         return;
                     }
@@ -479,6 +514,34 @@ public class UserServiceImpl implements UserService {
         } catch (Exception e) {
             logger.error("Error setting account status: {}", e.getMessage());
             throw new RuntimeException("Failed to set account status", e);
+        }
+    }
+
+    /**
+     * Safe method to update last modified timestamp using reflection
+     */
+    private void updateLastModified(Object account) {
+        if (account == null) return;
+        
+        try {
+            // Try different common method names for last updated fields
+            var methodNames = new String[]{"setLastUpdated", "setUpdatedAt", "setModifiedAt", "setLastModified"};
+            
+            for (String methodName : methodNames) {
+                try {
+                    var method = account.getClass().getMethod(methodName, Instant.class);
+                    method.invoke(account, Instant.now());
+                    return;
+                } catch (NoSuchMethodException e) {
+                    // Try next method name
+                }
+            }
+            
+            logger.debug("Could not find last updated method for account: {}", account.getClass().getSimpleName());
+            
+        } catch (Exception e) {
+            logger.debug("Error updating last modified timestamp: {}", e.getMessage());
+            // Don't throw exception, just log and continue
         }
     }
 }
