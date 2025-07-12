@@ -10,6 +10,7 @@ import java.util.Optional;
 
 /**
  * MongoDB repository for Group entities.
+ * Follows the same patterns as TripPlanRepository for consistency.
  */
 @Repository
 public interface GroupRepository extends MongoRepository<Group, String> {
@@ -18,13 +19,6 @@ public interface GroupRepository extends MongoRepository<Group, String> {
      * Find groups by visibility.
      */
     List<Group> findByVisibility(String visibility);
-    
-    /**
-     * Find public groups.
-     */
-    default List<Group> findPublicGroups() {
-        return findByVisibility("public");
-    }
     
     /**
      * Find groups where a user is a member.
@@ -37,9 +31,9 @@ public interface GroupRepository extends MongoRepository<Group, String> {
     List<Group> findByTripId(String tripId);
     
     /**
-     * Find public groups with specific preferences.
+     * Find public groups with preferences containing specific interests.
      */
-    @Query("{'visibility': 'public', 'preferences.interests': {$in: ?0}}")
+    @Query("{'visibility': 'public', 'preferences.interests': { $in: ?0 }}")
     List<Group> findPublicGroupsByInterests(List<String> interests);
     
     /**
@@ -47,22 +41,4 @@ public interface GroupRepository extends MongoRepository<Group, String> {
      */
     @Query("{'visibility': 'public', 'preferences.destination': ?0}")
     List<Group> findPublicGroupsByDestination(String destination);
-    
-    /**
-     * Check if a group exists and is public.
-     */
-    @Query("{'groupId': ?0, 'visibility': 'public'}")
-    Optional<Group> findPublicGroupById(String groupId);
-    
-    /**
-     * Check if a group exists and user is a member.
-     */
-    @Query("{'groupId': ?0, 'userIds': {$in: [?1]}}")
-    Optional<Group> findGroupByIdAndUserId(String groupId, String userId);
-    
-    /**
-     * Find groups by creator.
-     */
-    @Query("{'userIds.0': ?0}")
-    List<Group> findGroupsByCreator(String creatorUserId);
 }

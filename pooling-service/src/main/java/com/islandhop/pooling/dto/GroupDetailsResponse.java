@@ -1,23 +1,17 @@
 package com.islandhop.pooling.dto;
 
-import com.islandhop.pooling.model.GroupAction;
-import com.islandhop.pooling.model.JoinRequest;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Response DTO for group details.
+ * Follows the same patterns as other response DTOs for consistency.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class GroupDetailsResponse {
-    
-    private String status;
     
     private String groupId;
     
@@ -25,15 +19,13 @@ public class GroupDetailsResponse {
     
     private String tripId;
     
-    private List<String> userIds;
-    
     private String visibility;
+    
+    private List<String> userIds;
     
     private Map<String, Object> preferences;
     
-    private List<GroupAction> actions;
+    private Instant createdAt;
     
-    private List<JoinRequest> joinRequests; // Only for creators
-    
-    private String message;
+    private Instant lastUpdated;
 }

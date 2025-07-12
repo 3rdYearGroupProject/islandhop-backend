@@ -4,6 +4,7 @@ import com.islandhop.pooling.dto.SuggestionResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -34,7 +35,7 @@ public class ItineraryServiceClient {
         return webClient.get()
                 .uri("/api/v1/itinerary/{tripId}?userId={userId}", tripId, userId)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully fetched trip plan {}", tripId))
                 .doOnError(error -> log.error("Error fetching trip plan {}: {}", tripId, error.getMessage()));
     }
@@ -49,7 +50,7 @@ public class ItineraryServiceClient {
         return webClient.get()
                 .uri("/api/v1/itinerary/{tripId}/summary", tripId)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully fetched trip summary {}", tripId))
                 .doOnError(error -> log.error("Error fetching trip summary {}: {}", tripId, error.getMessage()));
     }
@@ -64,7 +65,7 @@ public class ItineraryServiceClient {
                 .uri("/api/v1/itinerary?userId={userId}", userId)
                 .bodyValue(tripData)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully created trip plan for user {}", userId))
                 .doOnError(error -> log.error("Error creating trip plan for user {}: {}", userId, error.getMessage()));
     }
@@ -80,7 +81,7 @@ public class ItineraryServiceClient {
                 .uri("/api/v1/itinerary/{tripId}/day/{day}/{type}?userId={userId}", tripId, day, type, userId)
                 .bodyValue(place)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully added place to trip {}", tripId))
                 .doOnError(error -> log.error("Error adding place to trip {}: {}", tripId, error.getMessage()));
     }
@@ -97,7 +98,7 @@ public class ItineraryServiceClient {
                 .uri("/api/v1/itinerary/{tripId}/day/{day}/city?userId={userId}", tripId, day, userId)
                 .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully updated city for trip {}", tripId))
                 .doOnError(error -> log.error("Error updating city for trip {}: {}", tripId, error.getMessage()));
     }
@@ -111,7 +112,7 @@ public class ItineraryServiceClient {
         return webClient.get()
                 .uri("/api/v1/itineraries?userId={userId}", userId)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully fetched trips for user {}", userId))
                 .doOnError(error -> log.error("Error fetching trips for user {}: {}", userId, error.getMessage()));
     }

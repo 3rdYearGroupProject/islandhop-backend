@@ -1,18 +1,16 @@
 package com.islandhop.pooling.model;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.Map;
 
 /**
  * Represents a join request for a public group.
  * Nested within Group entity.
+ * Follows consistent patterns with other model classes.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class JoinRequest {
     
     private String userId;
@@ -21,9 +19,9 @@ public class JoinRequest {
     
     private String status; // "pending", "approved", "rejected"
     
-    private String requestedAt;
+    private Instant requestedAt;
     
-    private String respondedAt;
+    private Instant respondedAt;
     
     /**
      * Check if the join request is pending.
@@ -51,7 +49,7 @@ public class JoinRequest {
      */
     public void approve() {
         this.status = "approved";
-        this.respondedAt = java.time.Instant.now().toString();
+        this.respondedAt = java.time.Instant.now();
     }
     
     /**
@@ -59,6 +57,6 @@ public class JoinRequest {
      */
     public void reject() {
         this.status = "rejected";
-        this.respondedAt = java.time.Instant.now().toString();
+        this.respondedAt = java.time.Instant.now();
     }
 }

@@ -1,0 +1,132 @@
+{
+	"id": "0fb298b1-ac7b-43fc-8d16-00a3818c5753",
+	"name": "Pooling Service API Test",
+	"timestamp": "2025-07-12T11:43:05.100Z",
+	"collection_id": "38147611-4bd3599c-015f-4254-bbb1-384b0ace1855",
+	"folder_id": 0,
+	"environment_id": "0",
+	"totalPass": 0,
+	"delay": 0,
+	"persist": true,
+	"status": "finished",
+	"startedAt": "2025-07-12T11:40:33.305Z",
+	"totalFail": 0,
+	"results": [
+		{
+			"id": "e38969ca-1eed-4719-b99b-88a57cc5b364",
+			"name": "Create Group",
+			"url": "http://localhost:8086/v1/groups",
+			"time": 30055,
+			"responseCode": {
+				"code": 400,
+				"name": "Bad Request"
+			},
+			"tests": {},
+			"testPassFailCounts": {},
+			"times": [
+				30055
+			],
+			"allTests": [
+				{}
+			]
+		},
+		{
+			"id": "b98b4a81-8075-403a-9ab3-0c1f8078ba97",
+			"name": "Invite User",
+			"url": "http://localhost:8086/v1/groups/group_001/invite",
+			"time": 30118,
+			"responseCode": {
+				"code": 400,
+				"name": "Bad Request"
+			},
+			"tests": {},
+			"testPassFailCounts": {},
+			"times": [
+				30118
+			],
+			"allTests": [
+				{}
+			]
+		},
+		{
+			"id": "947c7d57-ffdb-43c4-8ae3-41b81656a24f",
+			"name": "Join Group",
+			"url": "http://localhost:8086/v1/groups/group_001/join",
+			"time": 30195,
+			"responseCode": {
+				"code": 400,
+				"name": "Bad Request"
+			},
+			"tests": {},
+			"testPassFailCounts": {},
+			"times": [
+				30195
+			],
+			"allTests": [
+				{}
+			]
+		},
+		{
+			"id": "3de369cf-980f-492a-ab6a-acb8a2464ae6",
+			"name": "Get Group Details",
+			"url": "http://localhost:8086/v1/groups/group_001?userId=user_123",
+			"time": 30104,
+			"responseCode": {
+				"code": 400,
+				"name": "Bad Request"
+			},
+			"tests": {},
+			"testPassFailCounts": {},
+			"times": [
+				30104
+			],
+			"allTests": [
+				{}
+			]
+		},
+		{
+			"id": "745f9ebc-3574-4b8f-bd69-0c53a5a26ad5",
+			"name": "Get Public Groups",
+			"url": "http://localhost:8086/v1/groups/public?userId=user_123",
+			"time": 30189,
+			"responseCode": {
+				"code": 400,
+				"name": "Bad Request"
+			},
+			"tests": {},
+			"testPassFailCounts": {},
+			"times": [
+				30189
+			],
+			"allTests": [
+				{}
+			]
+		}
+	],
+	"count": 1,
+	"totalTime": 150661,
+	"collection": {
+		"requests": [
+			{
+				"id": "e38969ca-1eed-4719-b99b-88a57cc5b364",
+				"method": "POST"
+			},
+			{
+				"id": "b98b4a81-8075-403a-9ab3-0c1f8078ba97",
+				"method": "POST"
+			},
+			{
+				"id": "947c7d57-ffdb-43c4-8ae3-41b81656a24f",
+				"method": "POST"
+			},
+			{
+				"id": "3de369cf-980f-492a-ab6a-acb8a2464ae6",
+				"method": "GET"
+			},
+			{
+				"id": "745f9ebc-3574-4b8f-bd69-0c53a5a26ad5",
+				"method": "GET"
+			}
+		]
+	}
+}

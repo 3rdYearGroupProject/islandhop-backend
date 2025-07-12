@@ -1,17 +1,15 @@
 package com.islandhop.pooling.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.Map;
 
 /**
  * Response DTO for public group listing.
+ * Follows the same patterns as other response DTOs for consistency.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class PublicGroupResponse {
     
     private String groupId;
@@ -20,13 +18,9 @@ public class PublicGroupResponse {
     
     private String tripId;
     
-    private String destination;
-    
-    private String startDate;
-    
-    private String endDate;
-    
     private Map<String, Object> preferences;
     
-    private String message;
+    private int memberCount;
+    
+    private Instant createdAt;
 }
