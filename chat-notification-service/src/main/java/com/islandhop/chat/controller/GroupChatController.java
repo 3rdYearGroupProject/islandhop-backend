@@ -24,7 +24,7 @@ import java.util.Optional;
  * Provides endpoints for group management and group messaging.
  */
 @RestController
-@RequestMapping("/api/v1/chat/group")
+@RequestMapping("/v1/chat/group")
 @CrossOrigin(origins = "*")
 public class GroupChatController {
 

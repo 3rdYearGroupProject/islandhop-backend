@@ -99,13 +99,24 @@ public class GuideReviewService {
                 reviewId, review.getStatus(), newStatus);
 
         review.setStatus(newStatus);
-        // If status is 1 (approved), set ai_confidence_score to 1.0
-        if (newStatus != null && newStatus.ordinal() == 1) {
+        // If status is 1 (approved) or 2 (rejected), set ai_confidence_score to 1.0
+        if (newStatus != null && (newStatus.ordinal() == 1 || newStatus.ordinal() == 2)) {
             review.setAiConfidenceScore(1.0);
             log.info("Set ai_confidence_score to 1.0 for review {}", reviewId);
         }
         GuideReview updatedReview = guideReviewRepository.save(review);
 
+        return mapToResponseDTO(updatedReview);
+    }
+
+    @Transactional
+    public ReviewResponseDTO updateReviewStatusAndConfidence(Long reviewId, ReviewStatus newStatus, double confidenceScore) {
+        GuideReview review = guideReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("Guide review not found with ID: " + reviewId));
+        log.info("Updating guide review {} status from {} to {} and ai_confidence_score to {}", reviewId, review.getStatus(), newStatus, confidenceScore);
+        review.setStatus(newStatus);
+        review.setAiConfidenceScore(confidenceScore);
+        GuideReview updatedReview = guideReviewRepository.save(review);
         return mapToResponseDTO(updatedReview);
     }
 

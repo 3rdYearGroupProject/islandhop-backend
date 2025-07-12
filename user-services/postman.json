@@ -1,0 +1,64 @@
+{
+  "info": {
+    "name": "IslandHop User Services API",
+    "description": "Postman collection for UniversalRoleController endpoints: get role, get all users, update user status.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Get User Role",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/role",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["role"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get All Users",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/users",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["users"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update User Status",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"status\": \"DEACTIVATED\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/users/status",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["users", "status"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
