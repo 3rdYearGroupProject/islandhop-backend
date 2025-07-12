@@ -69,6 +69,7 @@ public class GuideReviewController {
         return ResponseEntity.ok(updatedReview);
     }
 
+
     @GetMapping("/low-confidence")
     public ResponseEntity<List<ReviewResponseDTO>> getLowConfidenceReviews() {
         log.info("[API] Fetching guide reviews with AI confidence below threshold");

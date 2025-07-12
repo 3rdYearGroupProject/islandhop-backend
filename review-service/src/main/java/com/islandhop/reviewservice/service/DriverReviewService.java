@@ -99,8 +99,8 @@ public class DriverReviewService {
                 reviewId, review.getStatus(), newStatus);
 
         review.setStatus(newStatus);
-        // If status is 1 (approved), set ai_confidence_score to 1.0
-        if (newStatus != null && newStatus.ordinal() == 1) {
+        // If status is APPROVED or REJECTED, set ai_confidence_score to 1.0
+        if (newStatus == ReviewStatus.APPROVED || newStatus == ReviewStatus.REJECTED) {
             review.setAiConfidenceScore(1.0);
             log.info("Set ai_confidence_score to 1.0 for driver review {}", reviewId);
         }
