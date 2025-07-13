@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -210,6 +211,7 @@ public class TripInitiationService {
                         .city(plan.getCity())
                         .attractions(plan.getAttractions() != null ? 
                                 plan.getAttractions().stream()
+                                        .filter(attraction -> attraction.getLocation() != null)
                                         .map(attraction -> RouteSummary.AttractionSummary.builder()
                                                 .name(attraction.getName())
                                                 .location(RouteSummary.LocationSummary.builder()
