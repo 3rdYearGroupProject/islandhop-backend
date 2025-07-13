@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
  * Handles HTTP requests for trip initiation functionality.
  */
 @RestController
-@RequestMapping("/api/trips")
+@RequestMapping("/v1/trips")
 @RequiredArgsConstructor
 @Slf4j
 public class TripInitiationController {

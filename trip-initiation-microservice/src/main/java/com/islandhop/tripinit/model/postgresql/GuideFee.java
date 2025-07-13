@@ -1,38 +1,24 @@
 package com.islandhop.tripinit.model.postgresql;
 
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import jakarta.persistence.*;
+import lombok.Data;
 
+/**
+ * Guide fee entity for PostgreSQL database.
+ * Stores guide pricing information per city per day.
+ */
 @Entity
 @Table(name = "guide_fees")
+@Data
 public class GuideFee {
-
+    
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(name = "city", nullable = false)
     private String city;
-    private double pricePerDay;
-
-    public GuideFee() {
-    }
-
-    public GuideFee(String city, double pricePerDay) {
-        this.city = city;
-        this.pricePerDay = pricePerDay;
-    }
-
-    public String getCity() {
-        return city;
-    }
-
-    public void setCity(String city) {
-        this.city = city;
-    }
-
-    public double getPricePerDay() {
-        return pricePerDay;
-    }
-
-    public void setPricePerDay(double pricePerDay) {
-        this.pricePerDay = pricePerDay;
-    }
+    
+    @Column(name = "price_per_day", nullable = false)
+    private Double pricePerDay;
 }

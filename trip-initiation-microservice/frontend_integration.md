@@ -2,7 +2,7 @@
 
 ## Overview
 
-This microservice handles trip initiation by retrieving trip plans, calculating routes and costs, and saving initiated trips with driver and guide preferences.
+This microservice handles trip initiation by retrieving trip plans from MongoDB, calculating routes using Google Maps API, computing driver and guide costs, and saving initiated trips with additional cost information.
 
 ## Base URL
 
@@ -20,10 +20,11 @@ http://localhost:8095/api/trips
 
 Initiates a trip by:
 
-- Retrieving trip plan from MongoDB
+- Retrieving trip plan from MongoDB trip_plans collection
 - Calculating total route distance using Google Maps API
-- Computing driver and guide costs
-- Saving initiated trip to MongoDB
+- Computing driver costs (distance + daily fees)
+- Computing guide costs based on cities
+- Saving initiated trip to MongoDB initiated_trips collection
 
 #### Request Headers
 
@@ -45,18 +46,12 @@ Initiates a trip by:
 }
 ```
 
-#### Validation Rules
-
-- `userId`: Cannot be blank
-- `tripId`: Cannot be blank
-- `setDriver`: Must be 0 or 1
-- `setGuide`: Must be 0 or 1
-- `preferredVehicleTypeId`: Cannot be blank and must be numeric
-
-#### JavaScript Example
+#### JavaScript Integration Example
 
 ```javascript
-// Trip initiation service class
+/**
+ * Trip initiation service for handling trip initiation requests
+ */
 class TripInitiationService {
   constructor(baseUrl = "http://localhost:8095/api/trips") {
     this.baseUrl = baseUrl;
@@ -103,7 +98,7 @@ const handleTripInitiation = async (formData) => {
       return;
     }
 
-    // Initiate trip
+    // Prepare request data
     const tripData = {
       userId: formData.userId,
       tripId: formData.tripId,
@@ -123,7 +118,7 @@ const handleTripInitiation = async (formData) => {
 };
 ```
 
-#### Form Validation Function
+#### Form Validation
 
 ```javascript
 /**
@@ -202,20 +197,8 @@ const validateTripInitiationForm = (formData) => {
             "lat": 6.9383932,
             "lng": 79.8420285
           }
-        },
-        {
-          "name": "Sri Lanka Philatelic Bureau",
-          "location": {
-            "lat": 6.9280856,
-            "lng": 79.85786929999999
-          }
         }
       ]
-    },
-    {
-      "day": 2,
-      "city": "",
-      "attractions": []
     }
   ]
 }
@@ -230,7 +213,6 @@ const validateTripInitiationForm = (formData) => {
   "error": "Validation failed",
   "details": {
     "userId": "User ID is required",
-    "setDriver": "Set driver must be 0 or 1",
     "preferredVehicleTypeId": "Vehicle type ID must be a valid number"
   }
 }
@@ -261,119 +243,6 @@ const validateTripInitiationForm = (formData) => {
   "error": "Internal server error",
   "message": "An unexpected error occurred"
 }
-```
-
-#### Frontend Display Functions
-
-```javascript
-/**
- * Displays trip initiation result on the UI
- * @param {Object} result - Trip initiation response
- */
-const displayTripInitiationResult = (result) => {
-  // Update basic trip information
-  document.getElementById("tripId").textContent = result.tripId;
-  document.getElementById(
-    "distance"
-  ).textContent = `${result.averageTripDistance} km`;
-  document.getElementById(
-    "driverCost"
-  ).textContent = `$${result.averageDriverCost.toFixed(2)}`;
-  document.getElementById(
-    "guideCost"
-  ).textContent = `$${result.averageGuideCost.toFixed(2)}`;
-  document.getElementById("vehicleType").textContent = result.vehicleType;
-
-  // Calculate and display total cost
-  const totalCost = result.averageDriverCost + result.averageGuideCost;
-  document.getElementById("totalCost").textContent = `$${totalCost.toFixed(2)}`;
-
-  // Display route summary
-  const routeContainer = document.getElementById("routeSummary");
-  routeContainer.innerHTML = "";
-
-  result.routeSummary.forEach((day) => {
-    const dayElement = document.createElement("div");
-    dayElement.className = "day-summary";
-    dayElement.innerHTML = `
-      <h3>Day ${day.day}${day.city ? ` - ${day.city}` : ""}</h3>
-      ${
-        day.attractions.length > 0
-          ? `
-        <h4>Attractions:</h4>
-        <ul>
-          ${day.attractions
-            .map(
-              (attraction) =>
-                `<li>
-              <strong>${attraction.name}</strong><br>
-              <small>Location: ${attraction.location.lat}, ${attraction.location.lng}</small>
-            </li>`
-            )
-            .join("")}
-        </ul>
-      `
-          : "<p>No attractions planned for this day</p>"
-      }
-    `;
-    routeContainer.appendChild(dayElement);
-  });
-
-  // Show success message
-  showSuccessMessage("Trip initiated successfully!");
-};
-
-/**
- * Shows validation errors on the form
- * @param {Object} errors - Validation errors
- */
-const showValidationErrors = (errors) => {
-  // Clear previous errors
-  document.querySelectorAll(".error-message").forEach((el) => el.remove());
-
-  // Display new errors
-  Object.keys(errors).forEach((field) => {
-    const fieldElement = document.getElementById(field);
-    if (fieldElement) {
-      const errorElement = document.createElement("div");
-      errorElement.className = "error-message";
-      errorElement.textContent = errors[field];
-      errorElement.style.color = "red";
-      errorElement.style.fontSize = "0.9em";
-      fieldElement.parentNode.appendChild(errorElement);
-    }
-  });
-};
-
-/**
- * Shows error message
- * @param {string} message - Error message
- */
-const showErrorMessage = (message) => {
-  const errorDiv = document.getElementById("errorMessage");
-  errorDiv.textContent = message;
-  errorDiv.style.display = "block";
-  errorDiv.style.color = "red";
-  errorDiv.style.padding = "10px";
-  errorDiv.style.border = "1px solid red";
-  errorDiv.style.borderRadius = "5px";
-  errorDiv.style.marginTop = "10px";
-};
-
-/**
- * Shows success message
- * @param {string} message - Success message
- */
-const showSuccessMessage = (message) => {
-  const successDiv = document.getElementById("successMessage");
-  successDiv.textContent = message;
-  successDiv.style.display = "block";
-  successDiv.style.color = "green";
-  successDiv.style.padding = "10px";
-  successDiv.style.border = "1px solid green";
-  successDiv.style.borderRadius = "5px";
-  successDiv.style.marginTop = "10px";
-};
 ```
 
 #### HTML Form Example
@@ -460,13 +329,125 @@ document
 
     await handleTripInitiation(tripData);
   });
+
+/**
+ * Displays trip initiation result on the UI
+ * @param {Object} result - Trip initiation response
+ */
+const displayTripInitiationResult = (result) => {
+  // Update basic trip information
+  document.getElementById("tripId").textContent = result.tripId;
+  document.getElementById(
+    "distance"
+  ).textContent = `${result.averageTripDistance} km`;
+  document.getElementById(
+    "driverCost"
+  ).textContent = `$${result.averageDriverCost.toFixed(2)}`;
+  document.getElementById(
+    "guideCost"
+  ).textContent = `$${result.averageGuideCost.toFixed(2)}`;
+  document.getElementById("vehicleType").textContent = result.vehicleType;
+
+  // Calculate and display total cost
+  const totalCost = result.averageDriverCost + result.averageGuideCost;
+  document.getElementById("totalCost").textContent = `$${totalCost.toFixed(2)}`;
+
+  // Display route summary
+  const routeContainer = document.getElementById("routeSummary");
+  routeContainer.innerHTML = "";
+
+  result.routeSummary.forEach((day) => {
+    const dayElement = document.createElement("div");
+    dayElement.className = "day-summary";
+    dayElement.innerHTML = `
+      <h3>Day ${day.day}${day.city ? ` - ${day.city}` : ""}</h3>
+      ${
+        day.attractions.length > 0
+          ? `
+        <h4>Attractions:</h4>
+        <ul>
+          ${day.attractions
+            .map(
+              (attraction) =>
+                `<li>
+              <strong>${attraction.name}</strong><br>
+              <small>Location: ${attraction.location.lat}, ${attraction.location.lng}</small>
+            </li>`
+            )
+            .join("")}
+        </ul>
+      `
+          : "<p>No attractions planned for this day</p>"
+      }
+    `;
+    routeContainer.appendChild(dayElement);
+  });
+
+  // Show success message
+  document.getElementById("tripResult").style.display = "block";
+  showSuccessMessage("Trip initiated successfully!");
+};
+
+/**
+ * Shows validation errors on the form
+ * @param {Object} errors - Validation errors
+ */
+const showValidationErrors = (errors) => {
+  // Clear previous errors
+  document.querySelectorAll(".error-message").forEach((el) => el.remove());
+
+  // Display new errors
+  Object.keys(errors).forEach((field) => {
+    const fieldElement = document.getElementById(field);
+    if (fieldElement) {
+      const errorElement = document.createElement("div");
+      errorElement.className = "error-message";
+      errorElement.textContent = errors[field];
+      errorElement.style.color = "red";
+      errorElement.style.fontSize = "0.9em";
+      fieldElement.parentNode.appendChild(errorElement);
+    }
+  });
+};
+
+/**
+ * Shows error message
+ * @param {string} message - Error message
+ */
+const showErrorMessage = (message) => {
+  const errorDiv = document.getElementById("errorMessage");
+  errorDiv.textContent = message;
+  errorDiv.style.display = "block";
+  errorDiv.style.color = "red";
+  errorDiv.style.padding = "10px";
+  errorDiv.style.border = "1px solid red";
+  errorDiv.style.borderRadius = "5px";
+  errorDiv.style.marginTop = "10px";
+};
+
+/**
+ * Shows success message
+ * @param {string} message - Success message
+ */
+const showSuccessMessage = (message) => {
+  const successDiv = document.getElementById("successMessage");
+  successDiv.textContent = message;
+  successDiv.style.display = "block";
+  successDiv.style.color = "green";
+  successDiv.style.padding = "10px";
+  successDiv.style.border = "1px solid green";
+  successDiv.style.borderRadius = "5px";
+  successDiv.style.marginTop = "10px";
+};
 ```
 
 ## Notes
 
-- The service uses MongoDB for trip plans and initiated trips
-- PostgreSQL is used for vehicle types and guide fees
-- Google Maps API is used for route calculation
-- All costs are calculated server-side
-- The response includes detailed route summary for frontend display
-- Proper validation is implemented both client-side and server-side
+- Uses Jakarta persistence annotations for Spring Boot 3.x compatibility
+- Integrates with MongoDB for trip plans and initiated trips
+- PostgreSQL integration for vehicle types and guide fees
+- Google Maps API for route calculation and distance computation
+- Proper error handling with meaningful HTTP status codes
+- SLF4J logging for debugging and monitoring
+- Input validation using Jakarta validation annotations
+- Frontend integration with complete JavaScript examples
