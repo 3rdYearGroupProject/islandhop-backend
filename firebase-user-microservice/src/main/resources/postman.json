@@ -1,0 +1,110 @@
+{
+  "info": {
+    "name": "Firebase User Microservice",
+    "_postman_id": "12345678-1234-1234-1234-123456789abc",
+    "description": "Postman collection to test Firebase User Microservice endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get User Display Name by UID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8091/api/v1/firebase/user/display-name/{uid}",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "firebase", "user", "display-name", "{uid}"],
+          "variable": [
+            {
+              "key": "uid",
+              "value": "exampleUid"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete User by UID",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8091/api/v1/firebase/user/{uid}",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "firebase", "user", "{uid}"],
+          "variable": [
+            {
+              "key": "uid",
+              "value": "exampleUid"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Deactivate User by UID",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8091/api/v1/firebase/user/deactivate/{uid}",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "firebase", "user", "deactivate", "{uid}"],
+          "variable": [
+            {
+              "key": "uid",
+              "value": "exampleUid"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Activate User by UID",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8091/api/v1/firebase/user/activate/{uid}",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "firebase", "user", "activate", "{uid}"],
+          "variable": [
+            {
+              "key": "uid",
+              "value": "exampleUid"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Full User Info by UID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8091/api/v1/firebase/user/info/{uid}",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "firebase", "user", "info", "{uid}"],
+          "variable": [
+            {
+              "key": "uid",
+              "value": "exampleUid"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

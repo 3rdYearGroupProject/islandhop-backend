@@ -17,7 +17,7 @@ import java.util.List;
  * Provides endpoints for sending, retrieving, and managing notifications.
  */
 @RestController
-@RequestMapping("/api/v1/notifications")
+@RequestMapping("/v1/notifications")
 @CrossOrigin(origins = "*")
 public class NotificationController {
 
