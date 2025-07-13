@@ -1,0 +1,6 @@
+server:
+  port: 8092
+
+google:
+  project-id: <your-gcp-project-id>
+  credentials-path: /config/gcp-service-account.json

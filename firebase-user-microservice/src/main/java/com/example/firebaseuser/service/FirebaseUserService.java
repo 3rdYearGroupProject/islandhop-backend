@@ -76,6 +76,21 @@ public class FirebaseUserService {
     }
 
     /**
+     * Get UID by email.
+     */
+    public String getUidByEmail(String email) throws Exception {
+        logger.info("Fetching Firebase UID for email: {}", email);
+        try {
+            UserRecord userRecord = FirebaseAuth.getInstance().getUserByEmail(email);
+            logger.debug("Firebase UID for email {}: {}", email, userRecord.getUid());
+            return userRecord.getUid();
+        } catch (Exception e) {
+            logger.error("Error fetching Firebase UID for email {}: {}", email, e.getMessage());
+            throw new Exception("No Firebase account found for email: " + email);
+        }
+    }
+
+    /**
      * Helper: Get user by UID, throws Exception if not found.
      */
     private UserRecord getUserByUid(String uid) throws Exception {

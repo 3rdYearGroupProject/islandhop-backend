@@ -1,0 +1,23 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/islandhop_trips
+      database: islandhop_trips
+  datasource:
+    url: jdbc:postgresql://localhost:5432/your_postgres_db
+    username: your_postgres_username
+    password: your_postgres_password
+    driver-class-name: org.postgresql.Driver
+
+google:
+  maps:
+    api-key: your_google_maps_api_key
+
+logging:
+  level:
+    root: INFO
+    com.islandhop.tripinit: DEBUG
+
+server:
+  port: 8095
+# Additional development-specific configurations can be added here.
