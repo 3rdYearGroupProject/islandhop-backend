@@ -282,7 +282,7 @@ public class UserServiceImpl implements UserService {
                     setAccountStatus(guide, status);
                     updateLastModified(guide);
                     guideAccountRepository.save(guide);
-                    userFound = true;
+                    userFound = true;     
                 }
             }
             
