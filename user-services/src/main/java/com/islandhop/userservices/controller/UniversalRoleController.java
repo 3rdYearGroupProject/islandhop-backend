@@ -98,7 +98,7 @@ public class UniversalRoleController {
         }
 
         // Check if user has admin/support role to update user status
-        if (!"SUPPORT".equals(userRole) && !"ADMIN".equals(userRole)) {
+        if (!"SUPPORT".equalsIgnoreCase(String.valueOf(userRole)) && !"ADMIN".equalsIgnoreCase(String.valueOf(userRole))) {
             return ResponseEntity.status(403).body(Map.of("message", "Insufficient permissions"));
         }
 

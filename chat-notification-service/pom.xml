@@ -75,6 +75,12 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!-- Java 8 Date/Time API Support for Jackson -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <!-- Spring Security -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
