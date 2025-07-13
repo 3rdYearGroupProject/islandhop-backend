@@ -132,3 +132,8 @@ target/
 *.swo
 *~
 
+# Logs
+*.log
+.user-services/logs/
+user-services/logs/*.log
+user-services/logs/*.gz
