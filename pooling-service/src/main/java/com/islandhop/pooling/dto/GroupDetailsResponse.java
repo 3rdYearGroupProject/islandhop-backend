@@ -7,21 +7,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Response DTO for group details.
- * Follows the same patterns as other response DTOs for consistency.
+ * Response DTO for trip collaboration details.
+ * Shows collaboration information focused on the trip.
  */
 @Data
 public class GroupDetailsResponse {
     
-    private String groupId;
+    private String groupId; // Internal collaboration ID
     
-    private String groupName;
+    private String tripId; // The trip being collaborated on
     
-    private String tripId;
+    private String tripName; // Trip display name
     
-    private String visibility;
+    private String visibility; // private or public collaboration
     
-    private List<String> userIds;
+    private List<String> collaboratorIds; // User IDs of collaborators
     
     private Map<String, Object> preferences;
     

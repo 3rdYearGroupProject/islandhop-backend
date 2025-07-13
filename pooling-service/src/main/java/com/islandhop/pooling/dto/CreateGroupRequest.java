@@ -16,10 +16,8 @@ public class CreateGroupRequest {
     @NotBlank(message = "User ID is required")
     private String userId;
     
-    @NotBlank(message = "Group name is required")
-    private String groupName;
-    
-    private String tripId; // Optional, will create new trip if not provided
+    @NotBlank(message = "Trip ID is required")
+    private String tripId; // Required - groups are always associated with trips
     
     @Pattern(regexp = "^(private|public)$", message = "Visibility must be either 'private' or 'public'")
     private String visibility = "private";
