@@ -1,696 +1,213 @@
 {
-  "info": {
-    "name": "IslandHop Pooling Service",
-    "_postman_id": "123e4567-e89b-12d3-a456-426614174000",
-    "description": "Postman collection for testing IslandHop pooling service endpoints (group trip planning, public trips, scored suggestions). Set environment variables: baseUrl, userId, creatorUserId, joinerUserId, jwtToken.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "item": [
-    {
-      "name": "Create a Group (Public)",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer dummy-jwt-token"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"groupName\":\"Sri Lanka Adventure 2025\",\"visibility\":\"public\",\"preferences\":{\"language\":[\"English\"],\"interests\":[\"sightseeing\",\"beach\"],\"budgetLevel\":\"Medium\"}}"
-        },
-        "url": {
-          "raw": "http://localhost:8086/api/v1/groups?userId=tEJNF1Lo1bUxpzwoPdIvRQwa9hm1",
-          "host": ["http://localhost:8086"],
-          "path": ["api", "v1", "groups"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "tEJNF1Lo1bUxpzwoPdIvRQwa9hm1"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 201', function () {",
-              "    pm.response.to.have.status(201);",
-              "});",
-              "pm.test('Response has groupId and tripId', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.be.a('string');",
-              "    pm.expect(jsonData.tripId).to.be.a('string');",
-              "});"
-            ]
-          }
-        }
-      ]
+    "info": {
+        "name": "Pooling Service - Full Group Flow",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_postman_id": "97e87886-701c-44cb-82bb-1795dd3894c4"
     },
-    {
-      "name": "Create a Group (Invalid Input)",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer dummy-jwt-token"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"groupName\":\"\",\"visibility\":\"invalid\"}"
-        },
-        "url": {
-          "raw": "http://localhost:8086/api/v1/groups?userId=tEJNF1Lo1bUxpzwoPdIvRQwa9hm1",
-          "host": ["http://localhost:8086"],
-          "path": ["api", "v1", "groups"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "tEJNF1Lo1bUxpzwoPdIvRQwa9hm1"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
+    "item": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 400 for invalid input', function () {",
-              "    pm.response.to.have.status(400);",
-              "});",
-              "pm.test('Response has error message', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('error');",
-              "    pm.expect(jsonData.message).to.be.a('string');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Invite User to Private Group",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"invitedUserId\":\"{{joinerUserId}}\"}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/invite?userId={{creatorUserId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "invite"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{creatorUserId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "pm.test('Response confirms invitation', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.equal(pm.environment.get('groupId'));",
-              "    pm.expect(jsonData.message).to.equal('User invited successfully');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Invite User (Unauthorized)",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"invitedUserId\":\"{{joinerUserId}}\"}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/invite?userId={{joinerUserId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "invite"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{joinerUserId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 403 for unauthorized user', function () {",
-              "    pm.response.to.have.status(403);",
-              "});",
-              "pm.test('Response has error message', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('error');",
-              "    pm.expect(jsonData.message).to.be.a('string');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Add Place to Group Itinerary",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"name\":\"Galle Fort\",\"type\":\"Attraction\",\"location\":{\"lat\":6.0259,\"lng\":80.2168},\"description\":\"Historic fort in Galle\",\"rating\":4.5}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/itinerary/day/1/attractions?userId={{userId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "itinerary", "day", "1", "attractions"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{userId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 201', function () {",
-              "    pm.response.to.have.status(201);",
-              "});",
-              "pm.test('Response confirms place added', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.equal(pm.environment.get('groupId'));",
-              "    pm.expect(jsonData.tripId).to.equal(pm.environment.get('tripId'));",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Add Place (Invalid Day)",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"name\":\"Galle Fort\",\"type\":\"Attraction\",\"location\":{\"lat\":6.0259,\"lng\":80.2168},\"description\":\"Historic fort in Galle\",\"rating\":4.5}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/itinerary/day/31/attractions?userId={{userId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "itinerary", "day", "31", "attractions"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{userId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 400 for invalid day', function () {",
-              "    pm.response.to.have.status(400);",
-              "});",
-              "pm.test('Response has error message', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('error');",
-              "    pm.expect(jsonData.message).to.be.a('string');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Update City in Group Itinerary",
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"city\":\"Galle\"}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/itinerary/day/1/city?userId={{userId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "itinerary", "day", "1", "city"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{userId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "pm.test('Response confirms city updated', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.equal(pm.environment.get('groupId'));",
-              "    pm.expect(jsonData.tripId).to.equal(pm.environment.get('tripId'));",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Get Group Details",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}?userId={{userId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{userId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "pm.test('Response has group details', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.equal(pm.environment.get('groupId'));",
-              "    pm.expect(jsonData.userIds).to.be.an('array');",
-              "    pm.expect(jsonData.actions).to.be.an('array');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "List Public Groups",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/groups/public?userId={{userId}}&destination=Colombo",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "public"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{userId}}"
+            "name": "Create Private Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user123\",\n    \"groupName\": \"Private Trip Group\",\n    \"tripId\": \"trip789\",\n    \"visibility\": \"private\",\n    \"preferences\": {\n        \"theme\": \"hiking\",\n        \"budget\": \"high\"\n    }\n}"
+                }
             },
-            {
-              "key": "destination",
-              "value": "Colombo"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200 or 404', function () {",
-              "    pm.expect(pm.response.status).to.be.oneOf([200, 404]);",
-              "});",
-              "pm.test('Response is an array or error', function () {",
-              "    var jsonData = pm.response.json();",
-              "    if (pm.response.code === 200) {",
-              "        pm.expect(jsonData).to.be.an('array');",
-              "        pm.expect(jsonData[0]).to.have.property('groupId');",
-              "    } else {",
-              "        pm.expect(jsonData.status).to.equal('error');",
-              "    }",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Request to Join Public Group",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"userProfile\":{\"travelDates\":{\"startDate\":\"2025-08-15\",\"endDate\":\"2025-08-22\"},\"interests\":[\"sightseeing\",\"beach\"],\"language\":[\"English\"],\"budgetLevel\":\"Medium\",\"ageRange\":\"20-40\"}}"
+            "response": []
         },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/join?userId={{joinerUserId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "join"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{joinerUserId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "pm.test('Response confirms join request', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.equal(pm.environment.get('groupId'));",
-              "    pm.expect(jsonData.message).to.equal('Join request sent');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Approve Join Request",
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"status\":\"approved\"}"
+            "name": "Create Public Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user789\",\n    \"groupName\": \"Public Tour Group\",\n    \"tripId\": \"trip789\",\n    \"visibility\": \"public\",\n    \"preferences\": {\n        \"theme\": \"culture\",\n        \"budget\": \"low\"\n    }\n}"
+                }
+            },
+            "response": []
         },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/join/{{joinerUserId}}?creatorUserId={{userId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "join", "{{joinerUserId}}"],
-          "query": [
-            {
-              "key": "creatorUserId",
-              "value": "{{userId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "pm.test('Response confirms approval', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.equal(pm.environment.get('groupId'));",
-              "    pm.expect(jsonData.message).to.equal('Join request approved');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Reject Join Request",
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"status\":\"rejected\"}"
+            "name": "Get Private Group Details",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1?userId=user123",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1?userId=user123"
+                    ]
+                }
+            },
+            "response": []
         },
-        "url": {
-          "raw": "{{baseUrl}}/groups/{{groupId}}/join/{{joinerUserId}}?creatorUserId={{userId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "{{groupId}}", "join", "{{joinerUserId}}"],
-          "query": [
-            {
-              "key": "creatorUserId",
-              "value": "{{userId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "pm.test('Response confirms rejection', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.status).to.equal('success');",
-              "    pm.expect(jsonData.groupId).to.equal(pm.environment.get('groupId'));",
-              "    pm.expect(jsonData.message).to.equal('Join request rejected');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Get Scored Trip Suggestions",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "{{jwtToken}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"travelDates\":{\"startDate\":\"2025-08-15\",\"endDate\":\"2025-08-22\"},\"interests\":[\"sightseeing\",\"beach\"],\"language\":[\"English\"],\"budgetLevel\":\"Medium\",\"ageRange\":\"20-40\"}"
+            "name": "Get Public Group Details",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/c21dd46b-091c-4176-bb15-e55686ff1cf6?userId=user789",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "c21dd46b-091c-4176-bb15-e55686ff1cf6?userId=user789"
+                    ]
+                }
+            },
+            "response": []
         },
-        "url": {
-          "raw": "{{baseUrl}}/groups/public/suggestions?userId={{joinerUserId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["groups", "public", "suggestions"],
-          "query": [
-            {
-              "key": "userId",
-              "value": "{{joinerUserId}}"
-            }
-          ]
-        }
-      },
-      "response": [],
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200 or 404', function () {",
-              "    pm.expect(pm.response.status).to.be.oneOf([200, 404]);",
-              "});",
-              "pm.test('Response is an array or error', function () {",
-              "    var jsonData = pm.response.json();",
-              "    if (pm.response.code === 200) {",
-              "        pm.expect(jsonData).to.be.an('array');",
-              "        pm.expect(jsonData[0]).to.have.property('groupId');",
-              "        pm.expect(jsonData[0]).to.have.property('score');",
-              "    } else {",
-              "        pm.expect(jsonData.status).to.equal('error');",
-              "    }",
-              "});"
-            ]
-          }
+            "name": "Invite User to Private Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1/invite",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1",
+                        "invite"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user123\",\n    \"invitedUserId\": \"user456\"\n}"
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Join Public Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/c21dd46b-091c-4176-bb15-e55686ff1cf6/join",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "c21dd46b-091c-4176-bb15-e55686ff1cf6",
+                        "join"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user456\"\n}"
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Get Public Groups",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/public?userId=user123",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "public?userId=user123"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Health Check",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/health",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "health"
+                    ]
+                }
+            },
+            "response": []
         }
-      ]
-    }
-  ],
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:8086/api/v1"
-    },
-    {
-      "key": "userId",
-      "value": "tEJNF1Lo1bUxpzwoPdIvRQwa9hm1"
-    },
-    {
-      "key": "creatorUserId",
-      "value": "tEJNF1Lo1bUxpzwoPdIvRQwa9hm1"
-    },
-    {
-      "key": "joinerUserId",
-      "value": "tEJNF1Lo1bUxpzwoPdIvRQwa9hm2"
-    },
-    {
-      "key": "jwtToken",
-      "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    },
-    {
-      "key": "groupId",
-      "value": ""
-    },
-    {
-      "key": "tripId",
-      "value": ""
-    }
-  ]
+    ]
 }
