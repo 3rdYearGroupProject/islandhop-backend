@@ -13,15 +13,27 @@ import java.util.Map;
 @Data
 public class JoinRequest {
     
+    private String id; // Unique ID for this join request
+    
     private String userId;
+    
+    private String userEmail;
+    
+    private String userName;
     
     private Map<String, Object> userProfile;
     
     private String status; // "pending", "approved", "rejected"
     
+    private String message; // Optional message from user when requesting to join
+    
+    private String rejectionReason; // Reason for rejection if applicable
+    
     private Instant requestedAt;
     
     private Instant respondedAt;
+    
+    private String reviewedByUserId; // ID of the user who approved/rejected
     
     /**
      * Check if the join request is pending.
@@ -47,16 +59,19 @@ public class JoinRequest {
     /**
      * Mark the join request as approved.
      */
-    public void approve() {
+    public void approve(String reviewerUserId) {
         this.status = "approved";
-        this.respondedAt = java.time.Instant.now();
+        this.respondedAt = Instant.now();
+        this.reviewedByUserId = reviewerUserId;
     }
     
     /**
      * Mark the join request as rejected.
      */
-    public void reject() {
+    public void reject(String reviewerUserId, String reason) {
         this.status = "rejected";
-        this.respondedAt = java.time.Instant.now();
+        this.respondedAt = Instant.now();
+        this.reviewedByUserId = reviewerUserId;
+        this.rejectionReason = reason;
     }
 }

@@ -162,6 +162,75 @@ public class GroupController {
     }
     
     /**
+     * Responds to an invitation (accept or reject).
+     *
+     * @param request The invitation response request
+     * @return ResponseEntity with the response details
+     */
+    @PostMapping("/invitations/respond")
+    public ResponseEntity<InvitationListResponse> respondToInvitation(@Valid @RequestBody InvitationResponseRequest request) {
+        try {
+            log.info("User '{}' responding to invitation '{}'", request.getUserId(), request.getInvitationId());
+            InvitationListResponse response = groupService.respondToInvitation(request);
+            return ResponseEntity.ok(response);
+        } catch (JoinRequestNotFoundException e) {
+            log.warn("Invitation not found: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException | InvalidGroupOperationException e) {
+            log.warn("Invalid invitation response: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error responding to invitation: {}", e.getMessage(), e);
+            throw new GroupCreationException("Failed to respond to invitation: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Approves or rejects a join request.
+     *
+     * @param groupId The ID of the group
+     * @param request The approval request
+     * @return ResponseEntity with the approval response
+     */
+    @PostMapping("/{groupId}/requests/approve")
+    public ResponseEntity<JoinGroupResponse> approveJoinRequest(
+            @PathVariable String groupId,
+            @Valid @RequestBody ApproveJoinRequestRequest request) {
+        try {
+            log.info("Approving join request for group '{}' by user '{}'", groupId, request.getUserId());
+            JoinGroupResponse response = groupService.approveJoinRequest(groupId, request);
+            return ResponseEntity.ok(response);
+        } catch (GroupNotFoundException e) {
+            log.warn("Group not found for approval: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException | InvalidGroupOperationException | JoinRequestNotFoundException e) {
+            log.warn("Invalid join request approval: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error approving join request for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to approve join request: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gets pending invitations for a user.
+     *
+     * @param userId The user ID
+     * @return ResponseEntity with the user's invitations
+     */
+    @GetMapping("/invitations/{userId}")
+    public ResponseEntity<InvitationListResponse> getUserInvitations(@PathVariable String userId) {
+        try {
+            log.info("Getting invitations for user '{}'", userId);
+            InvitationListResponse response = groupService.getUserInvitations(userId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Unexpected error getting invitations for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get invitations: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Handles validation errors.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
