@@ -17,7 +17,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/admin/vehicle-types")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class VehicleTypeController {
 
     private static final Logger log = LoggerFactory.getLogger(VehicleTypeController.class);

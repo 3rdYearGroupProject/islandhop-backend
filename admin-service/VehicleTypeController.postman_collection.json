@@ -16,11 +16,11 @@
           }
         ],
         "url": {
-          "raw": "http://localhost:8091/admin/vehicle-types",
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types",
           "protocol": "http",
           "host": ["localhost"],
           "port": "8091",
-          "path": ["admin", "vehicle-types"]
+          "path": ["api", "v1", "admin", "vehicle-types"]
         },
         "body": {
           "mode": "raw",
@@ -33,11 +33,11 @@
       "request": {
         "method": "GET",
         "url": {
-          "raw": "http://localhost:8091/admin/vehicle-types",
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types",
           "protocol": "http",
           "host": ["localhost"],
           "port": "8091",
-          "path": ["admin", "vehicle-types"]
+          "path": ["api", "v1", "admin", "vehicle-types"]
         }
       }
     },
@@ -46,11 +46,11 @@
       "request": {
         "method": "GET",
         "url": {
-          "raw": "http://localhost:8091/admin/vehicle-types/:id",
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types/:id",
           "protocol": "http",
           "host": ["localhost"],
           "port": "8091",
-          "path": ["admin", "vehicle-types", ":id"],
+          "path": ["api", "v1", "admin", "vehicle-types", ":id"],
           "variable": [
             {
               "key": "id",
@@ -71,11 +71,11 @@
           }
         ],
         "url": {
-          "raw": "http://localhost:8091/admin/vehicle-types/:id",
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types/:id",
           "protocol": "http",
           "host": ["localhost"],
           "port": "8091",
-          "path": ["admin", "vehicle-types", ":id"],
+          "path": ["api", "v1", "admin", "vehicle-types", ":id"],
           "variable": [
             {
               "key": "id",
@@ -94,15 +94,70 @@
       "request": {
         "method": "DELETE",
         "url": {
-          "raw": "http://localhost:8091/admin/vehicle-types/:id",
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types/:id",
           "protocol": "http",
           "host": ["localhost"],
           "port": "8091",
-          "path": ["admin", "vehicle-types", ":id"],
+          "path": ["api", "v1", "admin", "vehicle-types", ":id"],
           "variable": [
             {
               "key": "id",
               "value": "1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Available Vehicle Types",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types/available",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "admin", "vehicle-types", "available"]
+        }
+      }
+    },
+    {
+      "name": "Get Vehicle Types By Fuel Type",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types/fuel-type/:fuelType",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "admin", "vehicle-types", "fuel-type", ":fuelType"],
+          "variable": [
+            {
+              "key": "fuelType",
+              "value": "Petrol"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Vehicle Types By Price Range",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8091/api/v1/admin/vehicle-types/price-range?minPrice=10&maxPrice=20",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["api", "v1", "admin", "vehicle-types", "price-range"],
+          "query": [
+            {
+              "key": "minPrice",
+              "value": "10"
+            },
+            {
+              "key": "maxPrice",
+              "value": "20"
             }
           ]
         }
