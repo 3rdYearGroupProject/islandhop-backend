@@ -1,0 +1,112 @@
+{
+  "info": {
+    "name": "VehicleTypeController API",
+    "description": "Postman collection for testing VehicleTypeController endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Vehicle Type",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8091/admin/vehicle-types",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["admin", "vehicle-types"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"typeName\": \"Sedan\",\n  \"description\": \"Comfortable car for city travel\",\n  \"fuelType\": \"Petrol\",\n  \"capacity\": 4,\n  \"pricePerKm\": 15.5,\n  \"available\": true\n}"
+        }
+      }
+    },
+    {
+      "name": "Get All Vehicle Types",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8091/admin/vehicle-types",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["admin", "vehicle-types"]
+        }
+      }
+    },
+    {
+      "name": "Get Vehicle Type By ID",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8091/admin/vehicle-types/:id",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["admin", "vehicle-types", ":id"],
+          "variable": [
+            {
+              "key": "id",
+              "value": "1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Update Vehicle Type",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8091/admin/vehicle-types/:id",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["admin", "vehicle-types", ":id"],
+          "variable": [
+            {
+              "key": "id",
+              "value": "1"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"typeName\": \"SUV\",\n  \"description\": \"Spacious car for family trips\",\n  \"fuelType\": \"Diesel\",\n  \"capacity\": 7,\n  \"pricePerKm\": 20.0,\n  \"available\": true\n}"
+        }
+      }
+    },
+    {
+      "name": "Delete Vehicle Type",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "http://localhost:8091/admin/vehicle-types/:id",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8091",
+          "path": ["admin", "vehicle-types", ":id"],
+          "variable": [
+            {
+              "key": "id",
+              "value": "1"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
