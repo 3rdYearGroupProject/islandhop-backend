@@ -11,6 +11,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,7 +25,7 @@ public class VehicleTypeService {
 
     private static final Logger log = LoggerFactory.getLogger(VehicleTypeService.class);
     private final VehicleTypeRepository vehicleTypeRepository;
-    
+
     public VehicleTypeService(VehicleTypeRepository vehicleTypeRepository) {
         this.vehicleTypeRepository = vehicleTypeRepository;
     }
@@ -227,7 +228,9 @@ public class VehicleTypeService {
                 request.getFuelType(),
                 request.getIsAvailable(),
                 request.getPricePerKm(),
-                request.getTypeName()
+                request.getTypeName(),
+                Instant.now(), // createdAt
+                Instant.now()  // updatedAt
         );
     }
 

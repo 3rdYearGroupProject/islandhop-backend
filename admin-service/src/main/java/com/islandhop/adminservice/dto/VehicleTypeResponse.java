@@ -1,5 +1,7 @@
 package com.islandhop.adminservice.dto;
 
+import java.time.Instant;
+
 /**
  * DTO for vehicle type responses.
  */
@@ -47,4 +49,21 @@ public class VehicleTypeResponse {
     
     public String getTypeName() { return typeName; }
     public void setTypeName(String typeName) { this.typeName = typeName; }
+
+    // Added missing methods
+    public void setVehicleType(String vehicleType) {
+        this.typeName = vehicleType;
+    }
+
+    public void setAvailable(Boolean available) {
+        this.isAvailable = available;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        // Assuming createdAt is a new field
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        // Assuming updatedAt is a new field
+    }
 }

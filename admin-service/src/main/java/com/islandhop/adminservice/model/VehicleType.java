@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import java.time.Instant;
 
 /**
  * Entity representing a vehicle type in the system.
@@ -40,10 +41,16 @@ public class VehicleType {
     @NotBlank(message = "Type name is required and cannot be blank")
     private String typeName;
     
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+    
     public VehicleType() {}
     
     public VehicleType(Long id, Integer capacity, String description, String fuelType,
-                      Boolean isAvailable, Double pricePerKm, String typeName) {
+                      Boolean isAvailable, Double pricePerKm, String typeName, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.capacity = capacity;
         this.description = description;
@@ -51,6 +58,8 @@ public class VehicleType {
         this.isAvailable = isAvailable;
         this.pricePerKm = pricePerKm;
         this.typeName = typeName;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
     
     // Getters and Setters
@@ -74,4 +83,21 @@ public class VehicleType {
     
     public String getTypeName() { return typeName; }
     public void setTypeName(String typeName) { this.typeName = typeName; }
+
+    // Added missing methods
+    public String getVehicleType() {
+        return typeName;
+    }
+
+    public Boolean getAvailable() {
+        return isAvailable;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
 }

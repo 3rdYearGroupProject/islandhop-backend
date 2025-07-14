@@ -56,4 +56,13 @@ public class UpdateVehicleTypeRequest {
     
     public String getTypeName() { return typeName; }
     public void setTypeName(String typeName) { this.typeName = typeName; }
+
+    // Added missing methods
+    public String getVehicleType() {
+        return typeName;
+    }
+
+    public Boolean getAvailable() {
+        return isAvailable;
+    }
 }
