@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -124,19 +125,63 @@ public class GuideService {
 
     // Certificate management methods
     @Transactional
-    public GuideCertificate saveCertificate(String email, Map<String, Object> certData) {
-        GuideCertificate certificate = GuideCertificate.builder()
+public GuideCertificate saveCertificate(String email, Map<String, Object> certData) {
+    logger.info("Processing certificate data: {}", certData);
+    
+    try {
+        GuideCertificate.GuideCertificateBuilder builder = GuideCertificate.builder()
             .email(email)
-            .certificateId((String) certData.get("certificateId"))
-            .certificateIssuer((String) certData.get("certificateIssuer"))
-            .issueDate(LocalDate.parse((String) certData.get("issueDate")))
-            .verificationNumber((String) certData.get("verificationNumber"))
-            .build();
-
-        if (certData.containsKey("expiryDate") && certData.get("expiryDate") != null) {
-            certificate.setExpiryDate(LocalDate.parse((String) certData.get("expiryDate")));
+            .verificationNumber((String) certData.get("verificationNumber"));
+        
+        //Handle certificateId (required field)
+        String certificateId = (String) certData.get("certificateId");
+         if (certificateId == null || certificateId.equals("-")) {
+             certificateId = "CERT-" + System.currentTimeMillis(); // Generate if missing
+         }
+         builder.certificateId(certificateId);
+        
+        // Handle certificateIssuer (required field)
+        String issuer = (String) certData.get("certificateIssuer");
+        builder.certificateIssuer(issuer != null ? issuer : "-");
+        
+        // Handle issueDate (required field)
+        String issueDateStr = (String) certData.get("issueDate");
+        if (issueDateStr != null && !issueDateStr.isEmpty()) {
+            try {
+                builder.issueDate(LocalDate.parse(issueDateStr));
+            } catch (DateTimeParseException e) {
+                logger.warn("Invalid issue date format: {}", issueDateStr);
+                // Leave as null if parsing fails
+            }
         }
-
+        
+        GuideCertificate certificate = builder.build();
+        
+        // Handle optional expiryDate
+        String expiryDateStr = (String) certData.get("expiryDate");
+        if (expiryDateStr != null && !expiryDateStr.isEmpty()) {
+            try {
+                certificate.setExpiryDate(LocalDate.parse(expiryDateStr));
+            } catch (DateTimeParseException e) {
+                logger.warn("Invalid expiry date format: {}", expiryDateStr);
+                // Leave as null if parsing fails
+            }
+        }
+        
+        // Handle status enum
+        // if (certData.containsKey("status")) {
+        //     String statusStr = (String) certData.get("status");
+        //     if (statusStr != null && !statusStr.equals("-")) {
+        //         try {
+        //             CertificateStatus status = CertificateStatus.valueOf(statusStr.toUpperCase());
+        //             certificate.setStatus(status);
+        //         } catch (IllegalArgumentException e) {
+        //             logger.warn("Invalid status value: {}, using default", statusStr);
+        //         }
+        //     }
+        // }
+        
+        // Handle base64 image
         if (certData.containsKey("certificatePictureBase64")) {
             String base64Image = (String) certData.get("certificatePictureBase64");
             if (base64Image != null && !base64Image.isEmpty()) {
@@ -144,14 +189,19 @@ public class GuideService {
                     byte[] imageBytes = Base64.getDecoder().decode(base64Image);
                     certificate.setCertificatePicture(imageBytes);
                 } catch (IllegalArgumentException e) {
-                    logger.error("Invalid base64 image data for certificate");
+                    logger.error("Invalid base64 image data for certificate", e);
                 }
             }
         }
-
+        
+        logger.info("Saving certificate to database");
         return certificateRepository.save(certificate);
+        
+    } catch (Exception e) {
+        logger.error("Exception in saveCertificate: ", e);
+        throw e;
     }
-
+}
     public List<GuideCertificateDTO> getCertificates(String email) {
         List<GuideCertificate> certificates = certificateRepository.findByEmail(email);
         return certificates.stream()

@@ -7,9 +7,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "guide_certificates")
@@ -20,8 +20,8 @@ import java.time.LocalDateTime;
 public class GuideCertificate {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
     
     @Column(nullable = false)
     private String email;
@@ -31,15 +31,14 @@ public class GuideCertificate {
     
     @Column(nullable = false)
     private String certificateIssuer;
-    
-    @Column(nullable = false)
+
     private LocalDate issueDate;
     
     private LocalDate expiryDate;
     
     private String verificationNumber;
     
-    @Lob
+    
     @Column(columnDefinition = "BYTEA")
     private byte[] certificatePicture;
     

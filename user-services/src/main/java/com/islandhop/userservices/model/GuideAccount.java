@@ -20,7 +20,7 @@ import java.util.UUID;
 public class GuideAccount {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+   @GeneratedValue
     private UUID id;
     
     @Column(unique = true, nullable = false)
