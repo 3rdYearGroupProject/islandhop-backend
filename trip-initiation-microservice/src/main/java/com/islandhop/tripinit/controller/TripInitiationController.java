@@ -21,6 +21,7 @@ import java.util.Map;
  * REST controller for trip initiation endpoints.
  * Handles HTTP requests for trip initiation functionality.
  */
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 @RestController
 @RequestMapping("/v1/trips")
 @RequiredArgsConstructor

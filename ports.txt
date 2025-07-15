@@ -3,6 +3,7 @@ user-service - 8083
 trip-planning - 8084
 pooling-service - 8086
 emergency-service - 8087
+payment-service - 8088
 
 chat-notification - 8090
 admin-service - 8091

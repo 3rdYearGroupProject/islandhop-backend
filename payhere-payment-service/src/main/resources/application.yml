@@ -1,0 +1,43 @@
+server:
+  port: 8088
+  servlet:
+    context-path: /api/v1
+
+spring:
+  application:
+    name: payhere-payment-service
+  profiles:
+    active: dev
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_null
+
+# PayHere Configuration
+payhere:
+  merchant-id: ${PAYHERE_MERCHANT_ID:1234567}
+  secret: ${PAYHERE_SECRET:MjA3NTEyNTc3NTQxMDI5Mzk4NzgzMTAwMDEyMjE1MzQyMTY1ODYwNg==}
+  notify-url: ${PAYHERE_NOTIFY_URL:http://localhost:8088/api/v1/payments/notify}
+  sandbox: ${PAYHERE_SANDBOX:true}
+  base-url: "https://sandbox.payhere.lk"
+  
+# Logging Configuration
+logging:
+  level:
+    com.islandhop.payment: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/payhere-payment-service.log
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

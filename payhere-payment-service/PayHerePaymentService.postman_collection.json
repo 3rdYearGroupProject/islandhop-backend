@@ -1,0 +1,344 @@
+{
+  "info": {
+    "name": "PayHere Payment Service API",
+    "description": "Complete API collection for PayHere Payment Service endpoints",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create PayHere Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 75.00,\n  \"currency\": \"LKR\",\n  \"orderId\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n  \"itemName\": \"Trip Booking\",\n  \"customerDetails\": {\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"tourist013@gmail.com\",\n    \"phone\": \"0771234567\",\n    \"address\": \"123 Main Street\",\n    \"city\": \"Colombo\",\n    \"country\": \"Sri Lanka\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payments/create-payhere-payment",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments",
+            "create-payhere-payment"
+          ]
+        },
+        "description": "Create a new PayHere payment request"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 75.00,\n  \"currency\": \"LKR\",\n  \"orderId\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n  \"itemName\": \"Trip Booking\",\n  \"customerDetails\": {\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"tourist013@gmail.com\",\n    \"phone\": \"0771234567\",\n    \"address\": \"123 Main Street\",\n    \"city\": \"Colombo\",\n    \"country\": \"Sri Lanka\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/create-payhere-payment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "create-payhere-payment"
+              ]
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "body": "{\n  \"status\": \"success\",\n  \"message\": \"PayHere payment data generated successfully\",\n  \"orderId\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n  \"amount\": 75.00,\n  \"currency\": \"LKR\",\n  \"timestamp\": \"2025-07-15T10:30:00\",\n  \"payHereData\": {\n    \"merchant_id\": \"1234567\",\n    \"order_id\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n    \"amount\": \"75.00\",\n    \"currency\": \"LKR\",\n    \"items\": \"Trip Booking\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"tourist013@gmail.com\",\n    \"phone\": \"0771234567\",\n    \"address\": \"123 Main Street\",\n    \"city\": \"Colombo\",\n    \"country\": \"Sri Lanka\",\n    \"return_url\": \"http://localhost:3000/payment/success\",\n    \"cancel_url\": \"http://localhost:3000/payment/cancel\",\n    \"notify_url\": \"http://localhost:8088/api/v1/payments/notify\",\n    \"hash\": \"generated_hash_value\",\n    \"sandbox\": true\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Handle PayHere Notification",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n  \"status_code\": 2,\n  \"status_message\": \"Payment Successful\",\n  \"payment_id\": \"PAYMENT_123456\",\n  \"amount\": 75.00,\n  \"currency\": \"LKR\",\n  \"merchant_id\": \"1234567\",\n  \"payhere_amount\": 75.00,\n  \"payhere_currency\": \"LKR\",\n  \"md5sig\": \"notification_signature\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payments/notify",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments",
+            "notify"
+          ]
+        },
+        "description": "Handle PayHere payment notification"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n  \"status_code\": 2,\n  \"status_message\": \"Payment Successful\",\n  \"payment_id\": \"PAYMENT_123456\",\n  \"amount\": 75.00,\n  \"currency\": \"LKR\",\n  \"merchant_id\": \"1234567\",\n  \"payhere_amount\": 75.00,\n  \"payhere_currency\": \"LKR\",\n  \"md5sig\": \"notification_signature\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/notify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "notify"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "body": "{\n  \"status\": \"success\",\n  \"message\": \"Payment processed successfully\",\n  \"orderId\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n  \"paymentId\": \"PAYMENT_123456\",\n  \"amount\": 75.00,\n  \"currency\": \"LKR\",\n  \"timestamp\": \"2025-07-15T10:35:00\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Payment Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payments/status/ORDER_cbe3e879-996e-4249-bcf6-527814b2b756",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments",
+            "status",
+            "ORDER_cbe3e879-996e-4249-bcf6-527814b2b756"
+          ]
+        },
+        "description": "Get payment status by order ID"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payments/status/ORDER_cbe3e879-996e-4249-bcf6-527814b2b756",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "status",
+                "ORDER_cbe3e879-996e-4249-bcf6-527814b2b756"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "body": "{\n  \"status\": \"success\",\n  \"message\": \"Payment status retrieved successfully\",\n  \"orderId\": \"ORDER_cbe3e879-996e-4249-bcf6-527814b2b756\",\n  \"amount\": 75.00,\n  \"currency\": \"LKR\",\n  \"timestamp\": \"2025-07-15T10:35:00\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payments/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments",
+            "health"
+          ]
+        },
+        "description": "Check service health status"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payments/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "health"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "body": "{\n  \"status\": \"UP\",\n  \"service\": \"PayHere Payment Service\",\n  \"timestamp\": 1721041200000\n}"
+        }
+      ]
+    },
+    {
+      "name": "Create Payment - Validation Error",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": -10.00,\n  \"currency\": \"INVALID\",\n  \"orderId\": \"\",\n  \"itemName\": \"\",\n  \"customerDetails\": {\n    \"firstName\": \"\",\n    \"lastName\": \"\",\n    \"email\": \"invalid-email\",\n    \"phone\": \"123\",\n    \"address\": \"\",\n    \"city\": \"\",\n    \"country\": \"\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payments/create-payhere-payment",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments",
+            "create-payhere-payment"
+          ]
+        },
+        "description": "Test validation errors"
+      },
+      "response": [
+        {
+          "name": "Validation Error",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": -10.00,\n  \"currency\": \"INVALID\",\n  \"orderId\": \"\",\n  \"itemName\": \"\",\n  \"customerDetails\": {\n    \"firstName\": \"\",\n    \"lastName\": \"\",\n    \"email\": \"invalid-email\",\n    \"phone\": \"123\",\n    \"address\": \"\",\n    \"city\": \"\",\n    \"country\": \"\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/create-payhere-payment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "create-payhere-payment"
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "body": "{\n  \"status\": \"error\",\n  \"message\": \"Validation failed: Amount must be greater than 0, Currency must be LKR, USD, EUR, or GBP, Order ID is required, Item name is required, First name is required, Last name is required, Email must be valid, Phone must be 10 digits, Address is required, City is required, Country is required\",\n  \"orderId\": \"\",\n  \"timestamp\": \"2025-07-15T10:30:00\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Payment Status - Not Found",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payments/status/NON_EXISTENT_ORDER",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payments",
+            "status",
+            "NON_EXISTENT_ORDER"
+          ]
+        },
+        "description": "Test payment status for non-existent order"
+      },
+      "response": [
+        {
+          "name": "Not Found",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payments/status/NON_EXISTENT_ORDER",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "status",
+                "NON_EXISTENT_ORDER"
+              ]
+            }
+          },
+          "status": "Not Found",
+          "code": 404
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8088/api/v1",
+      "type": "string"
+    }
+  ]
+}
