@@ -3,15 +3,13 @@ package com.islandhop.payment.service;
 import com.islandhop.payment.dto.PaymentRequest;
 import com.islandhop.payment.dto.PaymentResponse;
 import com.islandhop.payment.dto.PayHereNotification;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -157,7 +155,7 @@ public class PaymentService {
         payHereData.put("order_id", paymentRequest.getOrderId());
         payHereData.put("items", paymentRequest.getItemName());
         payHereData.put("currency", paymentRequest.getCurrency());
-        payHereData.put("amount", paymentRequest.getAmount().toString());
+        payHereData.put("amount", String.format("%.2f", paymentRequest.getAmount()));
         
         // Customer details
         PaymentRequest.CustomerDetails customer = paymentRequest.getCustomerDetails();
@@ -187,13 +185,25 @@ public class PaymentService {
      * @return Generated hash
      */
     private String generatePayHereHash(PaymentRequest paymentRequest) {
+        // PayHere hash formula: merchantId + orderId + amount + currency + merchantSecret
+        // Amount should be formatted with 2 decimal places
+        String formattedAmount = String.format("%.2f", paymentRequest.getAmount());
+        
         String hashString = merchantId + 
                            paymentRequest.getOrderId() + 
-                           paymentRequest.getAmount().toString() + 
+                           formattedAmount + 
                            paymentRequest.getCurrency() + 
-                           getMD5Hash(merchantSecret);
+                           merchantSecret;
         
-        return getMD5Hash(hashString);
+        logger.debug("Merchant ID: {}", merchantId);
+        logger.debug("Merchant Secret (first 10 chars): {}...", merchantSecret.substring(0, Math.min(10, merchantSecret.length())));
+        logger.debug("Hash string for order {}: {}", paymentRequest.getOrderId(), 
+                    hashString.replaceAll(merchantSecret, "***SECRET***"));
+        
+        String hash = DigestUtils.md5Hex(hashString).toUpperCase();
+        logger.debug("Generated hash for order {}: {}", paymentRequest.getOrderId(), hash);
+        
+        return hash;
     }
     
     /**
@@ -202,15 +212,25 @@ public class PaymentService {
      * @return true if signature is valid
      */
     private boolean verifyNotificationSignature(PayHereNotification notification) {
+        // PayHere notification hash formula: merchantId + orderId + amount + currency + statusCode + merchantSecret
         String localHashString = notification.getMerchantId() + 
                                 notification.getOrderId() + 
                                 notification.getPayHereAmount().toString() + 
                                 notification.getPayHereCurrency() + 
                                 notification.getStatusCode() + 
-                                getMD5Hash(merchantSecret);
+                                merchantSecret;
         
-        String localHash = getMD5Hash(localHashString);
-        return localHash.equals(notification.getMd5Signature());
+        logger.debug("Notification hash string for order {}: {}", notification.getOrderId(), 
+                    localHashString.replaceAll(merchantSecret, "***SECRET***"));
+        
+        String localHash = DigestUtils.md5Hex(localHashString).toUpperCase();
+        logger.debug("Local hash: {}, PayHere hash: {}", localHash, notification.getMd5Signature());
+        
+        boolean isValid = localHash.equals(notification.getMd5Signature());
+        logger.debug("Signature verification for order {}: {}", notification.getOrderId(), 
+                    isValid ? "VALID" : "INVALID");
+        
+        return isValid;
     }
     
     /**
@@ -225,28 +245,6 @@ public class PaymentService {
             return "PENDING";
         } else {
             return "FAILED";
-        }
-    }
-    
-    /**
-     * Generate MD5 hash
-     * @param input Input string
-     * @return MD5 hash
-     */
-    private String getMD5Hash(String input) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] hashBytes = md.digest(input.getBytes(StandardCharsets.UTF_8));
-            
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString().toUpperCase();
-            
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("Error generating MD5 hash", e);
-            throw new RuntimeException("MD5 algorithm not available", e);
         }
     }
     
@@ -273,5 +271,27 @@ public class PaymentService {
         public BigDecimal getAmount() { return amount; }
         public String getCurrency() { return currency; }
         public LocalDateTime getTimestamp() { return timestamp; }
+    }
+    
+    /**
+     * Test hash generation with known values for debugging
+     */
+    public void testHashGeneration() {
+        String testMerchantId = "1231228";
+        String testOrderId = "ORDER_TEST_123";
+        String testAmount = "100.00";
+        String testCurrency = "LKR";
+        String testMerchantSecret = "2075125775410293987831000122153421658606";
+        
+        String hashString = testMerchantId + testOrderId + testAmount + testCurrency + testMerchantSecret;
+        String hash = DigestUtils.md5Hex(hashString).toUpperCase();
+        
+        logger.info("Test hash generation:");
+        logger.info("Merchant ID: {}", testMerchantId);
+        logger.info("Order ID: {}", testOrderId);
+        logger.info("Amount: {}", testAmount);
+        logger.info("Currency: {}", testCurrency);
+        logger.info("Hash string: {}", hashString);
+        logger.info("Generated hash: {}", hash);
     }
 }
