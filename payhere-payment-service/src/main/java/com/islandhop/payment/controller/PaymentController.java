@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -141,6 +142,60 @@ public class PaymentController {
                 "Internal server error: " + e.getMessage()
             );
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+    
+    /**
+     * Handle PayHere payment notification via form parameters (actual PayHere callback)
+     * @param params Form parameters from PayHere
+     * @param httpRequest HTTP request for logging
+     * @return PaymentResponse with notification processing result
+     */
+    @PostMapping("/notify-form")
+    public ResponseEntity<String> handlePayHereNotificationForm(
+            @RequestParam Map<String, String> params,
+            HttpServletRequest httpRequest) {
+        
+        logger.info("Received PayHere form notification from IP: {} for order: {}", 
+                   getClientIpAddress(httpRequest), params.get("order_id"));
+        logger.debug("Form notification details: {}", params);
+        
+        String orderId = params.get("order_id");
+        if (orderId == null || orderId.trim().isEmpty()) {
+            logger.error("Invalid form notification - missing order ID");
+            return ResponseEntity.badRequest().body("Order ID is required");
+        }
+        
+        try {
+            // Create PayHereNotification object from form parameters
+            PayHereNotification notification = new PayHereNotification();
+            notification.setOrderId(orderId);
+            notification.setStatusCode(Integer.parseInt(params.get("status_code")));
+            notification.setStatusMessage(params.get("status_message"));
+            notification.setPaymentId(params.get("payment_id"));
+            notification.setAmount(new BigDecimal(params.get("amount")));
+            notification.setCurrency(params.get("currency"));
+            notification.setMerchantId(params.get("merchant_id"));
+            notification.setPayHereAmount(new BigDecimal(params.get("payhere_amount")));
+            notification.setPayHereCurrency(params.get("payhere_currency"));
+            notification.setMd5Signature(params.get("md5sig"));
+            
+            PaymentResponse response = paymentService.handlePayHereNotification(notification);
+            
+            if ("success".equals(response.getStatus())) {
+                logger.info("PayHere form notification processed successfully for order: {}", orderId);
+                return ResponseEntity.ok("Payment verified");
+            } else if ("pending".equals(response.getStatus())) {
+                logger.info("Payment is pending for order: {}", orderId);
+                return ResponseEntity.ok("Payment pending");
+            } else {
+                logger.error("Payment failed for order: {} - {}", orderId, response.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid signature");
+            }
+            
+        } catch (Exception e) {
+            logger.error("Unexpected error processing PayHere form notification for order: {}", orderId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error");
         }
     }
     

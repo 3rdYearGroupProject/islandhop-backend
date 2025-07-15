@@ -185,22 +185,28 @@ public class PaymentService {
      * @return Generated hash
      */
     private String generatePayHereHash(PaymentRequest paymentRequest) {
-        // PayHere hash formula: merchantId + orderId + amount + currency + merchantSecret
-        // Amount should be formatted with 2 decimal places
+        // PayHere hash procedure:
+        // Step 1: Hash the merchant secret first
+        String hashedMerchantSecret = DigestUtils.md5Hex(merchantSecret.getBytes()).toUpperCase();
+        
+        // Step 2: Format amount with 2 decimal places
         String formattedAmount = String.format("%.2f", paymentRequest.getAmount());
         
+        // Step 3: Create hash string: merchantId + orderId + amount + currency + hashedMerchantSecret
         String hashString = merchantId + 
                            paymentRequest.getOrderId() + 
                            formattedAmount + 
                            paymentRequest.getCurrency() + 
-                           merchantSecret;
+                           hashedMerchantSecret;
         
         logger.debug("Merchant ID: {}", merchantId);
         logger.debug("Merchant Secret (first 10 chars): {}...", merchantSecret.substring(0, Math.min(10, merchantSecret.length())));
+        logger.debug("Hashed Merchant Secret: {}", hashedMerchantSecret);
         logger.debug("Hash string for order {}: {}", paymentRequest.getOrderId(), 
-                    hashString.replaceAll(merchantSecret, "***SECRET***"));
+                    hashString.replace(hashedMerchantSecret, "***HASHED_SECRET***"));
         
-        String hash = DigestUtils.md5Hex(hashString).toUpperCase();
+        // Step 4: Generate final hash
+        String hash = DigestUtils.md5Hex(hashString.getBytes()).toUpperCase();
         logger.debug("Generated hash for order {}: {}", paymentRequest.getOrderId(), hash);
         
         return hash;
@@ -212,18 +218,23 @@ public class PaymentService {
      * @return true if signature is valid
      */
     private boolean verifyNotificationSignature(PayHereNotification notification) {
-        // PayHere notification hash formula: merchantId + orderId + amount + currency + statusCode + merchantSecret
+        // PayHere notification verification procedure:
+        // Step 1: Hash the merchant secret first
+        String hashedMerchantSecret = DigestUtils.md5Hex(merchantSecret.getBytes()).toUpperCase();
+        
+        // Step 2: Create hash string: merchantId + orderId + amount + currency + statusCode + hashedMerchantSecret
         String localHashString = notification.getMerchantId() + 
                                 notification.getOrderId() + 
                                 notification.getPayHereAmount().toString() + 
                                 notification.getPayHereCurrency() + 
                                 notification.getStatusCode() + 
-                                merchantSecret;
+                                hashedMerchantSecret;
         
         logger.debug("Notification hash string for order {}: {}", notification.getOrderId(), 
-                    localHashString.replaceAll(merchantSecret, "***SECRET***"));
+                    localHashString.replace(hashedMerchantSecret, "***HASHED_SECRET***"));
         
-        String localHash = DigestUtils.md5Hex(localHashString).toUpperCase();
+        // Step 3: Generate local hash
+        String localHash = DigestUtils.md5Hex(localHashString.getBytes()).toUpperCase();
         logger.debug("Local hash: {}, PayHere hash: {}", localHash, notification.getMd5Signature());
         
         boolean isValid = localHash.equals(notification.getMd5Signature());
