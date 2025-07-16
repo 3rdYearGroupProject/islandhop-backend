@@ -1,32 +1,26 @@
 package com.islandhop.pooling.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.Map;
 
 /**
- * Response DTO for public group listing.
+ * Response DTO for public trip collaboration listing.
+ * Shows trips available for collaboration, not group details.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class PublicGroupResponse {
     
-    private String groupId;
+    private String groupId; // Internal collaboration ID
     
-    private String groupName;
+    private String tripId; // The trip available for collaboration
     
-    private String tripId;
-    
-    private String destination;
-    
-    private String startDate;
-    
-    private String endDate;
+    private String tripName; // Trip display name
     
     private Map<String, Object> preferences;
     
-    private String message;
+    private int collaboratorCount; // Number of people collaborating
+    
+    private Instant createdAt;
 }

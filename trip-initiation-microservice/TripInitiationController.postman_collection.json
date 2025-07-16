@@ -1,0 +1,33 @@
+{
+  "info": {
+    "name": "Trip Initiation API",
+    "description": "Postman collection for testing Trip Initiation API endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Initiate Trip",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8095/api/trips/initiate",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8095",
+          "path": ["api", "trips", "initiate"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"user_123\",\n  \"tripId\": \"trip_001\",\n  \"preferences\": {\n    \"budgetLevel\": \"Medium\",\n    \"activityPacing\": \"Normal\"\n  }\n}"
+        }
+      },
+      "response": []
+    }
+  ]
+}

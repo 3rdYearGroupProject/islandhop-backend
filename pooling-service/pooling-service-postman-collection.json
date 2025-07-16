@@ -1,0 +1,103 @@
+{
+  "info": {
+    "name": "Pooling Service API Test",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Test collection for Pooling Service endpoints with dummy data."
+  },
+  "item": [
+    {
+      "name": "Create Group",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:8086/v1/groups",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8086",
+          "path": ["v1", "groups"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"user_123\",\n  \"groupName\": \"Test Group\",\n  \"tripId\": \"trip_001\",\n  \"visibility\": \"public\",\n  \"preferences\": {\n    \"activity\": \"Hiking\",\n    \"budget\": \"Medium\"\n  }\n}"
+        }
+      }
+    },
+    {
+      "name": "Invite User",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:8086/v1/groups/group_001/invite",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8086",
+          "path": ["v1", "groups", "group_001", "invite"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"user_123\",\n  \"invitedUserId\": \"user_456\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Join Group",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:8086/v1/groups/group_001/join",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8086",
+          "path": ["v1", "groups", "group_001", "join"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"user_789\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Get Group Details",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8086/v1/groups/group_001?userId=user_123",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8086",
+          "path": ["v1", "groups", "group_001"],
+          "query": [
+            { "key": "userId", "value": "user_123" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Public Groups",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8086/v1/groups/public?userId=user_123",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8086",
+          "path": ["v1", "groups", "public"],
+          "query": [
+            { "key": "userId", "value": "user_123" }
+          ]
+        }
+      }
+    }
+  ]
+}

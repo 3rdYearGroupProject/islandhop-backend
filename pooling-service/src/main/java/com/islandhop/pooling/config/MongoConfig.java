@@ -1,27 +1,53 @@
 package com.islandhop.pooling.config;
 
-import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.config.AbstractMongoClientConfiguration;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.index.IndexOperations;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * MongoDB configuration for the pooling service.
+ * Uses MongoDB Atlas cloud connection.
  */
 @Configuration
+@Slf4j
 public class MongoConfig extends AbstractMongoClientConfiguration {
+    
+    @Value("${spring.data.mongodb.uri}")
+    private String mongoUri;
+    
+    @Value("${spring.data.mongodb.database}")
+    private String databaseName;
     
     @Override
     protected String getDatabaseName() {
-        return "islandhop_pooling";
+        log.info("Using MongoDB database: {}", databaseName);
+        return databaseName;
+    }
+    
+    @Override
+    public MongoClient mongoClient() {
+        log.info("Configuring MongoDB client with Atlas URI");
+        log.info("MongoDB URI: {}", mongoUri.replaceAll("://[^:]+:[^@]+@", "://***:***@")); // Hide credentials in logs
+        
+        ConnectionString connectionString = new ConnectionString(mongoUri);
+        MongoClientSettings mongoClientSettings = MongoClientSettings.builder()
+                .applyConnectionString(connectionString)
+                .build();
+        
+        return MongoClients.create(mongoClientSettings);
     }
     
     /**
      * Create indexes for optimal query performance.
      */
-    @Bean
     public void createIndexes(MongoTemplate mongoTemplate) {
         IndexOperations indexOps = mongoTemplate.indexOps("groups");
         

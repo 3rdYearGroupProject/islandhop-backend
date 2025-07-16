@@ -1,0 +1,30 @@
+spring:
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb+srv://2022cs056:dH4aTFn3IOerWlVZ@cluster0.9ccambx.mongodb.net/islandhop_trips?retryWrites=true&w=majority}
+      database: islandhop_trips
+  datasource:
+    url: jdbc:postgresql://ep-empty-base-a194u9qt-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+    username: neondb_owner
+    password: npg_Ig3thklS7cZm
+    driver-class-name: org.postgresql.Driver
+
+google:
+  maps:
+    api-key: AIzaSyD4ToeGRn5mekbZotV_VOd5I_mes9IL-VY
+
+logging:
+  level:
+    root: INFO
+    com.islandhop.tripinit: DEBUG
+
+server:
+  port: 8095
+  servlet:
+    context-path: /api
+
+cors:
+  allowed-origins: http://localhost:3000
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true

@@ -10,6 +10,10 @@ import java.util.List;
 /**
  * Request DTO for creating a new trip itinerary.
  * Contains all user-provided information needed to initialize a trip plan.
+ * 
+ * Supports both individual and group trips:
+ * - Individual trips: type="individual" (default), groupId=null
+ * - Group trips: type="group", groupId=<group_id_from_pooling_service>
  */
 @Data
 public class CreateTripRequest {
@@ -45,4 +49,9 @@ public class CreateTripRequest {
     private List<String> preferredTerrains = List.of();
 
     private List<String> preferredActivities = List.of();
+
+    @Pattern(regexp = "^(individual|group)$", message = "Trip type must be either 'individual' or 'group'")
+    private String type = "individual"; // Default to individual trip
+
+    private String groupId; // null for individual trips, set for group trips
 }

@@ -1,16 +1,15 @@
 package com.islandhop.pooling.model;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
+
+import java.time.Instant;
 
 /**
  * Represents an action performed on a group (audit log).
  * Nested within Group entity.
+ * Follows consistent patterns with other model classes.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class GroupAction {
     
     private String userId;
@@ -19,18 +18,18 @@ public class GroupAction {
     
     private String details;
     
-    private String timestamp;
+    private Instant timestamp;
     
     /**
      * Create a new group action with current timestamp.
      */
     public static GroupAction create(String userId, String actionType, String details) {
-        return new GroupAction(
-            userId,
-            actionType,
-            details,
-            java.time.Instant.now().toString()
-        );
+        GroupAction action = new GroupAction();
+        action.setUserId(userId);
+        action.setActionType(actionType);
+        action.setDetails(details);
+        action.setTimestamp(Instant.now());
+        return action;
     }
     
     /**

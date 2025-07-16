@@ -1,39 +1,45 @@
 package com.islandhop.pooling.dto;
 
-import com.islandhop.pooling.model.GroupAction;
-import com.islandhop.pooling.model.JoinRequest;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Response DTO for group details.
+ * Shows group information including collaboration details.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class GroupDetailsResponse {
     
-    private String status;
+    private String groupId; // Internal group ID
     
-    private String groupId;
+    private String groupName; // Group name
     
-    private String groupName;
+    private String tripId; // The trip being collaborated on
     
-    private String tripId;
+    private String tripName; // Trip display name
     
-    private List<String> userIds;
+    private String visibility; // private or public collaboration
     
-    private String visibility;
+    private List<String> userIds; // User IDs of members
+    
+    private List<String> collaboratorIds; // Alias for backward compatibility
     
     private Map<String, Object> preferences;
     
-    private List<GroupAction> actions;
+    private Instant createdAt;
     
-    private List<JoinRequest> joinRequests; // Only for creators
+    private Instant lastUpdated;
     
-    private String message;
+    // Convenience methods for backward compatibility
+    public void setCollaboratorIds(List<String> collaboratorIds) {
+        this.collaboratorIds = collaboratorIds;
+        this.userIds = collaboratorIds;
+    }
+    
+    public List<String> getCollaboratorIds() {
+        return userIds;
+    }
 }

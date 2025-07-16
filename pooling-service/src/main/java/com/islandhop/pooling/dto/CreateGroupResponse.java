@@ -1,24 +1,19 @@
 package com.islandhop.pooling.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 /**
- * Response DTO for group creation.
+ * Response DTO for trip collaboration creation.
+ * Users see this as starting trip collaboration, not creating groups.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class CreateGroupResponse {
     
     private String status;
     
-    private String groupId;
+    private String groupId; // Internal ID for collaboration
     
-    private String groupName;
-    
-    private String tripId;
+    private String tripId; // The trip being collaborated on
     
     private String message;
 }

@@ -1,0 +1,31 @@
+# Test configuration for Trip Initiation Microservice
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/test_db
+      database: test_db
+
+google:
+  maps:
+    api:
+      key: test_api_key
+
+logging:
+  level:
+    root: WARN
+    com.islandhop.tripinit: DEBUG
+
+server:
+  port: 0 # Random port for testing

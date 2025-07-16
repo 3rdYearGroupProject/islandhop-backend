@@ -2,7 +2,6 @@ package com.islandhop.adminservice.controller;
 
 import com.islandhop.adminservice.model.SystemStatusResponse;
 import com.islandhop.adminservice.service.SystemStatusService;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -15,12 +14,15 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/admin")
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
-@RequiredArgsConstructor
 public class AdminController {
 
     private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
 
     private final SystemStatusService systemStatusService;
+
+    public AdminController(SystemStatusService systemStatusService) {
+        this.systemStatusService = systemStatusService;
+    }
 
     /**
      * Gets the status of all external services (Redis, Firebase, MongoDB).

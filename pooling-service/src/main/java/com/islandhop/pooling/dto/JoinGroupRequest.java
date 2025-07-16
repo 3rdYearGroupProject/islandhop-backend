@@ -1,47 +1,28 @@
 package com.islandhop.pooling.dto;
 
-import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Map;
 
 /**
  * Request DTO for joining a public group.
+ * Enhanced with email support and user profile information.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class JoinGroupRequest {
     
-    @NotNull(message = "User profile is required")
-    private Map<String, Object> userProfile;
+    @NotBlank(message = "User ID is required")
+    private String userId;
     
-    /**
-     * Convenience methods for accessing common profile fields.
-     */
-    @SuppressWarnings("unchecked")
-    public Map<String, String> getTravelDates() {
-        return (Map<String, String>) userProfile.get("travelDates");
-    }
+    @Email(message = "Valid email address is required")
+    @NotBlank(message = "Email is required")
+    private String userEmail;
     
-    @SuppressWarnings("unchecked")
-    public List<String> getInterests() {
-        return (List<String>) userProfile.get("interests");
-    }
+    private String userName;
     
-    @SuppressWarnings("unchecked")
-    public List<String> getLanguage() {
-        return (List<String>) userProfile.get("language");
-    }
+    private String message; // Optional message explaining why they want to join
     
-    public String getBudgetLevel() {
-        return (String) userProfile.get("budgetLevel");
-    }
-    
-    public String getAgeRange() {
-        return (String) userProfile.get("ageRange");
-    }
+    private Map<String, Object> userProfile; // User's profile information
 }

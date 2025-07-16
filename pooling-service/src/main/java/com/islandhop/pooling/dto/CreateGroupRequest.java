@@ -2,24 +2,25 @@ package com.islandhop.pooling.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
 /**
  * Request DTO for creating a new group.
+ * Follows the same patterns as CreateTripRequest for consistency.
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class CreateGroupRequest {
+    
+    @NotBlank(message = "User ID is required")
+    private String userId;
     
     @NotBlank(message = "Group name is required")
     private String groupName;
     
-    private String tripId; // Optional, will create new trip if not provided
+    @NotBlank(message = "Trip ID is required")
+    private String tripId; // Required - groups are always associated with trips
     
     @Pattern(regexp = "^(private|public)$", message = "Visibility must be either 'private' or 'public'")
     private String visibility = "private";
