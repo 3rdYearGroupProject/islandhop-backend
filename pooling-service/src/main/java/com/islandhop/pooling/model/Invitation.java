@@ -21,6 +21,8 @@ public class Invitation {
     
     private String tripName; // Display name for the trip
     
+    private String groupName; // Group name for display
+    
     private String inviterUserId;
     
     private String inviterEmail;

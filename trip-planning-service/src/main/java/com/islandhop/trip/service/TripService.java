@@ -184,6 +184,8 @@ public class TripService {
         tripPlan.setBudgetLevel(request.getBudgetLevel() != null ? request.getBudgetLevel() : "Medium");
         tripPlan.setPreferredTerrains(request.getPreferredTerrains() != null ? request.getPreferredTerrains() : List.of());
         tripPlan.setPreferredActivities(request.getPreferredActivities() != null ? request.getPreferredActivities() : List.of());
+        tripPlan.setType(request.getType() != null ? request.getType() : "individual");
+        tripPlan.setGroupId(request.getGroupId()); // null for individual trips
         tripPlan.setDailyPlans(dailyPlans);
         tripPlan.setMapData(List.of());
         tripPlan.setCreatedAt(now);

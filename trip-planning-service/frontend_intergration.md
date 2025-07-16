@@ -26,6 +26,10 @@ interface CreateTripRequest {
     budgetLevel?: "Low" | "Medium" | "High";         // Default: "Medium"
     preferredTerrains?: string[];     // Array of terrain preferences
     preferredActivities?: string[];   // Array of activity preferences
+    
+    // TRIP TYPE FIELDS - For pooling integration
+    type?: "individual" | "group";    // Default: "individual"
+    groupId?: string;                 // null for individual trips, set for group trips
 }
 ```
 
@@ -55,6 +59,24 @@ interface CreateTripServerError {
     message: "Internal server error";
 }
 ```
+
+#### 🤝 Pooling Integration (Individual vs Group Trips)
+
+**Individual Trips (Default Behavior)**
+- `type`: "individual" (default)
+- `groupId`: null (default)
+- The trip is created for a single user and not linked to any group
+
+**Group Trips (Pooling Service Integration)**
+- `type`: "group" 
+- `groupId`: Set to the group ID from the pooling service
+- The trip is linked to a group created via the pooling service
+
+**Key Points:**
+- Existing frontend code will continue to work unchanged (defaults to individual trips)
+- For group trips, the pooling service provides the `groupId` when creating the trip
+- The trip-planning service stores the group association but doesn't manage group logic
+- Group trip coordination is handled by the pooling service
 
 #### 🔧 Complete JavaScript Implementation
 
@@ -104,7 +126,9 @@ const createTripItinerary = async (tripData) => {
         activityPacing: tripData.activityPacing || "Normal",
         budgetLevel: tripData.budgetLevel || "Medium",
         preferredTerrains: tripData.preferredTerrains || [],
-        preferredActivities: tripData.preferredActivities || []
+        preferredActivities: tripData.preferredActivities || [],
+        type: tripData.type || "individual",
+        groupId: tripData.groupId || null
     };
 
     try {
@@ -175,7 +199,9 @@ const createTripWithAxios = async (tripData) => {
             activityPacing: tripData.activityPacing || "Normal",
             budgetLevel: tripData.budgetLevel || "Medium",
             preferredTerrains: tripData.preferredTerrains || [],
-            preferredActivities: tripData.preferredActivities || []
+            preferredActivities: tripData.preferredActivities || [],
+            type: tripData.type || "individual",
+            groupId: tripData.groupId || null
         });
 
         return response.data;
@@ -217,7 +243,9 @@ const fullTripExample = {
     activityPacing: "Normal",
     budgetLevel: "Medium",
     preferredTerrains: ["Beach", "Mountain", "Historical", "National Park"],
-    preferredActivities: ["Hiking", "Cultural Tours", "Wildlife Safari", "Photography"]
+    preferredActivities: ["Hiking", "Cultural Tours", "Wildlife Safari", "Photography"],
+    type: "individual",  // Individual trip (default)
+    groupId: null        // No group ID for individual trips
 };
 
 // Execute
@@ -249,7 +277,33 @@ createTripItinerary(minimalTripExample)
     });
 ```
 
-**EXAMPLE 3: Error Handling Demo (Invalid Data)**
+**EXAMPLE 3: Group Trip (Pooling Integration)**
+```javascript
+const groupTripExample = {
+    userId: "user_456",
+    tripName: "Sri Lanka Adventure Group",
+    startDate: "2025-09-01",
+    endDate: "2025-09-07",
+    baseCity: "Colombo",
+    arrivalTime: "14:00",
+    multiCityAllowed: true,
+    activityPacing: "Normal",
+    budgetLevel: "Medium",
+    preferredTerrains: ["Beach", "Mountain"],
+    preferredActivities: ["Hiking", "Cultural Tours"],
+    type: "group",                    // Group trip
+    groupId: "group_abc123"           // Group ID from pooling service
+};
+
+createTripItinerary(groupTripExample)
+    .then(result => {
+        console.log('🎯 Group trip created:', result.tripId);
+        console.log('👥 Group ID:', groupTripExample.groupId);
+        // This trip will be linked to the group in the pooling service
+    });
+```
+
+**EXAMPLE 4: Error Handling Demo (Invalid Data)**
 ```javascript
 const invalidTripExample = {
     userId: "",  // Empty - will cause validation error

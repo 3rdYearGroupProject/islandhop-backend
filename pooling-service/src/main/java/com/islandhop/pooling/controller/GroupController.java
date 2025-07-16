@@ -52,6 +52,87 @@ public class GroupController {
     }
     
     /**
+     * Creates a new public pooling group with trip planning.
+     * This endpoint creates a group and trip simultaneously for public pooling.
+     *
+     * @param request The group with trip creation request
+     * @return ResponseEntity with the created group and trip details
+     */
+    @PostMapping("/with-trip")
+    public ResponseEntity<CreateGroupWithTripResponse> createGroupWithTrip(@Valid @RequestBody CreateGroupWithTripRequest request) {
+        try {
+            log.info("Creating group with trip '{}' for user '{}'", request.getGroupName(), request.getUserId());
+            CreateGroupWithTripResponse response = groupService.createGroupWithTrip(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (GroupCreationException e) {
+            log.warn("Group with trip creation failed for user {}: {}", request.getUserId(), e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error creating group with trip for user {}: {}", request.getUserId(), e.getMessage(), e);
+            throw new GroupCreationException("Failed to create group with trip: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gets trip suggestions for a group based on compatibility.
+     * This endpoint is called when user wants to finalize their trip to check for similar groups.
+     *
+     * @param groupId The ID of the group
+     * @param userId The requesting user's ID
+     * @return ResponseEntity with trip suggestions
+     */
+    @GetMapping("/{groupId}/trip-suggestions")
+    public ResponseEntity<TripSuggestionsResponse> getTripSuggestions(
+            @PathVariable String groupId,
+            @RequestParam String userId) {
+        try {
+            log.info("Getting trip suggestions for group '{}' by user '{}'", groupId, userId);
+            TripSuggestionsResponse response = groupService.getTripSuggestions(groupId, userId);
+            return ResponseEntity.ok(response);
+        } catch (GroupNotFoundException e) {
+            log.warn("Group not found for trip suggestions: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException e) {
+            log.warn("Unauthorized access to trip suggestions: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error getting trip suggestions for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get trip suggestions: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Finalizes a trip or joins an existing group.
+     * This endpoint handles the user's choice after seeing trip suggestions.
+     *
+     * @param groupId The ID of the group
+     * @param request The finalize trip request
+     * @return ResponseEntity with finalization result
+     */
+    @PostMapping("/{groupId}/finalize-trip")
+    public ResponseEntity<FinalizeTripResponse> finalizeTrip(
+            @PathVariable String groupId,
+            @Valid @RequestBody FinalizeTripRequest request) {
+        try {
+            log.info("Finalizing trip for group '{}' by user '{}' with action '{}'", groupId, request.getUserId(), request.getAction());
+            FinalizeTripResponse response = groupService.finalizeTrip(groupId, request);
+            return ResponseEntity.ok(response);
+        } catch (GroupNotFoundException e) {
+            log.warn("Group not found for trip finalization: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException e) {
+            log.warn("Unauthorized access to finalize trip: {}", e.getMessage());
+            throw e;
+        } catch (InvalidGroupOperationException e) {
+            log.warn("Invalid trip finalization operation: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error finalizing trip for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to finalize trip: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Invites a user to a private group.
      *
      * @param groupId The ID of the group

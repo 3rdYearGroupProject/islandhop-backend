@@ -1,57 +1,58 @@
-package com.islandhop.trip.dto;
+package com.islandhop.pooling.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * Request DTO for creating a new trip itinerary.
- * Contains all user-provided information needed to initialize a trip plan.
- * 
- * Supports both individual and group trips:
- * - Individual trips: type="individual" (default), groupId=null
- * - Group trips: type="group", groupId=<group_id_from_pooling_service>
+ * Request DTO for creating a new public pooling group.
+ * Includes trip planning preferences and group configuration.
  */
 @Data
-public class CreateTripRequest {
-
+public class CreatePublicPoolingGroupRequest {
+    
     @NotBlank(message = "User ID is required")
     private String userId;
-
+    
+    @NotBlank(message = "Group name is required")
+    private String groupName;
+    
     @NotBlank(message = "Trip name is required")
     private String tripName;
-
+    
     @NotBlank(message = "Start date is required")
     @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}", message = "Start date must be in YYYY-MM-DD format")
     private String startDate;
-
+    
     @NotBlank(message = "End date is required")
     @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}", message = "End date must be in YYYY-MM-DD format")
     private String endDate;
-
-    @Pattern(regexp = "^$|^([01]?[0-9]|2[0-3]):[0-5][0-9]$", message = "Arrival time must be in HH:mm format or empty")
-    private String arrivalTime = "";
-
+    
     @NotBlank(message = "Base city is required")
     private String baseCity;
-
+    
+    @Pattern(regexp = "^$|^([01]?[0-9]|2[0-3]):[0-5][0-9]$", message = "Arrival time must be in HH:mm format or empty")
+    private String arrivalTime = "";
+    
     private Boolean multiCityAllowed = true;
-
+    
     @Pattern(regexp = "^(Relaxed|Normal|Fast)$", message = "Activity pacing must be one of: Relaxed, Normal, Fast")
     private String activityPacing = "Normal";
-
+    
     @Pattern(regexp = "^(Low|Medium|High)$", message = "Budget level must be one of: Low, Medium, High")
     private String budgetLevel = "Medium";
-
+    
     private List<String> preferredTerrains = List.of();
-
+    
     private List<String> preferredActivities = List.of();
-
-    @Pattern(regexp = "^(individual|group)$", message = "Trip type must be either 'individual' or 'group'")
-    private String type = "individual"; // Default to individual trip
-
-    private String groupId; // null for individual trips, set for group trips
+    
+    @Min(value = 2, message = "Maximum members must be at least 2")
+    @Max(value = 20, message = "Maximum members cannot exceed 20")
+    private Integer maxMembers = 6; // Default group size
+    
+    private Boolean requiresApproval = false; // Default to open joining for public groups
+    
+    private Map<String, Object> additionalPreferences; // For future extensibility
 }

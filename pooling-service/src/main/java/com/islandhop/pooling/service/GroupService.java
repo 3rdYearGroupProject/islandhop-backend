@@ -8,6 +8,7 @@ import com.islandhop.pooling.model.JoinRequest;
 import com.islandhop.pooling.model.Invitation;
 import com.islandhop.pooling.repository.GroupRepository;
 import com.islandhop.pooling.repository.InvitationRepository;
+import com.islandhop.pooling.client.ItineraryServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,8 @@ public class GroupService {
     
     private final GroupRepository groupRepository;
     private final InvitationRepository invitationRepository;
+    private final ItineraryServiceClient itineraryServiceClient;
+    private final TripCompatibilityService tripCompatibilityService;
     
     /**
      * Creates a new travel group for an existing trip.
@@ -77,9 +80,6 @@ public class GroupService {
             response.setMessage("Trip collaboration started successfully");
             
             log.info("Trip collaboration group created with ID: {}", groupId);
-            return response;
-            
-            log.info("Group '{}' created successfully with ID: {}", request.getGroupName(), groupId);
             return response;
             
         } catch (IllegalArgumentException e) {
@@ -539,7 +539,8 @@ public class GroupService {
                     InvitationListResponse.InvitationSummary summary = new InvitationListResponse.InvitationSummary();
                     summary.setInvitationId(invitation.getId());
                     summary.setGroupId(invitation.getGroupId());
-                    summary.setGroupName(invitation.getGroupName());
+                    summary.setTripId(invitation.getTripId());
+                    summary.setTripName(invitation.getTripName());
                     summary.setInviterName(invitation.getInviterName());
                     summary.setInviterEmail(invitation.getInviterEmail());
                     summary.setMessage(invitation.getMessage());
@@ -561,5 +562,285 @@ public class GroupService {
             log.error("Error getting user invitations: {}", e.getMessage(), e);
             throw new GroupCreationException("Failed to get invitations: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Creates a new public pooling group with trip planning.
+     * This method creates both the group and the trip simultaneously.
+     *
+     * @param request The group with trip creation request
+     * @return CreateGroupWithTripResponse with group and trip details
+     * @throws GroupCreationException if creation fails
+     */
+    public CreateGroupWithTripResponse createGroupWithTrip(CreateGroupWithTripRequest request) {
+        log.info("Creating group with trip for user {}", request.getUserId());
+        
+        try {
+            // Validate input
+            validateCreateGroupWithTripRequest(request);
+            
+            // Create trip first
+            Map<String, Object> tripData = buildTripData(request);
+            Map<String, Object> tripResponse = itineraryServiceClient.createTripPlan(request.getUserId(), tripData).block();
+            
+            if (tripResponse == null || !"success".equals(tripResponse.get("status"))) {
+                throw new GroupCreationException("Failed to create trip plan");
+            }
+            
+            String tripId = (String) tripResponse.get("tripId");
+            
+            // Generate group ID
+            String groupId = UUID.randomUUID().toString();
+            
+            // Create group entity
+            Group group = new Group();
+            group.setId(groupId);
+            group.setGroupName(request.getGroupName());
+            group.setTripId(tripId);
+            group.setVisibility(request.getVisibility());
+            group.setStatus("draft"); // Start as draft for public pooling
+            group.setMaxMembers(request.getMaxMembers());
+            group.setRequiresApproval(request.getRequiresApproval());
+            group.setUserIds(List.of(request.getUserId()));
+            group.setCreatedAt(Instant.now());
+            group.setLastUpdated(Instant.now());
+            
+            // Store trip preferences for compatibility matching
+            Map<String, Object> preferences = new HashMap<>();
+            preferences.put("tripName", request.getTripName());
+            preferences.put("startDate", request.getStartDate());
+            preferences.put("endDate", request.getEndDate());
+            preferences.put("baseCity", request.getBaseCity());
+            preferences.put("arrivalTime", request.getArrivalTime());
+            preferences.put("multiCityAllowed", request.getMultiCityAllowed());
+            preferences.put("activityPacing", request.getActivityPacing());
+            preferences.put("budgetLevel", request.getBudgetLevel());
+            preferences.put("preferredTerrains", request.getPreferredTerrains());
+            preferences.put("preferredActivities", request.getPreferredActivities());
+            preferences.putAll(request.getAdditionalPreferences() != null ? request.getAdditionalPreferences() : new HashMap<>());
+            group.setPreferences(preferences);
+            
+            // Add creation action
+            GroupAction createAction = GroupAction.create(
+                request.getUserId(),
+                "GROUP_WITH_TRIP_CREATED",
+                "Created public pooling group with trip: " + request.getTripName()
+            );
+            group.setActions(List.of(createAction));
+            
+            // Save group
+            Group savedGroup = groupRepository.save(group);
+            
+            // Create response
+            CreateGroupWithTripResponse response = new CreateGroupWithTripResponse();
+            response.setStatus("success");
+            response.setGroupId(savedGroup.getId());
+            response.setTripId(tripId);
+            response.setMessage("Group with trip created successfully");
+            response.setDraft(true);
+            
+            log.info("Group with trip created successfully: groupId={}, tripId={}", groupId, tripId);
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Error creating group with trip: {}", e.getMessage(), e);
+            throw new GroupCreationException("Failed to create group with trip: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gets trip suggestions for a group based on compatibility.
+     * This method analyzes existing public groups and finds compatible ones.
+     *
+     * @param groupId The ID of the group
+     * @param userId The requesting user's ID
+     * @return TripSuggestionsResponse with compatible groups
+     * @throws GroupCreationException if operation fails
+     */
+    public TripSuggestionsResponse getTripSuggestions(String groupId, String userId) {
+        log.info("Getting trip suggestions for group {} by user {}", groupId, userId);
+        
+        try {
+            // Get group
+            Group group = groupRepository.findById(groupId)
+                    .orElseThrow(() -> new GroupNotFoundException("Group not found: " + groupId));
+            
+            // Verify user is creator
+            if (!group.isCreator(userId)) {
+                throw new UnauthorizedGroupAccessException("Only group creator can get trip suggestions");
+            }
+            
+            // Get trip data from itinerary service
+            Map<String, Object> tripData = itineraryServiceClient.getTripPlan(group.getTripId(), userId).block();
+            
+            if (tripData == null) {
+                throw new GroupCreationException("Could not retrieve trip data");
+            }
+            
+            // Find compatible groups
+            List<TripSuggestionsResponse.CompatibleGroup> compatibleGroups = 
+                    tripCompatibilityService.findCompatibleGroups(group, tripData);
+            
+            // Create response
+            TripSuggestionsResponse response = new TripSuggestionsResponse();
+            response.setStatus("success");
+            response.setGroupId(groupId);
+            response.setTripId(group.getTripId());
+            response.setSuggestions(compatibleGroups);
+            response.setMessage(compatibleGroups.isEmpty() ? 
+                    "No compatible groups found. You can proceed with your trip." : 
+                    "Found " + compatibleGroups.size() + " compatible groups.");
+            
+            log.info("Found {} compatible groups for group {}", compatibleGroups.size(), groupId);
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Error getting trip suggestions: {}", e.getMessage(), e);
+            throw new GroupCreationException("Failed to get trip suggestions: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Finalizes a trip or joins an existing group.
+     * Handles the user's decision after seeing trip suggestions.
+     *
+     * @param groupId The ID of the group
+     * @param request The finalize trip request
+     * @return FinalizeTripResponse with result
+     * @throws GroupCreationException if operation fails
+     */
+    public FinalizeTripResponse finalizeTrip(String groupId, FinalizeTripRequest request) {
+        log.info("Finalizing trip for group {} by user {} with action {}", groupId, request.getUserId(), request.getAction());
+        
+        try {
+            // Get group
+            Group group = groupRepository.findById(groupId)
+                    .orElseThrow(() -> new GroupNotFoundException("Group not found: " + groupId));
+            
+            // Verify user is creator
+            if (!group.isCreator(request.getUserId())) {
+                throw new UnauthorizedGroupAccessException("Only group creator can finalize trip");
+            }
+            
+            FinalizeTripResponse response = new FinalizeTripResponse();
+            response.setGroupId(groupId);
+            response.setTripId(group.getTripId());
+            
+            if ("finalize".equals(request.getAction())) {
+                // Finalize current group
+                group.finalize();
+                
+                // Add finalization action
+                GroupAction finalizeAction = GroupAction.create(
+                    request.getUserId(),
+                    "TRIP_FINALIZED",
+                    "Finalized trip and made group active"
+                );
+                group.getActions().add(finalizeAction);
+                
+                groupRepository.save(group);
+                
+                response.setStatus("success");
+                response.setMessage("Trip finalized successfully");
+                response.setAction("finalized");
+                response.setSuccess(true);
+                
+                log.info("Trip finalized for group {}", groupId);
+                
+            } else if ("join".equals(request.getAction())) {
+                // Join existing group
+                if (request.getTargetGroupId() == null) {
+                    throw new InvalidGroupOperationException("Target group ID is required for join action");
+                }
+                
+                // Get target group
+                Group targetGroup = groupRepository.findById(request.getTargetGroupId())
+                        .orElseThrow(() -> new GroupNotFoundException("Target group not found: " + request.getTargetGroupId()));
+                
+                // Add user to target group
+                targetGroup.addUser(request.getUserId());
+                
+                // Add join action to target group
+                GroupAction joinAction = GroupAction.create(
+                    request.getUserId(),
+                    "USER_JOINED_FROM_SUGGESTION",
+                    "Joined group from trip compatibility suggestion"
+                );
+                targetGroup.getActions().add(joinAction);
+                
+                groupRepository.save(targetGroup);
+                
+                // Delete current group and its trip
+                // Note: In a real implementation, you might want to soft-delete
+                groupRepository.delete(group);
+                
+                response.setStatus("success");
+                response.setMessage("Successfully joined existing group");
+                response.setAction("joined");
+                response.setGroupId(targetGroup.getId());
+                response.setTripId(targetGroup.getTripId());
+                response.setSuccess(true);
+                
+                log.info("User {} joined existing group {} and discarded group {}", request.getUserId(), request.getTargetGroupId(), groupId);
+                
+            } else {
+                throw new InvalidGroupOperationException("Invalid action: " + request.getAction());
+            }
+            
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Error finalizing trip: {}", e.getMessage(), e);
+            throw new GroupCreationException("Failed to finalize trip: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Validates create group with trip request.
+     */
+    private void validateCreateGroupWithTripRequest(CreateGroupWithTripRequest request) {
+        if (request.getUserId() == null || request.getUserId().trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID is required");
+        }
+        
+        if (request.getGroupName() == null || request.getGroupName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Group name is required");
+        }
+        
+        if (request.getTripName() == null || request.getTripName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Trip name is required");
+        }
+        
+        if (request.getStartDate() == null || request.getEndDate() == null) {
+            throw new IllegalArgumentException("Start date and end date are required");
+        }
+        
+        if (request.getBaseCity() == null || request.getBaseCity().trim().isEmpty()) {
+            throw new IllegalArgumentException("Base city is required");
+        }
+        
+        if (request.getMaxMembers() < 2 || request.getMaxMembers() > 20) {
+            throw new IllegalArgumentException("Maximum members must be between 2 and 20");
+        }
+    }
+    
+    /**
+     * Builds trip data for itinerary service.
+     */
+    private Map<String, Object> buildTripData(CreateGroupWithTripRequest request) {
+        Map<String, Object> tripData = new HashMap<>();
+        tripData.put("userId", request.getUserId());
+        tripData.put("tripName", request.getTripName());
+        tripData.put("startDate", request.getStartDate());
+        tripData.put("endDate", request.getEndDate());
+        tripData.put("baseCity", request.getBaseCity());
+        tripData.put("arrivalTime", request.getArrivalTime());
+        tripData.put("multiCityAllowed", request.getMultiCityAllowed());
+        tripData.put("activityPacing", request.getActivityPacing());
+        tripData.put("budgetLevel", request.getBudgetLevel());
+        tripData.put("preferredTerrains", request.getPreferredTerrains());
+        tripData.put("preferredActivities", request.getPreferredActivities());
+        tripData.put("type", "group"); // Mark as group trip
+        return tripData;
     }
 }

@@ -19,6 +19,7 @@ public class InvitationListResponse {
     @Data
     public static class InvitationSummary {
         private String invitationId;
+        private String groupId;
         private String tripId;
         private String tripName;
         private String inviterName;

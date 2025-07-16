@@ -16,6 +16,9 @@ public class CreateGroupRequest {
     @NotBlank(message = "User ID is required")
     private String userId;
     
+    @NotBlank(message = "Group name is required")
+    private String groupName;
+    
     @NotBlank(message = "Trip ID is required")
     private String tripId; // Required - groups are always associated with trips
     

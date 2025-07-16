@@ -25,6 +25,8 @@ public class Group {
     @Indexed
     private String tripId; // The trip this group is associated with
     
+    private String groupName; // Display name for the group
+    
     private List<String> userIds = new ArrayList<>();
     
     @Indexed
@@ -32,6 +34,8 @@ public class Group {
     
     @Indexed
     private Map<String, Object> preferences;
+    
+    private String status = "draft"; // "draft", "active", "finalized"
     
     private List<JoinRequest> joinRequests = new ArrayList<>();
     
@@ -96,6 +100,43 @@ public class Group {
      */
     public boolean isPrivate() {
         return "private".equals(visibility);
+    }
+    
+    /**
+     * Check if the group is a draft (not finalized).
+     */
+    public boolean isDraft() {
+        return "draft".equals(status);
+    }
+    
+    /**
+     * Check if the group is active.
+     */
+    public boolean isActive() {
+        return "active".equals(status);
+    }
+    
+    /**
+     * Check if the group is finalized.
+     */
+    public boolean isFinalized() {
+        return "finalized".equals(status);
+    }
+    
+    /**
+     * Mark the group as finalized.
+     */
+    public void finalize() {
+        this.status = "finalized";
+        this.lastUpdated = Instant.now();
+    }
+    
+    /**
+     * Mark the group as active.
+     */
+    public void activate() {
+        this.status = "active";
+        this.lastUpdated = Instant.now();
     }
     
     /**

@@ -41,4 +41,14 @@ public interface GroupRepository extends MongoRepository<Group, String> {
      */
     @Query("{'visibility': 'public', 'preferences.destination': ?0}")
     List<Group> findPublicGroupsByDestination(String destination);
+    
+    /**
+     * Find groups by visibility and status, excluding a specific group.
+     */
+    List<Group> findByVisibilityAndStatusAndIdNot(String visibility, String status, String excludeId);
+    
+    /**
+     * Find groups by visibility and status.
+     */
+    List<Group> findByVisibilityAndStatus(String visibility, String status);
 }
