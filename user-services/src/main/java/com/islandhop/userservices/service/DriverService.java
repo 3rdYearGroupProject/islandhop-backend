@@ -305,4 +305,34 @@ public class DriverService {
         
         return response;
     }
+
+    public DriverProfile uploadDrivingLicense(String email, MultipartFile licenseFile) throws Exception {
+        DriverProfile profile = profileRepository.findByEmail(email);
+        if (profile == null) {
+            throw new Exception("Driver profile not found for email: " + email);
+        }
+        if (licenseFile == null || licenseFile.isEmpty()) {
+            throw new Exception("License file is empty");
+        }
+        // Convert file to base64 string
+        String base64Image = Base64.getEncoder().encodeToString(licenseFile.getBytes());
+        profile.setDrivingLicenseImage(base64Image);
+        profile.setDrivingLicenseUploadedDate(java.time.LocalDate.now());
+        return profileRepository.save(profile);
+    }
+
+    public DriverProfile uploadSltdaLicense(String email, MultipartFile sltdaFile) throws Exception {
+        DriverProfile profile = profileRepository.findByEmail(email);
+        if (profile == null) {
+            throw new Exception("Driver profile not found for email: " + email);
+        }
+        if (sltdaFile == null || sltdaFile.isEmpty()) {
+            throw new Exception("SLTDA license file is empty");
+        }
+        // Convert file to base64 string
+        String base64Image = Base64.getEncoder().encodeToString(sltdaFile.getBytes());
+        profile.setSltdaLicenseImage(base64Image);
+        profile.setSltdaLicenseUploadedDate(java.time.LocalDate.now());
+        return profileRepository.save(profile);
+    }
 }
