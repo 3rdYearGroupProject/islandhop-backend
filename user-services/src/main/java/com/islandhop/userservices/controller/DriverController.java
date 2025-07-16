@@ -17,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -264,6 +266,48 @@ public class DriverController {
         } catch (Exception e) {
             logger.error("Error updating driver vehicle: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error updating vehicle data");
+        }
+    }
+
+    /**
+     * Uploads the driver's license document only.
+     */
+    @PostMapping("/uploadDrivingLicense")
+    public ResponseEntity<?> uploadDrivingLicense(HttpSession session,
+                                                  @RequestParam("drivingLicense") MultipartFile drivingLicense) {
+        String email = (String) session.getAttribute("userEmail");
+        if (email == null || email.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+        if (drivingLicense == null || drivingLicense.isEmpty()) {
+            return ResponseEntity.badRequest().body("Driving license file is required");
+        }
+        try {
+            driverService.uploadDrivingLicense(email, drivingLicense);
+            return ResponseEntity.ok("Driving license uploaded successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error uploading driving license");
+        }
+    }
+
+    /**
+     * Uploads the SLTDA license document only.
+     */
+    @PostMapping("/uploadSltdaLicense")
+    public ResponseEntity<?> uploadSltdaLicense(HttpSession session,
+                                                @RequestParam("sltdaLicense") MultipartFile sltdaLicense) {
+        String email = (String) session.getAttribute("userEmail");
+        if (email == null || email.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+        if (sltdaLicense == null || sltdaLicense.isEmpty()) {
+            return ResponseEntity.badRequest().body("SLTDA license file is required");
+        }
+        try {
+            driverService.uploadSltdaLicense(email, sltdaLicense);
+            return ResponseEntity.ok("SLTDA license uploaded successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error uploading SLTDA license");
         }
     }
 }
