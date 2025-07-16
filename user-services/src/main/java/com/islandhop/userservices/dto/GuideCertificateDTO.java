@@ -5,10 +5,13 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.util.Base64;
+import java.util.UUID;
+
+
 
 @Data
 public class GuideCertificateDTO {
-    private Long id;
+    private UUID id;
     private String email;
     private String certificateId;
     private String certificateIssuer;

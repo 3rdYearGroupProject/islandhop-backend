@@ -117,7 +117,7 @@ public class GuideController {
         if (profile == null) {
             return ResponseEntity.notFound().build();
         }
-
+        logger.info("Guide profile retrieved for: {}", profile);
         return ResponseEntity.ok(profile);
     }
 
@@ -233,9 +233,10 @@ public class GuideController {
      */
     @PutMapping("/certificates")
     public ResponseEntity<?> updateCertificates(@RequestBody Map<String, Object> requestBody, HttpSession session) {
-        logger.info("PUT /guide/certificates called with body: {}", requestBody);
+        //logger.info("PUT /guide/certificates called with body: {}", requestBody);
         
         String email = (String) session.getAttribute("userEmail");
+        logger.info("(put)Updating certificates for guide: {}", email);
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -247,7 +248,7 @@ public class GuideController {
 
         try {
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> certificatesData = (List<Map<String, Object>>) requestBody.get("certificates");
+            List<Map<String, Object>> certificatesData = (List<Map<String, Object>>) requestBody.get("certifications");
             
             if (certificatesData == null) {
                 return ResponseEntity.badRequest().body("Missing certificates data");
@@ -267,31 +268,30 @@ public class GuideController {
      * Adds a single certificate for the authenticated guide.
      */
     @PostMapping("/certificates")
-    public ResponseEntity<?> addCertificate(@RequestBody Map<String, Object> requestBody, HttpSession session) {
-        logger.info("POST /guide/certificates called with body: {}", requestBody);
-        
-        String email = (String) session.getAttribute("userEmail");
-        if (email == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
-        }
-
-        if (!accountRepository.existsByEmail(email)) {
-            logger.warn("Certificate addition attempted for non-existent guide: {}", email);
-            return ResponseEntity.badRequest().body("Guide account does not exist");
-        }
-
-        try {
-            GuideCertificate certificate = guideService.saveCertificate(email, requestBody);
-            GuideCertificateDTO certificateDTO = GuideCertificateDTO.fromEntity(certificate);
-            logger.info("Certificate added for: {}", email);
-            return ResponseEntity.ok(certificateDTO);
-        } catch (Exception e) {
-            logger.error("Error adding certificate for {}: {}", email, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error adding certificate: " + e.getMessage());
-        }
+public ResponseEntity<?> addCertificate(@RequestBody Map<String, Object> requestBody, HttpSession session) {
+    String email = (String) session.getAttribute("userEmail");
+    logger.info("(post)Adding certificate for guide: {}", email);
+    
+    if (email == null) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
     }
 
+    if (!accountRepository.existsByEmail(email)) {
+        logger.warn("Certificate addition attempted for non-existent guide: {}", email);
+        return ResponseEntity.badRequest().body("Guide account does not exist");
+    }
+
+    try {
+        GuideCertificate certificate = guideService.saveCertificate(email, requestBody);
+        GuideCertificateDTO certificateDTO = GuideCertificateDTO.fromEntity(certificate);
+        logger.info("Certificate added for: {}", email);
+        return ResponseEntity.ok(certificateDTO);
+    } catch (Exception e) {
+        logger.error("Full exception stack trace for {}: ", email, e); // This will show the full stack trace
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body("Error adding certificate: " + e.getMessage());
+    }
+}
     // Language Management Endpoints
 
     /**
