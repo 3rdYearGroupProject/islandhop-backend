@@ -1,13 +1,14 @@
 package com.islandhop.adminservice.service.impl;
 
 import com.google.cloud.firestore.Firestore;
-import com.google.firebase.FirebaseApp;
 import com.google.firebase.cloud.FirestoreClient;
 import com.islandhop.adminservice.model.SystemStatusResponse;
 import com.islandhop.adminservice.service.SystemStatusService;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -20,13 +21,17 @@ import org.bson.Document;
  * Provides concrete methods to check the health of external services.
  */
 @Service
-@RequiredArgsConstructor
 public class SystemStatusServiceImpl implements SystemStatusService {
 
     private static final Logger logger = LoggerFactory.getLogger(SystemStatusServiceImpl.class);
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final MongoTemplate mongoTemplate;
+
+    public SystemStatusServiceImpl(RedisTemplate<String, Object> redisTemplate, MongoTemplate mongoTemplate) {
+        this.redisTemplate = redisTemplate;
+        this.mongoTemplate = mongoTemplate;
+    }
 
     @Override
     public SystemStatusResponse getSystemStatus() {

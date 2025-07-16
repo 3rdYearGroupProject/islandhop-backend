@@ -145,6 +145,25 @@ public class FirebaseUserController {
         }
     }
 
+    /**
+     * Get Firebase UID by email.
+     *
+     * @param email the email address
+     * @return response with Firebase UID
+     */
+    @GetMapping("/uid-by-email")
+    public ResponseEntity<?> getUidByEmail(@RequestParam String email) {
+        logger.info("API GET /uid-by-email - Retrieving UID for email: {}", email);
+        try {
+            String firebaseUid = firebaseUserService.getUidByEmail(email);
+            logger.info("Successfully retrieved UID for email {}: {}", email, firebaseUid);
+            return ResponseEntity.ok().body(Map.of("uid", firebaseUid));
+        } catch (Exception e) {
+            logger.error("Error retrieving UID for email {}: {}", email, e.getMessage());
+            return ResponseEntity.status(404).body(error("Failed to retrieve UID for email: " + e.getMessage()));
+        }
+    }
+
     private static Map<String, String> error(String msg) {
         return Map.of("error", msg);
     }
