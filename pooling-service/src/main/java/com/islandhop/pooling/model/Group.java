@@ -24,9 +24,7 @@ public class Group {
     
     @Indexed
     private String tripId; // The trip this group is associated with
-    
-    private String groupName; // Display name for the group
-    
+        
     private List<String> userIds = new ArrayList<>();
     
     @Indexed

@@ -51,4 +51,40 @@ public interface GroupRepository extends MongoRepository<Group, String> {
      * Find groups by visibility and status.
      */
     List<Group> findByVisibilityAndStatus(String visibility, String status);
+    
+    /**
+     * Find public groups with filtering capabilities.
+     */
+    @Query("{'visibility': 'public', 'status': 'finalized'}")
+    List<Group> findPublicFinalizedGroups();
+    
+    /**
+     * Find public groups by base city.
+     */
+    @Query("{'visibility': 'public', 'preferences.baseCity': ?0}")
+    List<Group> findPublicGroupsByBaseCity(String baseCity);
+    
+    /**
+     * Find public groups by budget level.
+     */
+    @Query("{'visibility': 'public', 'preferences.budgetLevel': ?0}")
+    List<Group> findPublicGroupsByBudgetLevel(String budgetLevel);
+    
+    /**
+     * Find public groups by date range.
+     */
+    @Query("{'visibility': 'public', 'preferences.startDate': ?0, 'preferences.endDate': ?1}")
+    List<Group> findPublicGroupsByDateRange(String startDate, String endDate);
+    
+    /**
+     * Find public groups with complex filtering.
+     */
+    @Query("{'visibility': 'public', 'status': 'finalized', " +
+           "$and': [" +
+           "{'$or': [{'preferences.baseCity': {$exists: false}}, {'preferences.baseCity': ?0}]}, " +
+           "{'$or': [{'preferences.budgetLevel': {$exists: false}}, {'preferences.budgetLevel': ?1}]}, " +
+           "{'$or': [{'preferences.startDate': {$exists: false}}, {'preferences.startDate': ?2}]}, " +
+           "{'$or': [{'preferences.endDate': {$exists: false}}, {'preferences.endDate': ?3}]}" +
+           "]}")
+    List<Group> findPublicGroupsWithFilters(String baseCity, String budgetLevel, String startDate, String endDate);
 }

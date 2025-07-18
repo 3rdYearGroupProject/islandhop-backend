@@ -315,4 +315,122 @@ public class TripCompatibilityService {
         
         return compatibleGroup;
     }
+    
+    /**
+     * Calculates compatibility score for pre-check with limited user data.
+     * Uses preference-based scoring when full trip data is not available.
+     */
+    public double calculatePreCheckCompatibilityScore(Map<String, Object> userPreferences, Group group) {
+        log.debug("Calculating pre-check compatibility score for group {}", group.getId());
+        
+        double totalScore = 0.0;
+        Map<String, Object> groupPreferences = group.getPreferences();
+        
+        if (groupPreferences == null) {
+            log.debug("Group {} has no preferences, returning low score", group.getId());
+            return 0.1;
+        }
+        
+        // Base city matching (weight: 0.5)
+        double baseCityScore = calculateBaseCityScore(userPreferences, groupPreferences);
+        totalScore += baseCityScore * getBaseCityWeight();
+        
+        // Budget level matching (weight: 0.2)
+        double budgetScore = calculateBudgetScore(userPreferences, groupPreferences);
+        totalScore += budgetScore * getBudgetWeight();
+        
+        // Date matching (weight: 0.1)
+        double dateScore = calculateDateScore(userPreferences, groupPreferences);
+        totalScore += dateScore * getDateWeight();
+        
+        // Activity preferences matching (weight: 0.1)
+        double activityScore = calculateActivityScore(userPreferences, groupPreferences);
+        totalScore += activityScore * getActivityWeight();
+        
+        // Terrain preferences matching (weight: 0.1)
+        double terrainScore = calculateTerrainScore(userPreferences, groupPreferences);
+        totalScore += terrainScore * getTerrainWeight();
+        
+        log.debug("Pre-check compatibility score breakdown for group {}: baseCity={}, budget={}, dates={}, activities={}, terrains={}, total={}", 
+                group.getId(), baseCityScore, budgetScore, dateScore, activityScore, terrainScore, totalScore);
+        
+        return Math.min(1.0, totalScore); // Cap at 1.0
+    }
+    
+    private double calculateBaseCityScore(Map<String, Object> userPrefs, Map<String, Object> groupPrefs) {
+        String userCity = (String) userPrefs.get("baseCity");
+        String groupCity = (String) groupPrefs.get("baseCity");
+        
+        if (userCity == null || groupCity == null) {
+            return 0.0;
+        }
+        
+        return userCity.equalsIgnoreCase(groupCity) ? 1.0 : 0.0;
+    }
+    
+    private double calculateBudgetScore(Map<String, Object> userPrefs, Map<String, Object> groupPrefs) {
+        String userBudget = (String) userPrefs.get("budgetLevel");
+        String groupBudget = (String) groupPrefs.get("budgetLevel");
+        
+        if (userBudget == null || groupBudget == null) {
+            return 0.5; // Neutral score if not specified
+        }
+        
+        return userBudget.equalsIgnoreCase(groupBudget) ? 1.0 : 0.0;
+    }
+    
+    private double calculateDateScore(Map<String, Object> userPrefs, Map<String, Object> groupPrefs) {
+        String userStart = (String) userPrefs.get("startDate");
+        String userEnd = (String) userPrefs.get("endDate");
+        String groupStart = (String) groupPrefs.get("startDate");
+        String groupEnd = (String) groupPrefs.get("endDate");
+        
+        if (userStart == null || userEnd == null || groupStart == null || groupEnd == null) {
+            return 0.0;
+        }
+        
+        // Exact match for dates
+        if (userStart.equals(groupStart) && userEnd.equals(groupEnd)) {
+            return 1.0;
+        }
+        
+        // TODO: Could implement date overlap scoring here
+        return 0.0;
+    }
+    
+    private double calculateActivityScore(Map<String, Object> userPrefs, Map<String, Object> groupPrefs) {
+        List<String> userActivities = (List<String>) userPrefs.get("preferredActivities");
+        List<String> groupActivities = (List<String>) groupPrefs.get("preferredActivities");
+        
+        return calculateJaccardSimilarity(userActivities, groupActivities);
+    }
+    
+    private double calculateTerrainScore(Map<String, Object> userPrefs, Map<String, Object> groupPrefs) {
+        List<String> userTerrains = (List<String>) userPrefs.get("preferredTerrains");
+        List<String> groupTerrains = (List<String>) groupPrefs.get("preferredTerrains");
+        
+        return calculateJaccardSimilarity(userTerrains, groupTerrains);
+    }
+    
+    // Weight getters with configurable defaults
+    @Value("${pooling.compatibility.weights.baseCity:0.5}")
+    private double baseCityWeight;
+    
+    @Value("${pooling.compatibility.weights.budget:0.2}")
+    private double budgetWeight;
+    
+    @Value("${pooling.compatibility.weights.dates:0.1}")
+    private double dateWeight;
+    
+    @Value("${pooling.compatibility.weights.activities:0.1}")
+    private double activityWeight;
+    
+    @Value("${pooling.compatibility.weights.terrains:0.1}")
+    private double terrainWeight;
+    
+    private double getBaseCityWeight() { return baseCityWeight; }
+    private double getBudgetWeight() { return budgetWeight; }
+    private double getDateWeight() { return dateWeight; }
+    private double getActivityWeight() { return activityWeight; }
+    private double getTerrainWeight() { return terrainWeight; }
 }

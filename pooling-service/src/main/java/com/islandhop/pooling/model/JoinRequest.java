@@ -3,12 +3,15 @@ package com.islandhop.pooling.model;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Represents a join request for a public group.
  * Nested within Group entity.
  * Follows consistent patterns with other model classes.
+ * Enhanced with multi-member approval system.
  */
 @Data
 public class JoinRequest {
@@ -33,7 +36,12 @@ public class JoinRequest {
     
     private Instant respondedAt;
     
-    private String reviewedByUserId; // ID of the user who approved/rejected
+    private String reviewedByUserId; // ID of the user who approved/rejected (for backward compatibility)
+    
+    // Multi-member approval system
+    private List<MemberApproval> memberApprovals = new ArrayList<>(); // Track individual member approvals
+    
+    private boolean requiresAllMemberApproval = true; // Whether all members must approve
     
     /**
      * Check if the join request is pending.
@@ -57,7 +65,81 @@ public class JoinRequest {
     }
     
     /**
-     * Mark the join request as approved.
+     * Add a member's approval or rejection.
+     */
+    public void addMemberApproval(String memberId, String action, String reason) {
+        // Remove existing approval from the same member
+        memberApprovals.removeIf(approval -> approval.getMemberId().equals(memberId));
+        
+        MemberApproval approval = new MemberApproval();
+        approval.setMemberId(memberId);
+        approval.setAction(action); // "approve" or "reject"
+        approval.setReason(reason);
+        approval.setRespondedAt(Instant.now());
+        
+        memberApprovals.add(approval);
+    }
+    
+    /**
+     * Check if a specific member has approved this request.
+     */
+    public boolean hasMemberApproved(String memberId) {
+        return memberApprovals.stream()
+                .anyMatch(approval -> approval.getMemberId().equals(memberId) && "approve".equals(approval.getAction()));
+    }
+    
+    /**
+     * Check if a specific member has rejected this request.
+     */
+    public boolean hasMemberRejected(String memberId) {
+        return memberApprovals.stream()
+                .anyMatch(approval -> approval.getMemberId().equals(memberId) && "reject".equals(approval.getAction()));
+    }
+    
+    /**
+     * Check if a specific member has responded (either approved or rejected).
+     */
+    public boolean hasMemberResponded(String memberId) {
+        return memberApprovals.stream()
+                .anyMatch(approval -> approval.getMemberId().equals(memberId));
+    }
+    
+    /**
+     * Check if all required members have approved the request.
+     */
+    public boolean hasAllMembersApproved(List<String> allMemberIds) {
+        if (!requiresAllMemberApproval) {
+            return true; // If all-member approval not required, consider it approved
+        }
+        
+        // Check if all members have approved
+        for (String memberId : allMemberIds) {
+            if (!hasMemberApproved(memberId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /**
+     * Check if any member has rejected the request.
+     */
+    public boolean hasAnyMemberRejected() {
+        return memberApprovals.stream()
+                .anyMatch(approval -> "reject".equals(approval.getAction()));
+    }
+    
+    /**
+     * Get the list of members who haven't responded yet.
+     */
+    public List<String> getPendingMemberIds(List<String> allMemberIds) {
+        return allMemberIds.stream()
+                .filter(memberId -> !hasMemberResponded(memberId))
+                .toList();
+    }
+    
+    /**
+     * Mark the join request as approved (legacy method for backward compatibility).
      */
     public void approve(String reviewerUserId) {
         this.status = "approved";
@@ -66,12 +148,27 @@ public class JoinRequest {
     }
     
     /**
-     * Mark the join request as rejected.
+     * Mark the join request as rejected (legacy method for backward compatibility).
      */
     public void reject(String reviewerUserId, String reason) {
         this.status = "rejected";
         this.respondedAt = Instant.now();
         this.reviewedByUserId = reviewerUserId;
         this.rejectionReason = reason;
+    }
+    
+    /**
+     * Finalize the join request based on member approvals.
+     */
+    public void finalizeBasedOnApprovals(List<String> allMemberIds) {
+        if (hasAnyMemberRejected()) {
+            this.status = "rejected";
+            this.respondedAt = Instant.now();
+            this.rejectionReason = "Rejected by one or more group members";
+        } else if (hasAllMembersApproved(allMemberIds)) {
+            this.status = "approved";
+            this.respondedAt = Instant.now();
+        }
+        // Otherwise, status remains "pending"
     }
 }

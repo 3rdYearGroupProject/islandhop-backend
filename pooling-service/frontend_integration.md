@@ -1,69 +1,192 @@
-# Frontend Integration Guide - Pooling Service
+# Frontend Integration Guide - Enhanced Pooling Service with Hybrid Trip Suggestions
 
-This document provides comprehensive integration details for frontend developers working with the Pooling Service endpoints, including the new Public Pooling functionality with trip planning integration.
+This document provides comprehensive integration details for frontend developers working with the Enhanced Pooling Service, including the new Hybrid Trip Suggestion System that allows users to check for compatible groups before or after creating their own.
 
-## Base URL
+## Base URLs
 ```
-http://localhost:8086/api/v1/groups
+Pooling Service: http://localhost:8086/api/v1/groups
+Public Pooling: http://localhost:8086/api/v1/public-pooling
 ```
 
 ## Authentication
 All endpoints require a `userId` parameter. This will be replaced with JWT authentication in the future.
 
-## 🚀 New Public Pooling Workflow
+## 🚀 Enhanced Hybrid Trip Suggestion Workflow
 
-The new public pooling system allows users to:
-1. Create a group with trip planning
-2. Plan their trip using the trip-planning service
-3. Get suggestions for compatible groups
-4. Choose to join an existing group or finalize their own
+The enhanced system supports:
+1. **Pre-Check**: Check for compatible groups before creating a new one
+2. **Flexible Group Creation**: Create private or public groups with draft/finalized status
+3. **Post-Creation Suggestions**: Get suggestions during trip finalization
+4. **Advanced Filtering**: Filter public groups by preferences and compatibility
+5. **Smart Joining**: Join existing groups and discard drafts automatically
 
-## 📋 Available Endpoints
+## 📋 New Hybrid Endpoints
 
-### 1. Create Group with Trip Planning (NEW)
-**Endpoint**: `POST /api/v1/groups/with-trip`
+### 1. Pre-Check Compatible Groups (NEW)
+**Endpoint**: `POST /api/v1/public-pooling/pre-check`
 
-**Purpose**: Creates a public pooling group with trip planning in one step
+**Purpose**: Check for existing compatible public groups before creating a new one
 
-**Request Schema**:
-```typescript
-interface CreateGroupWithTripRequest {
-    // Required fields
-    userId: string;
-    groupName: string;
-    tripName: string;
-    startDate: string;           // YYYY-MM-DD format
-    endDate: string;             // YYYY-MM-DD format
-    baseCity: string;
-    
-    // Optional fields
-    arrivalTime?: string;        // HH:mm format or empty
-    multiCityAllowed?: boolean;  // Default: true
-    activityPacing?: "Relaxed" | "Normal" | "Fast";  // Default: "Normal"
-    budgetLevel?: "Low" | "Medium" | "High";         // Default: "Medium"
-    preferredTerrains?: string[];
-    preferredActivities?: string[];
-    visibility?: "private" | "public";  // Default: "public"
-    maxMembers?: number;         // Default: 6, range: 2-20
-    requiresApproval?: boolean;  // Default: false
-    additionalPreferences?: object;
+**Request JSON Example**:
+```json
+{
+  "userId": "user_123",
+  "baseCity": "Colombo",
+  "startDate": "2024-08-15",
+  "endDate": "2024-08-22",
+  "budgetLevel": "Medium",
+  "preferredActivities": ["Hiking", "Cultural Tours", "Wildlife Safari"],
+  "preferredTerrains": ["Mountain", "Beach", "Cultural"],
+  "activityPacing": "Normal",
+  "multiCityAllowed": true
 }
 ```
 
-**Response Schema**:
-```typescript
-interface CreateGroupWithTripResponse {
-    status: "success" | "error";
-    groupId: string;
-    tripId: string;
-    message: string;
-    isDraft: boolean;  // Always true for new groups
+**Response JSON Example**:
+```json
+{
+  "status": "success",
+  "message": "Found 3 compatible group(s)",
+  "totalSuggestions": 3,
+  "hasCompatibleGroups": true,
+  "suggestions": [
+    {
+      "groupId": "group_456",
+      "tripName": "Sri Lanka Explorer",
+      "compatibilityScore": 0.87,
+      "currentMembers": 4,
+      "maxMembers": 8,
+      "baseCity": "Colombo",
+      "startDate": "2024-08-15",
+      "endDate": "2024-08-22",
+      "budgetLevel": "Medium",
+      "commonActivities": ["Hiking", "Cultural Tours"],
+      "commonTerrains": ["Mountain", "Cultural"],
+      "createdBy": "user_789"
+    },
+    {
+      "groupId": "group_789",
+      "tripName": "Cultural Heritage Tour",
+      "compatibilityScore": 0.73,
+      "currentMembers": 3,
+      "maxMembers": 6,
+      "baseCity": "Colombo",
+      "startDate": "2024-08-15",
+      "endDate": "2024-08-22",
+      "budgetLevel": "Medium",
+      "commonActivities": ["Cultural Tours"],
+      "commonTerrains": ["Cultural"],
+      "createdBy": "user_456"
+    }
+  ]
 }
 ```
 
 **Frontend Implementation**:
 ```javascript
-const createGroupWithTrip = async (groupData) => {
+const preCheckCompatibleGroups = async (preferences) => {
+    try {
+        const response = await fetch('/api/v1/public-pooling/pre-check', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: currentUser.id,
+                baseCity: preferences.baseCity,
+                startDate: preferences.startDate,
+                endDate: preferences.endDate,
+                budgetLevel: preferences.budgetLevel,
+                preferredActivities: preferences.preferredActivities,
+                preferredTerrains: preferences.preferredTerrains,
+                activityPacing: preferences.activityPacing || 'Normal',
+                multiCityAllowed: preferences.multiCityAllowed || true
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.hasCompatibleGroups) {
+            // Show suggestions modal
+            showPreCheckSuggestionsModal(result.suggestions);
+            return result;
+        } else if (response.ok && !result.hasCompatibleGroups) {
+            // No compatible groups, proceed with creation
+            showCreateGroupForm();
+            return result;
+        } else {
+            throw new Error(result.message || 'Failed to check for compatible groups');
+        }
+    } catch (error) {
+        console.error('Error in pre-check:', error);
+        showErrorMessage('Failed to check for compatible groups. You can still create a new group.');
+        return { hasCompatibleGroups: false, suggestions: [] };
+    }
+};
+
+// Usage in trip planning form
+const handleTripPlanningStart = async (formData) => {
+    // First check for existing compatible groups
+    const preCheckResult = await preCheckCompatibleGroups(formData);
+    
+    if (preCheckResult.hasCompatibleGroups) {
+        // User will see suggestions modal and can choose to join or create new
+        localStorage.setItem('pendingTripData', JSON.stringify(formData));
+    } else {
+        // No compatible groups, proceed with creation
+        await createNewGroupWithTrip(formData);
+    }
+};
+```
+
+### 2. Enhanced Group Creation with Draft Support
+**Endpoint**: `POST /api/v1/groups/with-trip`
+
+**Purpose**: Creates a group with trip planning, supporting both private (immediate finalization) and public (draft mode for suggestions)
+
+**Request JSON Example**:
+```json
+{
+  "userId": "user_123",
+  "tripName": "Sri Lanka Explorer",
+  "startDate": "2024-08-15",
+  "endDate": "2024-08-22",
+  "baseCity": "Colombo",
+  "arrivalTime": "14:30",
+  "multiCityAllowed": true,
+  "activityPacing": "Normal",
+  "budgetLevel": "Medium",
+  "preferredTerrains": ["Mountain", "Beach", "Cultural"],
+  "preferredActivities": ["Hiking", "Cultural Tours", "Wildlife Safari"],
+  "visibility": "public",
+  "maxMembers": 8,
+  "requiresApproval": false,
+  "additionalPreferences": {
+    "accommodation": "Mid-range",
+    "transport": "Private"
+  }
+}
+```
+
+**Response JSON Example**:
+```json
+{
+  "status": "success",
+  "groupId": "group_123",
+  "tripId": "trip_456",
+  "message": "Group created successfully in draft mode",
+  "isDraft": true,
+  "nextSteps": [
+    "Plan your trip using the trip planning interface",
+    "Finalize your trip to get suggestions for similar groups",
+    "Choose to join an existing group or continue with your own"
+  ]
+}
+```
+
+**Frontend Implementation**:
+```javascript
+const createGroupWithTrip = async (groupData, fromPreCheck = false) => {
     try {
         const response = await fetch('/api/v1/groups/with-trip', {
             method: 'POST',
@@ -71,8 +194,7 @@ const createGroupWithTrip = async (groupData) => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                userId: groupData.userId,
-                groupName: groupData.groupName,
+                userId: currentUser.id,
                 tripName: groupData.tripName,
                 startDate: groupData.startDate,
                 endDate: groupData.endDate,
@@ -83,9 +205,9 @@ const createGroupWithTrip = async (groupData) => {
                 budgetLevel: groupData.budgetLevel || "Medium",
                 preferredTerrains: groupData.preferredTerrains || [],
                 preferredActivities: groupData.preferredActivities || [],
-                visibility: "public",
+                visibility: groupData.visibility || "public",
                 maxMembers: groupData.maxMembers || 6,
-                requiresApproval: false,
+                requiresApproval: groupData.requiresApproval || false,
                 additionalPreferences: groupData.additionalPreferences || {}
             })
         });
@@ -93,154 +215,599 @@ const createGroupWithTrip = async (groupData) => {
         const result = await response.json();
         
         if (response.ok) {
-            // Group and trip created successfully
-            console.log('Group created:', result);
+            // Store group and trip IDs for later use
+            localStorage.setItem('currentGroupId', result.groupId);
+            localStorage.setItem('currentTripId', result.tripId);
+            localStorage.setItem('groupStatus', result.isDraft ? 'draft' : 'finalized');
+            
+            if (fromPreCheck) {
+                localStorage.removeItem('pendingTripData');
+            }
+            
+            // Show success message
+            showSuccessMessage(result.message);
             
             // Redirect to trip planning interface
-            window.location.href = `/trip-planning/${result.tripId}?groupId=${result.groupId}`;
+            window.location.href = `/trip-planning/${result.tripId}?groupId=${result.groupId}&mode=${result.isDraft ? 'draft' : 'final'}`;
             
             return {
                 success: true,
                 groupId: result.groupId,
                 tripId: result.tripId,
-                message: result.message
+                isDraft: result.isDraft
             };
         } else {
             throw new Error(result.message || 'Failed to create group');
         }
     } catch (error) {
         console.error('Error creating group with trip:', error);
-        return {
-            success: false,
-            error: error.message
-        };
+        showErrorMessage(error.message);
+        return { success: false, error: error.message };
     }
 };
 
-// Usage Example
-const handleCreatePublicPoolingGroup = async (formData) => {
-    const result = await createGroupWithTrip({
-        userId: currentUser.id,
-        groupName: formData.groupName,
-        tripName: formData.tripName,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        baseCity: formData.baseCity,
-        arrivalTime: formData.arrivalTime,
-        activityPacing: formData.activityPacing,
-        budgetLevel: formData.budgetLevel,
-        preferredTerrains: formData.selectedTerrains,
-        preferredActivities: formData.selectedActivities,
-        maxMembers: formData.maxMembers
-    });
-    
-    if (result.success) {
-        // Show success message
-        showNotification('Group created successfully! You can now plan your trip.', 'success');
-    } else {
-        // Show error message
-        showNotification(result.error, 'error');
-    }
+// Usage after pre-check suggestions
+const handleCreateNewAfterPreCheck = () => {
+    const pendingData = JSON.parse(localStorage.getItem('pendingTripData') || '{}');
+    createGroupWithTrip(pendingData, true);
+};
+
+// Usage for direct creation (skipping pre-check)
+const handleDirectGroupCreation = (formData) => {
+    createGroupWithTrip(formData, false);
 };
 ```
 
-### 2. Get Trip Suggestions (NEW)
-**Endpoint**: `GET /api/v1/groups/{groupId}/trip-suggestions?userId={userId}`
+### 3. Enhanced Trip Finalization with Suggestions
+**Endpoint**: `POST /api/v1/groups/{groupId}/finalize-trip`
 
-**Purpose**: Gets compatible group suggestions based on trip similarity
+**Purpose**: Finalizes a trip with different actions: check suggestions, finalize directly, or join an existing group
 
-**Response Schema**:
-```typescript
-interface TripSuggestionsResponse {
-    status: "success" | "error";
-    groupId: string;
-    tripId: string;
-    suggestions: CompatibleGroup[];
-    message: string;
+**Request JSON Examples**:
+
+**Check for suggestions (public groups only)**:
+```json
+{
+  "userId": "user_123",
+  "action": "checkSuggestions"
 }
+```
 
-interface CompatibleGroup {
-    groupId: string;
-    groupName: string;
-    tripId: string;
-    tripName: string;
-    compatibilityScore: number;    // 0-1 scale
-    currentMembers: number;
-    maxMembers: number;
-    commonDestinations: string[];
-    commonPreferences: string[];
-    createdBy: string;
-    startDate: string;
-    endDate: string;
-    baseCity: string;
+**Finalize without suggestions**:
+```json
+{
+  "userId": "user_123",
+  "action": "finalize"
+}
+```
+
+**Join an existing group**:
+```json
+{
+  "userId": "user_123",
+  "action": "join",
+  "targetGroupId": "group_456"
+}
+```
+
+**Response JSON Examples**:
+
+**Suggestions available**:
+```json
+{
+  "status": "success",
+  "action": "suggestions_found",
+  "groupId": "group_123",
+  "tripId": "trip_456",
+  "message": "Found 2 compatible groups",
+  "suggestions": [
+    {
+      "groupId": "group_789",
+      "tripName": "Adventure Paradise",
+      "compatibilityScore": 0.92,
+      "currentMembers": 5,
+      "maxMembers": 8,
+      "baseCity": "Colombo",
+      "startDate": "2024-08-15",
+      "endDate": "2024-08-22",
+      "commonDestinations": ["Sigiriya", "Kandy", "Ella"],
+      "commonPreferences": ["Hiking", "Cultural Tours"]
+    }
+  ],
+  "canFinalize": true,
+  "canJoin": true
+}
+```
+
+**Successfully finalized**:
+```json
+{
+  "status": "success",
+  "action": "finalized",
+  "groupId": "group_123",
+  "tripId": "trip_456",
+  "message": "Trip finalized successfully",
+  "redirectTo": "/groups/group_123"
+}
+```
+
+**Successfully joined existing group**:
+```json
+{
+  "status": "success",
+  "action": "joined",
+  "groupId": "group_456",
+  "tripId": "trip_789",
+  "message": "Successfully joined the group",
+  "originalGroupDeleted": true,
+  "redirectTo": "/groups/group_456"
 }
 ```
 
 **Frontend Implementation**:
 ```javascript
-const getTripSuggestions = async (groupId, userId) => {
+const finalizeTrip = async (groupId, action, targetGroupId = null) => {
     try {
-        const response = await fetch(`/api/v1/groups/${groupId}/trip-suggestions?userId=${userId}`);
+        const response = await fetch(`/api/v1/groups/${groupId}/finalize-trip`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: currentUser.id,
+                action: action,
+                ...(targetGroupId && { targetGroupId })
+            })
+        });
+        
         const result = await response.json();
+        
+        if (response.ok) {
+            switch (result.action) {
+                case 'suggestions_found':
+                    // Show suggestions modal
+                    showFinalizationSuggestionsModal(result.suggestions, groupId);
+                    break;
+                    
+                case 'finalized':
+                    // Clear local storage and redirect
+                    clearTripCreationData();
+                    showSuccessMessage(result.message);
+                    window.location.href = result.redirectTo;
+                    break;
+                    
+                case 'joined':
+                    // Clear local storage and redirect to new group
+                    clearTripCreationData();
+                    showSuccessMessage(result.message);
+                    window.location.href = result.redirectTo;
+                    break;
+                    
+                default:
+                    console.warn('Unknown action:', result.action);
+            }
+            
+            return result;
+        } else {
+            throw new Error(result.message || 'Failed to finalize trip');
+        }
+    } catch (error) {
+        console.error('Error finalizing trip:', error);
+        showErrorMessage(error.message);
+        return { success: false, error: error.message };
+    }
+};
+
+// Usage in trip planning completion
+const handleTripPlanningComplete = async () => {
+    const groupId = localStorage.getItem('currentGroupId');
+    const groupStatus = localStorage.getItem('groupStatus');
+    
+    if (groupStatus === 'draft') {
+        // For public draft groups, check for suggestions first
+        await finalizeTrip(groupId, 'checkSuggestions');
+    } else {
+        // For private groups, finalize directly
+        await finalizeTrip(groupId, 'finalize');
+    }
+};
+
+// Usage for joining from suggestions
+const handleJoinExistingGroup = async (targetGroupId) => {
+    const currentGroupId = localStorage.getItem('currentGroupId');
+    await finalizeTrip(currentGroupId, 'join', targetGroupId);
+};
+
+// Usage for finalizing without joining
+const handleProceedWithOwnTrip = async () => {
+    const groupId = localStorage.getItem('currentGroupId');
+    await finalizeTrip(groupId, 'finalize');
+};
+```
+
+### 4. Enhanced Public Groups with Advanced Filtering
+**Endpoint**: `GET /api/v1/groups/public`
+
+**Purpose**: Get public groups with optional filtering and compatibility scoring
+
+**Request Parameters**:
+```
+GET /api/v1/groups/public?userId=user_123&baseCity=Colombo&startDate=2024-08-15&endDate=2024-08-22&budgetLevel=Medium&preferredActivities=Hiking,Cultural Tours
+```
+
+**Response JSON Example**:
+```json
+[
+  {
+    "groupId": "group_456",
+    "tripId": "trip_789",
+    "tripName": "Sri Lanka Cultural Explorer",
+    "preferences": {
+      "baseCity": "Colombo",
+      "startDate": "2024-08-15",
+      "endDate": "2024-08-22",
+      "budgetLevel": "Medium",
+      "preferredActivities": ["Cultural Tours", "Hiking", "Photography"],
+      "preferredTerrains": ["Cultural", "Mountain"]
+    },
+    "collaboratorCount": 4,
+    "maxMembers": 8,
+    "createdAt": "2024-07-15T10:30:00Z",
+    "baseCity": "Colombo",
+    "startDate": "2024-08-15",
+    "endDate": "2024-08-22",
+    "budgetLevel": "Medium",
+    "preferredActivities": ["Cultural Tours", "Hiking", "Photography"],
+    "preferredTerrains": ["Cultural", "Mountain"],
+    "activityPacing": "Normal",
+    "status": "finalized",
+    "compatibilityScore": 0.87
+  },
+  {
+    "groupId": "group_789",
+    "tripId": "trip_456",
+    "tripName": "Adventure Paradise",
+    "preferences": {
+      "baseCity": "Colombo",
+      "startDate": "2024-08-15",
+      "endDate": "2024-08-22",
+      "budgetLevel": "Medium",
+      "preferredActivities": ["Hiking", "Wildlife Safari"],
+      "preferredTerrains": ["Mountain", "Beach"]
+    },
+    "collaboratorCount": 3,
+    "maxMembers": 6,
+    "createdAt": "2024-07-14T15:45:00Z",
+    "baseCity": "Colombo",
+    "startDate": "2024-08-15",
+    "endDate": "2024-08-22",
+    "budgetLevel": "Medium",
+    "preferredActivities": ["Hiking", "Wildlife Safari"],
+    "preferredTerrains": ["Mountain", "Beach"],
+    "activityPacing": "Fast",
+    "status": "finalized",
+    "compatibilityScore": 0.73
+  }
+]
+```
+
+**Frontend Implementation**:
+```javascript
+const getPublicGroups = async (filters = {}) => {
+    try {
+        const params = new URLSearchParams({
+            userId: currentUser.id,
+            ...filters
+        });
+        
+        // Remove empty parameters
+        for (const [key, value] of params.entries()) {
+            if (!value || value === '' || (Array.isArray(value) && value.length === 0)) {
+                params.delete(key);
+            }
+        }
+        
+        const response = await fetch(`/api/v1/groups/public?${params.toString()}`);
+        const groups = await response.json();
         
         if (response.ok) {
             return {
                 success: true,
-                suggestions: result.suggestions,
-                message: result.message
+                groups: groups,
+                totalGroups: groups.length,
+                hasCompatibilityScores: groups.some(g => g.compatibilityScore !== undefined)
             };
         } else {
-            throw new Error(result.message || 'Failed to get suggestions');
+            throw new Error(groups.message || 'Failed to fetch public groups');
         }
     } catch (error) {
-        console.error('Error getting trip suggestions:', error);
+        console.error('Error fetching public groups:', error);
         return {
             success: false,
-            error: error.message
+            error: error.message,
+            groups: []
         };
     }
 };
 
-// Usage Example - Call this when user clicks "Save Trip" or "Finalize"
-const handleGetSuggestions = async (groupId) => {
-    const result = await getTripSuggestions(groupId, currentUser.id);
+// Usage with filtering
+const loadFilteredPublicGroups = async (filterCriteria) => {
+    const filters = {
+        baseCity: filterCriteria.baseCity,
+        startDate: filterCriteria.startDate,
+        endDate: filterCriteria.endDate,
+        budgetLevel: filterCriteria.budgetLevel,
+        preferredActivities: filterCriteria.preferredActivities?.join(',')
+    };
+    
+    const result = await getPublicGroups(filters);
     
     if (result.success) {
-        if (result.suggestions.length > 0) {
-            // Show suggestions modal
-            showSuggestionsModal(result.suggestions);
-        } else {
-            // No suggestions found, proceed with finalization
-            showConfirmationModal('No similar groups found. Proceed with your trip?');
+        renderPublicGroupsWithScores(result.groups);
+        
+        if (result.hasCompatibilityScores) {
+            showCompatibilityInfo('Groups are sorted by compatibility with your preferences');
         }
     } else {
-        showNotification(result.error, 'error');
+        showErrorMessage(result.error);
     }
 };
 
-// Suggestions Modal Component
-const showSuggestionsModal = (suggestions) => {
-    const modalContent = `
-        <div class="suggestions-modal">
-            <h3>We found ${suggestions.length} similar group(s)!</h3>
-            <p>You can join an existing group or continue with your own trip.</p>
+// Usage without filtering (all public groups)
+const loadAllPublicGroups = async () => {
+    const result = await getPublicGroups();
+    
+    if (result.success) {
+        renderPublicGroups(result.groups);
+    } else {
+        showErrorMessage(result.error);
+    }
+};
+
+// Enhanced rendering with compatibility scores
+const renderPublicGroupsWithScores = (groups) => {
+    const container = document.getElementById('public-groups-container');
+    
+    container.innerHTML = groups.map(group => `
+        <div class="group-card ${group.compatibilityScore ? 'has-score' : ''}">
+            <div class="group-header">
+                <h3>${group.tripName}</h3>
+                ${group.compatibilityScore ? `
+                    <div class="compatibility-badge score-${getScoreClass(group.compatibilityScore)}">
+                        ${Math.round(group.compatibilityScore * 100)}% Match
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div class="group-details">
+                <p><strong>Trip:</strong> ${group.tripName}</p>
+                <p><strong>Members:</strong> ${group.collaboratorCount}/${group.maxMembers}</p>
+                <p><strong>Destination:</strong> ${group.baseCity}</p>
+                <p><strong>Dates:</strong> ${group.startDate} to ${group.endDate}</p>
+                <p><strong>Budget:</strong> ${group.budgetLevel}</p>
+                <p><strong>Activities:</strong> ${group.preferredActivities?.join(', ')}</p>
+                <p><strong>Pacing:</strong> ${group.activityPacing}</p>
+            </div>
+            
+            <div class="group-actions">
+                <button class="btn-primary" onclick="requestToJoinGroup('${group.groupId}')">
+                    Join Group
+                </button>
+                <button class="btn-secondary" onclick="viewGroupDetails('${group.groupId}')">
+                    View Details
+                </button>
+            </div>
+        </div>
+    `).join('');
+};
+
+// Utility function for score styling
+const getScoreClass = (score) => {
+    if (score >= 0.8) return 'high';
+    if (score >= 0.6) return 'medium';
+    return 'low';
+};
+```
+
+### 5. Advanced Group Filtering Interface
+
+**HTML Filter Form**:
+```html
+<div class="filter-panel">
+    <h3>Filter Public Groups</h3>
+    
+    <form id="group-filter-form" onsubmit="handleFilterSubmit(event)">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label for="filter-baseCity">Base City</label>
+                <select id="filter-baseCity" name="baseCity">
+                    <option value="">Any City</option>
+                    <option value="Colombo">Colombo</option>
+                    <option value="Kandy">Kandy</option>
+                    <option value="Galle">Galle</option>
+                    <option value="Jaffna">Jaffna</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="filter-budgetLevel">Budget Level</label>
+                <select id="filter-budgetLevel" name="budgetLevel">
+                    <option value="">Any Budget</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="filter-row">
+            <div class="filter-group">
+                <label for="filter-startDate">Start Date</label>
+                <input type="date" id="filter-startDate" name="startDate">
+            </div>
+            
+            <div class="filter-group">
+                <label for="filter-endDate">End Date</label>
+                <input type="date" id="filter-endDate" name="endDate">
+            </div>
+        </div>
+        
+        <div class="filter-group">
+            <label>Preferred Activities</label>
+            <div class="checkbox-group">
+                <label><input type="checkbox" name="preferredActivities" value="Hiking"> Hiking</label>
+                <label><input type="checkbox" name="preferredActivities" value="Cultural Tours"> Cultural Tours</label>
+                <label><input type="checkbox" name="preferredActivities" value="Wildlife Safari"> Wildlife Safari</label>
+                <label><input type="checkbox" name="preferredActivities" value="Beach Activities"> Beach Activities</label>
+                <label><input type="checkbox" name="preferredActivities" value="Photography"> Photography</label>
+                <label><input type="checkbox" name="preferredActivities" value="Adventure Sports"> Adventure Sports</label>
+            </div>
+        </div>
+        
+        <div class="filter-actions">
+            <button type="submit" class="btn-primary">Apply Filters</button>
+            <button type="button" class="btn-secondary" onclick="clearFilters()">Clear All</button>
+        </div>
+    </form>
+</div>
+
+<div class="results-section">
+    <div class="results-header">
+        <h3>Available Groups</h3>
+        <div class="sort-options">
+            <label for="sort-by">Sort by:</label>
+            <select id="sort-by" onchange="handleSortChange(this.value)">
+                <option value="compatibility">Compatibility Score</option>
+                <option value="members">Member Count</option>
+                <option value="created">Creation Date</option>
+                <option value="budget">Budget Level</option>
+            </select>
+        </div>
+    </div>
+    
+    <div id="public-groups-container">
+        <!-- Groups will be rendered here -->
+    </div>
+</div>
+
+<script>
+const handleFilterSubmit = (event) => {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const filters = {};
+    
+    // Get single values
+    filters.baseCity = formData.get('baseCity');
+    filters.budgetLevel = formData.get('budgetLevel');
+    filters.startDate = formData.get('startDate');
+    filters.endDate = formData.get('endDate');
+    
+    // Get multiple values (activities)
+    const activities = formData.getAll('preferredActivities');
+    if (activities.length > 0) {
+        filters.preferredActivities = activities;
+    }
+    
+    // Apply filters
+    loadFilteredPublicGroups(filters);
+};
+
+const clearFilters = () => {
+    document.getElementById('group-filter-form').reset();
+    loadAllPublicGroups();
+};
+
+const handleSortChange = (sortBy) => {
+    const container = document.getElementById('public-groups-container');
+    const cards = Array.from(container.children);
+    
+    cards.sort((a, b) => {
+        switch (sortBy) {
+            case 'compatibility':
+                const scoreA = parseFloat(a.querySelector('.compatibility-badge')?.textContent) || 0;
+                const scoreB = parseFloat(b.querySelector('.compatibility-badge')?.textContent) || 0;
+                return scoreB - scoreA;
+                
+            case 'members':
+                const membersA = parseInt(a.querySelector('.group-details p:nth-child(2)')?.textContent.split('/')[0]) || 0;
+                const membersB = parseInt(b.querySelector('.group-details p:nth-child(2)')?.textContent.split('/')[0]) || 0;
+                return membersB - membersA;
+                
+            case 'created':
+                // Would need creation date in data attributes for proper sorting
+                return 0;
+                
+            case 'budget':
+                const budgetA = a.querySelector('.group-details p:nth-child(5)')?.textContent || '';
+                const budgetB = b.querySelector('.group-details p:nth-child(5)')?.textContent || '';
+                const budgetOrder = {'Low': 1, 'Medium': 2, 'High': 3};
+                return budgetOrder[budgetA] - budgetOrder[budgetB];
+                
+            default:
+                return 0;
+        }
+    });
+    
+    // Re-append sorted cards
+    cards.forEach(card => container.appendChild(card));
+};
+</script>
+```
+
+## 🎯 Complete Hybrid Workflow Examples
+
+### Scenario 1: Pre-Check Before Creating Group
+
+```javascript
+// Complete workflow starting with pre-check
+const startTripPlanning = async (userPreferences) => {
+    try {
+        // Step 1: Pre-check for compatible groups
+        const preCheckResult = await preCheckCompatibleGroups(userPreferences);
+        
+        if (preCheckResult.hasCompatibleGroups) {
+            // Show modal with existing options
+            showPreCheckModal(preCheckResult.suggestions, userPreferences);
+        } else {
+            // No compatible groups, proceed with creation
+            await createGroupWithTrip(userPreferences);
+        }
+    } catch (error) {
+        console.error('Error in trip planning start:', error);
+        showErrorMessage('Failed to start trip planning');
+    }
+};
+
+// Pre-check modal component
+const showPreCheckModal = (suggestions, userPreferences) => {
+    const modal = document.createElement('div');
+    modal.className = 'pre-check-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Great news! We found ${suggestions.length} compatible group(s) 🎉</h2>
+                <p>You can join an existing group or create your own.</p>
+            </div>
             
             <div class="suggestions-list">
                 ${suggestions.map(group => `
-                    <div class="suggestion-card" data-group-id="${group.groupId}">
+                    <div class="suggestion-card">
                         <div class="suggestion-header">
-                            <h4>${group.tripName}</h4>
-                            <span class="compatibility-score">${Math.round(group.compatibilityScore * 100)}% match</span>
+                            <h3>${group.tripName}</h3>
+                            <div class="compatibility-badge score-${getScoreClass(group.compatibilityScore)}">
+                                ${Math.round(group.compatibilityScore * 100)}% Match
+                            </div>
                         </div>
+                        
                         <div class="suggestion-details">
-                            <p><strong>Group:</strong> ${group.groupName}</p>
+                            <p><strong>Trip:</strong> ${group.tripName}</p>
                             <p><strong>Members:</strong> ${group.currentMembers}/${group.maxMembers}</p>
                             <p><strong>Dates:</strong> ${group.startDate} to ${group.endDate}</p>
-                            <p><strong>Base City:</strong> ${group.baseCity}</p>
-                            <p><strong>Common Destinations:</strong> ${group.commonDestinations.join(', ')}</p>
-                            <p><strong>Common Preferences:</strong> ${group.commonPreferences.join(', ')}</p>
+                            <p><strong>Common Interests:</strong> ${group.commonActivities?.join(', ')}</p>
                         </div>
-                        <button class="join-group-btn" onclick="joinExistingGroup('${group.groupId}')">
+                        
+                        <button class="btn-primary" onclick="joinExistingGroupFromPreCheck('${group.groupId}')">
                             Join This Group
                         </button>
                     </div>
@@ -248,20 +815,1115 @@ const showSuggestionsModal = (suggestions) => {
             </div>
             
             <div class="modal-actions">
-                <button class="btn-secondary" onclick="proceedWithOwnTrip()">
-                    Continue with My Trip
+                <button class="btn-secondary" onclick="createNewAfterPreCheck()">
+                    Create My Own Group
                 </button>
-                <button class="btn-primary" onclick="closeModal()">
+                <button class="btn-outline" onclick="closePreCheckModal()">
                     Let Me Think
                 </button>
             </div>
         </div>
     `;
     
-    // Display modal with the content
-    document.getElementById('modal-container').innerHTML = modalContent;
-    document.getElementById('modal-container').style.display = 'block';
+    document.body.appendChild(modal);
+    
+    // Store user preferences for later use
+    localStorage.setItem('pendingTripData', JSON.stringify(userPreferences));
 };
+
+// Handle joining from pre-check
+const joinExistingGroupFromPreCheck = async (targetGroupId) => {
+    try {
+        // Since we haven't created a group yet, just join directly
+        const response = await fetch(`/api/v1/groups/${targetGroupId}/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: currentUser.id,
+                userEmail: currentUser.email,
+                userName: currentUser.name,
+                message: 'Found your group through compatibility matching!'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            closePreCheckModal();
+            showSuccessMessage('Successfully joined the group!');
+            window.location.href = `/groups/${targetGroupId}`;
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        showErrorMessage('Failed to join group: ' + error.message);
+    }
+};
+
+// Handle creating new after seeing suggestions
+const createNewAfterPreCheck = () => {
+    const pendingData = JSON.parse(localStorage.getItem('pendingTripData'));
+    closePreCheckModal();
+    createGroupWithTrip(pendingData, true);
+};
+```
+
+### Scenario 2: Suggestions During Trip Finalization
+
+```javascript
+// Trip planning completion workflow
+const completeTripPlanning = async () => {
+    const groupId = localStorage.getItem('currentGroupId');
+    const groupStatus = localStorage.getItem('groupStatus');
+    const visibility = localStorage.getItem('groupVisibility');
+    
+    if (visibility === 'public' && groupStatus === 'draft') {
+        // For public draft groups, check for suggestions
+        await showFinalizationOptions(groupId);
+    } else {
+        // For private groups, finalize directly
+        await finalizeTrip(groupId, 'finalize');
+    }
+};
+
+const showFinalizationOptions = async (groupId) => {
+    // First check if there are suggestions
+    const suggestions = await finalizeTrip(groupId, 'checkSuggestions');
+    
+    if (suggestions.suggestions && suggestions.suggestions.length > 0) {
+        showFinalizationModal(suggestions.suggestions, groupId);
+    } else {
+        // No suggestions, finalize directly
+        await finalizeTrip(groupId, 'finalize');
+    }
+};
+
+const showFinalizationModal = (suggestions, currentGroupId) => {
+    const modal = document.createElement('div');
+    modal.className = 'finalization-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Before you finalize... 🤔</h2>
+                <p>We found ${suggestions.length} similar group(s) that might interest you!</p>
+            </div>
+            
+            <div class="suggestions-comparison">
+                <div class="your-trip">
+                    <h3>Your Trip</h3>
+                    <div class="trip-card current">
+                        <p>You'll be the group leader</p>
+                        <p>Full control over itinerary</p>
+                        <p>Start fresh with your preferences</p>
+                    </div>
+                </div>
+                
+                <div class="suggested-trips">
+                    <h3>Similar Groups</h3>
+                    ${suggestions.map(group => `
+                        <div class="trip-card suggested">
+                            <div class="suggestion-header">
+                                <h4>${group.tripName}</h4>
+                                <span class="compatibility-score">${Math.round(group.compatibilityScore * 100)}% Match</span>
+                            </div>
+                            <p><strong>Members:</strong> ${group.currentMembers}/${group.maxMembers}</p>
+                            <p><strong>Common:</strong> ${group.commonDestinations?.join(', ')}</p>
+                            <button class="btn-primary btn-sm" onclick="handleJoinFromFinalization('${group.groupId}')">
+                                Join Group
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn-primary" onclick="handleFinalizeOwnTrip('${currentGroupId}')">
+                    Continue with My Trip
+                </button>
+                <button class="btn-secondary" onclick="closeFinalizationModal()">
+                    Let Me Decide Later
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+};
+
+const handleJoinFromFinalization = async (targetGroupId) => {
+    const currentGroupId = localStorage.getItem('currentGroupId');
+    
+    try {
+        const result = await finalizeTrip(currentGroupId, 'join', targetGroupId);
+        
+        if (result.success !== false) {
+            closeFinalizationModal();
+            clearTripCreationData();
+            showSuccessMessage('Successfully joined the group! Your draft has been discarded.');
+            window.location.href = `/groups/${targetGroupId}`;
+        }
+    } catch (error) {
+        showErrorMessage('Failed to join group: ' + error.message);
+    }
+};
+
+const handleFinalizeOwnTrip = async (groupId) => {
+    try {
+        const result = await finalizeTrip(groupId, 'finalize');
+        
+        if (result.success !== false) {
+            closeFinalizationModal();
+            clearTripCreationData();
+            showSuccessMessage('Trip finalized successfully!');
+            window.location.href = `/groups/${groupId}`;
+        }
+    } catch (error) {
+        showErrorMessage('Failed to finalize trip: ' + error.message);
+    }
+};
+```
+
+## 🔧 Utility Functions and Helpers
+
+### State Management Utilities
+
+```javascript
+// Trip creation state management
+class TripCreationManager {
+    constructor() {
+        this.state = {
+            currentStep: 'preferences',
+            preferences: {},
+            groupData: {},
+            suggestionsShown: false,
+            pendingAction: null
+        };
+    }
+    
+    // Save current state to localStorage
+    saveState() {
+        localStorage.setItem('tripCreationState', JSON.stringify(this.state));
+    }
+    
+    // Load state from localStorage
+    loadState() {
+        const saved = localStorage.getItem('tripCreationState');
+        if (saved) {
+            this.state = { ...this.state, ...JSON.parse(saved) };
+        }
+        return this.state;
+    }
+    
+    // Clear all trip creation data
+    clearState() {
+        localStorage.removeItem('tripCreationState');
+        localStorage.removeItem('pendingTripData');
+        localStorage.removeItem('currentGroupId');
+        localStorage.removeItem('groupStatus');
+        localStorage.removeItem('groupVisibility');
+        this.state = {
+            currentStep: 'preferences',
+            preferences: {},
+            groupData: {},
+            suggestionsShown: false,
+            pendingAction: null
+        };
+    }
+    
+    // Update specific state properties
+    updateState(updates) {
+        this.state = { ...this.state, ...updates };
+        this.saveState();
+    }
+    
+    // Check if we should show suggestions
+    shouldShowSuggestions() {
+        return !this.state.suggestionsShown && 
+               this.state.currentStep === 'finalization';
+    }
+}
+
+// Global instance
+const tripManager = new TripCreationManager();
+
+// Helper function to get user preferences
+const getUserProfile = async (userId) => {
+    try {
+        const response = await fetch(`/api/v1/users/${userId}/profile`);
+        const profile = await response.json();
+        
+        return {
+            preferredBaseCity: profile.preferredBaseCity || '',
+            budgetLevel: profile.budgetLevel || 'Medium',
+            preferredActivities: profile.preferredActivities || [],
+            preferredTerrains: profile.preferredTerrains || []
+        };
+    } catch (error) {
+        console.error('Error fetching user profile:', error);
+        return {
+            preferredBaseCity: '',
+            budgetLevel: 'Medium',
+            preferredActivities: [],
+            preferredTerrains: []
+        };
+    }
+};
+
+// Format date range for display
+const formatDateRange = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    const options = { month: 'short', day: 'numeric' };
+    const startFormatted = start.toLocaleDateString('en-US', options);
+    const endFormatted = end.toLocaleDateString('en-US', options);
+    
+    if (start.getFullYear() !== end.getFullYear()) {
+        return `${startFormatted}, ${start.getFullYear()} - ${endFormatted}, ${end.getFullYear()}`;
+    } else if (start.getMonth() !== end.getMonth()) {
+        return `${startFormatted} - ${endFormatted}, ${start.getFullYear()}`;
+    } else {
+        return `${start.getDate()}-${end.getDate()} ${start.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+    }
+};
+
+// Get compatibility score CSS class
+const getScoreClass = (score) => {
+    if (score >= 0.8) return 'high';
+    if (score >= 0.6) return 'medium';
+    return 'low';
+};
+
+// Clear trip creation data
+const clearTripCreationData = () => {
+    tripManager.clearState();
+};
+```
+
+### Modal Management System
+
+```javascript
+// Modal management utility
+class ModalManager {
+    constructor() {
+        this.activeModals = [];
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // Close modal on ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.activeModals.length > 0) {
+                this.closeTopModal();
+            }
+        });
+        
+        // Close modal on backdrop click
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-backdrop')) {
+                this.closeTopModal();
+            }
+        });
+    }
+    
+    showModal(modalElement) {
+        // Add backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.appendChild(modalElement);
+        
+        document.body.appendChild(backdrop);
+        document.body.style.overflow = 'hidden';
+        
+        this.activeModals.push(backdrop);
+        
+        // Animate in
+        requestAnimationFrame(() => {
+            backdrop.classList.add('show');
+        });
+    }
+    
+    closeTopModal() {
+        if (this.activeModals.length === 0) return;
+        
+        const modal = this.activeModals.pop();
+        modal.classList.add('closing');
+        
+        setTimeout(() => {
+            if (modal.parentNode) {
+                modal.parentNode.removeChild(modal);
+            }
+            
+            if (this.activeModals.length === 0) {
+                document.body.style.overflow = '';
+            }
+        }, 300);
+    }
+    
+    closeAllModals() {
+        while (this.activeModals.length > 0) {
+            this.closeTopModal();
+        }
+    }
+}
+
+// Global modal manager
+const modalManager = new ModalManager();
+
+// Modal helper functions
+const closePreCheckModal = () => modalManager.closeTopModal();
+const closeFinalizationModal = () => modalManager.closeTopModal();
+const closeFilterDrawer = () => modalManager.closeTopModal();
+```
+
+### Notification System
+
+```javascript
+// Notification utility
+class NotificationManager {
+    constructor() {
+        this.container = this.createContainer();
+        this.notifications = [];
+    }
+    
+    createContainer() {
+        const container = document.createElement('div');
+        container.className = 'notification-container';
+        container.innerHTML = '<div class="notifications-list"></div>';
+        document.body.appendChild(container);
+        return container;
+    }
+    
+    show(message, type = 'info', duration = 5000) {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        
+        const icon = this.getIcon(type);
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-icon">${icon}</span>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        const list = this.container.querySelector('.notifications-list');
+        list.appendChild(notification);
+        
+        // Animate in
+        requestAnimationFrame(() => {
+            notification.classList.add('show');
+        });
+        
+        // Auto remove
+        if (duration > 0) {
+            setTimeout(() => {
+                this.removeNotification(notification);
+            }, duration);
+        }
+        
+        this.notifications.push(notification);
+        return notification;
+    }
+    
+    removeNotification(notification) {
+        notification.classList.add('removing');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+            
+            const index = this.notifications.indexOf(notification);
+            if (index > -1) {
+                this.notifications.splice(index, 1);
+            }
+        }, 300);
+    }
+    
+    getIcon(type) {
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+        return icons[type] || icons.info;
+    }
+    
+    clear() {
+        this.notifications.forEach(notification => {
+            this.removeNotification(notification);
+        });
+    }
+}
+
+// Global notification manager
+const notificationManager = new NotificationManager();
+
+// Helper functions
+const showSuccessMessage = (message) => notificationManager.show(message, 'success');
+const showErrorMessage = (message) => notificationManager.show(message, 'error');
+const showWarningMessage = (message) => notificationManager.show(message, 'warning');
+const showInfoMessage = (message) => notificationManager.show(message, 'info');
+```
+
+### Form Validation Utilities
+
+```javascript
+// Form validation helpers
+const validateTripForm = (formData) => {
+    const errors = [];
+    
+    // Required fields
+    if (!formData.tripName?.trim()) {
+        errors.push('Trip name is required');
+    }
+    
+    if (!formData.baseCity?.trim()) {
+        errors.push('Base city is required');
+    }
+    
+    if (!formData.startDate) {
+        errors.push('Start date is required');
+    }
+    
+    if (!formData.endDate) {
+        errors.push('End date is required');
+    }
+    
+    // Date validation
+    if (formData.startDate && formData.endDate) {
+        const startDate = new Date(formData.startDate);
+        const endDate = new Date(formData.endDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (startDate < today) {
+            errors.push('Start date cannot be in the past');
+        }
+        
+        if (endDate < startDate) {
+            errors.push('End date must be after start date');
+        }
+        
+        const diffDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+        if (diffDays > 30) {
+            errors.push('Trip duration cannot exceed 30 days');
+        }
+    }
+    
+    // Member count validation
+    if (formData.maxMembers && (formData.maxMembers < 1 || formData.maxMembers > 20)) {
+        errors.push('Maximum members must be between 1 and 20');
+    }
+    
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+};
+
+// Filter validation
+const validateFilters = (filters) => {
+    const errors = [];
+    
+    if (filters.startDate && filters.endDate) {
+        const startDate = new Date(filters.startDate);
+        const endDate = new Date(filters.endDate);
+        
+        if (endDate < startDate) {
+            errors.push('End date must be after start date');
+        }
+    }
+    
+    if (filters.maxMembers && filters.maxMembers < 1) {
+        errors.push('Maximum members must be at least 1');
+    }
+    
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+};
+
+// Display form errors
+const displayFormErrors = (errors) => {
+    const errorContainer = document.getElementById('form-errors');
+    if (!errorContainer) return;
+    
+    if (errors.length === 0) {
+        errorContainer.style.display = 'none';
+        return;
+    }
+    
+    errorContainer.innerHTML = `
+        <div class="error-list">
+            <h4>Please fix the following errors:</h4>
+            <ul>
+                ${errors.map(error => `<li>${error}</li>`).join('')}
+            </ul>
+        </div>
+    `;
+    errorContainer.style.display = 'block';
+    
+    // Scroll to errors
+    errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+```
+
+## 🎨 Complete CSS Styles
+
+```css
+/* Enhanced Pooling Service Styles */
+
+/* Modal Styles */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-backdrop.show {
+    opacity: 1;
+}
+
+.modal-backdrop.closing {
+    opacity: 0;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+}
+
+.modal-backdrop.show .modal-content {
+    transform: translateY(0);
+}
+
+/* Notification Styles */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+    pointer-events: none;
+}
+
+.notifications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notification {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    pointer-events: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    min-width: 300px;
+    max-width: 400px;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification.removing {
+    transform: translateX(100%);
+}
+
+.notification-content {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    gap: 12px;
+}
+
+.notification-success {
+    border-left: 4px solid #4CAF50;
+}
+
+.notification-error {
+    border-left: 4px solid #f44336;
+}
+
+.notification-warning {
+    border-left: 4px solid #FF9800;
+}
+
+.notification-info {
+    border-left: 4px solid #2196F3;
+}
+
+.notification-message {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.notification-close:hover {
+    opacity: 1;
+}
+
+/* Button Styles */
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: #e9ecef;
+    transform: translateY(-1px);
+}
+
+.btn-outline {
+    background: transparent;
+    color: #667eea;
+    border: 2px solid #667eea;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-outline:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-1px);
+}
+
+/* Form Styles */
+.touch-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.2s ease;
+}
+
+.touch-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-section {
+    margin-bottom: 24px;
+}
+
+.filter-section label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.button-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-button {
+    padding: 10px 16px;
+    border: 2px solid #e0e0e0;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-button.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.tag-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.activity-tag {
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.activity-tag.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* Card Styles */
+.discovery-card, .suggestion-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.discovery-card:hover, .suggestion-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    border-color: #667eea;
+}
+
+.discovery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 10px;
+        border-radius: 8px;
+    }
+    
+    .discovery-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .button-group {
+        flex-direction: column;
+    }
+    
+    .filter-button {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .notification {
+        min-width: 280px;
+        margin: 0 10px;
+    }
+    
+    .btn-primary, .btn-secondary, .btn-outline {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}
+```
+
+## 🧪 Testing Examples
+
+### Unit Testing Functions
+
+```javascript
+// Test the pre-check functionality
+const testPreCheckFlow = async () => {
+    console.log('Testing pre-check flow...');
+    
+    const testPreferences = {
+        tripName: "Sri Lanka Adventure Test",
+        baseCity: "Colombo",
+        startDate: "2024-12-01",
+        endDate: "2024-12-07",
+        budgetLevel: "Medium",
+        preferredActivities: ["Hiking", "Cultural Tours"],
+        preferredTerrains: ["Mountain", "Beach"],
+        multiCityAllowed: true,
+        activityPacing: "Normal"
+    };
+    
+    try {
+        // Test pre-check
+        const result = await preCheckCompatibleGroups(testPreferences);
+        console.log('Pre-check result:', result);
+        
+        if (result.hasCompatibleGroups) {
+            console.log(`✅ Found ${result.suggestions.length} compatible groups`);
+            result.suggestions.forEach((group, index) => {
+                console.log(`Group ${index + 1}: ${group.tripName} (${Math.round(group.compatibilityScore * 100)}% match)`);
+            });
+        } else {
+            console.log('❌ No compatible groups found');
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('❌ Pre-check test failed:', error);
+        throw error;
+    }
+};
+
+// Test group filtering
+const testGroupFiltering = async () => {
+    console.log('Testing group filtering...');
+    
+    const testFilters = {
+        baseCity: "Colombo",
+        budgetLevel: "Medium",
+        startDate: "2024-12-01",
+        preferredActivities: ["Hiking"]
+    };
+    
+    try {
+        const result = await getPublicGroups(testFilters);
+        console.log('Filter result:', result);
+        
+        if (result.success) {
+            console.log(`✅ Found ${result.groups.length} filtered groups`);
+            result.groups.forEach((group, index) => {
+                console.log(`Group ${index + 1}: ${group.tripName} in ${group.baseCity}`);
+            });
+        } else {
+            console.log('❌ Filtering failed');
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('❌ Filtering test failed:', error);
+        throw error;
+    }
+};
+
+// Integration test
+const runIntegrationTest = async () => {
+    console.log('🧪 Running integration test...');
+    
+    try {
+        // 1. Test pre-check
+        await testPreCheckFlow();
+        
+        // 2. Test filtering
+        await testGroupFiltering();
+        
+        // 3. Test state management
+        tripManager.updateState({ currentStep: 'testing' });
+        const state = tripManager.loadState();
+        console.log('State management test:', state.currentStep === 'testing' ? '✅' : '❌');
+        
+        console.log('🎉 All tests passed!');
+    } catch (error) {
+        console.error('❌ Integration test failed:', error);
+    }
+};
+
+// Run tests (call this in browser console)
+// runIntegrationTest();
+```
+
+## 📱 Mobile-Optimized Components
+
+### Responsive Pre-Check Modal
+
+```css
+/* Mobile-first responsive design */
+.pre-check-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.suggestion-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+
+.suggestion-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.compatibility-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+}
+
+.compatibility-badge.score-high {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.compatibility-badge.score-medium {
+    background: linear-gradient(135deg, #FF9800, #F57C00);
+}
+
+.compatibility-badge.score-low {
+    background: linear-gradient(135deg, #757575, #616161);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .pre-check-modal {
+        padding: 10px;
+    }
+    
+    .modal-content {
+        border-radius: 8px;
+        max-height: 95vh;
+    }
+    
+    .suggestions-list {
+        padding: 10px;
+    }
+    
+    .suggestion-card {
+        padding: 12px;
+        margin-bottom: 8px;
+    }
+    
+    .modal-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .btn-primary, .btn-secondary, .btn-outline {
+        width: 100%;
+        padding: 12px;
+    }
+}
+```
+
+### Touch-Friendly Filter Interface
+
+```html
+<div class="mobile-filter-drawer">
+    <div class="filter-header">
+        <h3>Filter Groups</h3>
+        <button class="close-filters" onclick="closeFilterDrawer()">✕</button>
+    </div>
+    
+    <div class="filter-content">
+        <!-- Touch-friendly filter controls -->
+        <div class="filter-section">
+            <label>When are you traveling?</label>
+            <div class="date-picker-row">
+                <input type="date" class="touch-input" name="startDate" placeholder="Start Date">
+                <input type="date" class="touch-input" name="endDate" placeholder="End Date">
+            </div>
+        </div>
+        
+        <div class="filter-section">
+            <label>Budget Level</label>
+            <div class="button-group">
+                <button class="filter-button" data-value="Low">💰 Low</button>
+                <button class="filter-button" data-value="Medium">💰💰 Medium</button>
+                <button class="filter-button" data-value="High">💰💰💰 High</button>
+            </div>
+        </div>
+        
+        <div class="filter-section">
+            <label>Activities You Love</label>
+            <div class="tag-selector">
+                <button class="activity-tag" data-activity="Hiking">🥾 Hiking</button>
+                <button class="activity-tag" data-activity="Cultural Tours">🏛️ Cultural</button>
+                <button class="activity-tag" data-activity="Wildlife Safari">🦁 Safari</button>
+                <button class="activity-tag" data-activity="Beach Activities">🏖️ Beach</button>
+                <button class="activity-tag" data-activity="Photography">📸 Photo</button>
+                <button class="activity-tag" data-activity="Adventure Sports">🧗 Adventure</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="filter-actions">
+        <button class="btn-primary btn-block" onclick="applyMobileFilters()">
+            Apply Filters
+        </button>
+        <button class="btn-secondary btn-block" onclick="clearMobileFilters()">
+            Clear All
+        </button>
+    </div>
+</div>
 ```
 
 ### 3. Finalize Trip Decision (NEW)
@@ -362,7 +2024,6 @@ const proceedWithOwnTrip = async () => {
 const createPublicPoolingGroup = async (formData) => {
     const result = await createGroupWithTrip({
         userId: currentUser.id,
-        groupName: formData.groupName,
         tripName: formData.tripName,
         startDate: formData.startDate,
         endDate: formData.endDate,
@@ -455,11 +2116,6 @@ const proceedWithOwnTrip = async () => {
 ### 1. Create Group Form
 ```html
 <form id="create-group-form" onsubmit="handleCreateGroup(event)">
-    <div class="form-group">
-        <label for="groupName">Group Name</label>
-        <input type="text" id="groupName" name="groupName" required>
-    </div>
-    
     <div class="form-group">
         <label for="tripName">Trip Name</label>
         <input type="text" id="tripName" name="tripName" required>
@@ -600,8 +2256,8 @@ const showSuggestionsModal = (suggestions) => {
             </div>
             <div class="suggestion-details">
                 <div class="detail-row">
-                    <span class="label">Group:</span>
-                    <span class="value">${group.groupName}</span>
+                    <span class="label">Trip:</span>
+                    <span class="value">${group.tripName}</span>
                 </div>
                 <div class="detail-row">
                     <span class="label">Members:</span>

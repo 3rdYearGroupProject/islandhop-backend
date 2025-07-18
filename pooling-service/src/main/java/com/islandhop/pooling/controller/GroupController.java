@@ -214,16 +214,32 @@ public class GroupController {
     }
     
     /**
-     * Gets list of public groups.
-     *
+     * Gets list of public groups with optional filtering.
+     * Enhanced to support filtering by preferences and compatibility scoring.
+     * 
      * @param userId The requesting user's ID
-     * @return ResponseEntity with list of public groups
+     * @param baseCity Optional filter by base city
+     * @param startDate Optional filter by start date
+     * @param endDate Optional filter by end date  
+     * @param budgetLevel Optional filter by budget level
+     * @param preferredActivities Optional filter by preferred activities
+     * @return ResponseEntity with filtered list of public groups
      */
     @GetMapping("/public")
-    public ResponseEntity<List<PublicGroupResponse>> getPublicGroups(@RequestParam String userId) {
+    public ResponseEntity<List<PublicGroupResponse>> getPublicGroups(
+            @RequestParam String userId,
+            @RequestParam(required = false) String baseCity,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String budgetLevel,
+            @RequestParam(required = false) List<String> preferredActivities) {
         try {
-            log.info("Getting public groups for user '{}'", userId);
-            List<PublicGroupResponse> response = groupService.getPublicGroups(userId);
+            log.info("Getting public groups for user '{}' with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
+                    userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+            
+            List<PublicGroupResponse> response = groupService.getPublicGroups(
+                userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+            
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Unexpected error getting public groups for user {}: {}", userId, e.getMessage(), e);
@@ -312,6 +328,62 @@ public class GroupController {
     }
     
     /**
+     * Allows a group member to vote on a join request.
+     * Supports multi-member approval system where all members must approve.
+     *
+     * @param groupId The ID of the group
+     * @param request The member vote request
+     * @return ResponseEntity with the vote response
+     */
+    @PostMapping("/{groupId}/join-requests/vote")
+    public ResponseEntity<MemberVoteResponse> voteOnJoinRequest(
+            @PathVariable String groupId,
+            @Valid @RequestBody MemberVoteRequest request) {
+        try {
+            log.info("Member '{}' voting on join request '{}' for group '{}'", 
+                     request.getUserId(), request.getJoinRequestId(), groupId);
+            MemberVoteResponse response = groupService.voteOnJoinRequest(groupId, request);
+            return ResponseEntity.ok(response);
+        } catch (GroupNotFoundException e) {
+            log.warn("Group not found for member vote: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException | InvalidGroupOperationException | JoinRequestNotFoundException e) {
+            log.warn("Invalid member vote operation: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error processing member vote for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to process member vote: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gets pending join requests for a group that require member votes.
+     *
+     * @param groupId The ID of the group
+     * @param userId The requesting user's ID
+     * @return ResponseEntity with pending join requests
+     */
+    @GetMapping("/{groupId}/join-requests/pending")
+    public ResponseEntity<PendingJoinRequestsResponse> getPendingJoinRequests(
+            @PathVariable String groupId,
+            @RequestParam String userId) {
+        try {
+            log.info("Getting pending join requests for group '{}' by user '{}'", groupId, userId);
+            PendingJoinRequestsResponse response = groupService.getPendingJoinRequests(groupId, userId);
+            return ResponseEntity.ok(response);
+        } catch (GroupNotFoundException e) {
+            log.warn("Group not found for pending join requests: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException e) {
+            log.warn("Unauthorized access to pending join requests: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error getting pending join requests for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get pending join requests: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Handles validation errors.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -373,6 +445,17 @@ public class GroupController {
         error.put("status", "error");
         error.put("message", ex.getMessage());
         return ResponseEntity.badRequest().body(error);
+    }
+    
+    /**
+     * Handles join request not found exceptions.
+     */
+    @ExceptionHandler(JoinRequestNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleJoinRequestNotFoundException(JoinRequestNotFoundException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("status", "error");
+        error.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
     
     /**

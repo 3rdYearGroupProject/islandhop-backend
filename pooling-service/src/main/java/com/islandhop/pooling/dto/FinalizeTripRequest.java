@@ -5,6 +5,7 @@ import lombok.Data;
 
 /**
  * Request DTO for finalizing a trip with suggestions.
+ * Supports different actions including checking for suggestions.
  */
 @Data
 public class FinalizeTripRequest {
@@ -13,7 +14,7 @@ public class FinalizeTripRequest {
     private String userId;
     
     @NotBlank(message = "Action is required")
-    private String action; // "finalize" or "join"
+    private String action; // "finalize", "join", or "checkSuggestions"
     
     private String targetGroupId; // Required if action is "join"
 }

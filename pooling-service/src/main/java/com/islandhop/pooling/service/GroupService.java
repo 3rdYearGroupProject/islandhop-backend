@@ -314,27 +314,161 @@ public class GroupService {
     }
     
     /**
-     * Gets list of public groups.
+     * Gets list of public groups with optional filtering.
+     * Enhanced to support filtering by preferences and compatibility scoring.
      */
-    public List<PublicGroupResponse> getPublicGroups(String userId) {
-        log.info("Getting public groups for user '{}'", userId);
+    public List<PublicGroupResponse> getPublicGroups(String userId, String baseCity, String startDate, 
+                                                     String endDate, String budgetLevel, List<String> preferredActivities) {
+        log.info("Getting public groups for user '{}' with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
+                userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
         
         try {
-            // Find public groups
-            List<Group> publicGroups = groupRepository.findByVisibility("public");
+            List<Group> publicGroups;
+            
+            // Apply repository-level filtering if multiple criteria provided
+            if (baseCity != null && budgetLevel != null && startDate != null && endDate != null) {
+                publicGroups = groupRepository.findPublicGroupsWithFilters(baseCity, budgetLevel, startDate, endDate);
+                log.debug("Applied repository filtering, found {} groups", publicGroups.size());
+            } else {
+                // Get all public groups and filter programmatically
+                publicGroups = groupRepository.findByVisibility("public");
+                publicGroups = applyFilters(publicGroups, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+                log.debug("Applied programmatic filtering, found {} groups", publicGroups.size());
+            }
             
             // Convert to response DTOs
             List<PublicGroupResponse> responses = publicGroups.stream()
                 .map(this::convertToPublicGroupResponse)
                 .collect(Collectors.toList());
             
-            log.info("Found {} public groups for user '{}'", responses.size(), userId);
+            // If user preferences are provided, calculate compatibility scores and sort
+            if (hasUserPreferences(baseCity, startDate, endDate, budgetLevel, preferredActivities)) {
+                responses = addCompatibilityScores(responses, userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+                
+                // Sort by compatibility score descending
+                responses.sort((a, b) -> {
+                    Double scoreA = a.getCompatibilityScore() != null ? a.getCompatibilityScore() : 0.0;
+                    Double scoreB = b.getCompatibilityScore() != null ? b.getCompatibilityScore() : 0.0;
+                    return Double.compare(scoreB, scoreA);
+                });
+            }
+            
+            log.info("Found {} public groups for user '{}' after filtering", responses.size(), userId);
             return responses;
             
         } catch (Exception e) {
             log.error("Unexpected error getting public groups for user {}: {}", userId, e.getMessage(), e);
             throw new GroupCreationException("Failed to get public groups: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Applies programmatic filters to groups when repository filtering is not used.
+     */
+    private List<Group> applyFilters(List<Group> groups, String baseCity, String startDate, 
+                                     String endDate, String budgetLevel, List<String> preferredActivities) {
+        return groups.stream()
+            .filter(group -> matchesFilters(group, baseCity, startDate, endDate, budgetLevel, preferredActivities))
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Checks if a group matches the provided filters.
+     */
+    private boolean matchesFilters(Group group, String baseCity, String startDate, 
+                                   String endDate, String budgetLevel, List<String> preferredActivities) {
+        Map<String, Object> preferences = group.getPreferences();
+        if (preferences == null) {
+            return false;
+        }
+        
+        // Base city filter
+        if (baseCity != null) {
+            String groupBaseCity = (String) preferences.get("baseCity");
+            if (groupBaseCity == null || !groupBaseCity.equalsIgnoreCase(baseCity)) {
+                return false;
+            }
+        }
+        
+        // Date filters
+        if (startDate != null) {
+            String groupStartDate = (String) preferences.get("startDate");
+            if (groupStartDate == null || !groupStartDate.equals(startDate)) {
+                return false;
+            }
+        }
+        
+        if (endDate != null) {
+            String groupEndDate = (String) preferences.get("endDate");
+            if (groupEndDate == null || !groupEndDate.equals(endDate)) {
+                return false;
+            }
+        }
+        
+        // Budget filter
+        if (budgetLevel != null) {
+            String groupBudgetLevel = (String) preferences.get("budgetLevel");
+            if (groupBudgetLevel == null || !groupBudgetLevel.equalsIgnoreCase(budgetLevel)) {
+                return false;
+            }
+        }
+        
+        // Activity filter (at least one common activity)
+        if (preferredActivities != null && !preferredActivities.isEmpty()) {
+            List<String> groupActivities = (List<String>) preferences.get("preferredActivities");
+            if (groupActivities == null || groupActivities.isEmpty()) {
+                return false;
+            }
+            
+            boolean hasCommonActivity = groupActivities.stream()
+                .anyMatch(activity -> preferredActivities.contains(activity));
+            if (!hasCommonActivity) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Checks if user preferences are provided for compatibility scoring.
+     */
+    private boolean hasUserPreferences(String baseCity, String startDate, String endDate, 
+                                       String budgetLevel, List<String> preferredActivities) {
+        return baseCity != null || startDate != null || endDate != null || 
+               budgetLevel != null || (preferredActivities != null && !preferredActivities.isEmpty());
+    }
+    
+    /**
+     * Adds compatibility scores to public group responses.
+     */
+    private List<PublicGroupResponse> addCompatibilityScores(List<PublicGroupResponse> responses, 
+                                                             String userId, String baseCity, String startDate, 
+                                                             String endDate, String budgetLevel, List<String> preferredActivities) {
+        // Create user preferences map
+        Map<String, Object> userPreferences = new HashMap<>();
+        if (baseCity != null) userPreferences.put("baseCity", baseCity);
+        if (startDate != null) userPreferences.put("startDate", startDate);
+        if (endDate != null) userPreferences.put("endDate", endDate);
+        if (budgetLevel != null) userPreferences.put("budgetLevel", budgetLevel);
+        if (preferredActivities != null) userPreferences.put("preferredActivities", preferredActivities);
+        
+        // Calculate compatibility scores
+        responses.forEach(response -> {
+            try {
+                Group group = groupRepository.findById(response.getGroupId()).orElse(null);
+                if (group != null) {
+                    double score = tripCompatibilityService.calculatePreCheckCompatibilityScore(userPreferences, group);
+                    response.setCompatibilityScore(Math.round(score * 100.0) / 100.0);
+                    log.debug("Calculated compatibility score {} for group {}", score, group.getId());
+                }
+            } catch (Exception e) {
+                log.warn("Failed to calculate compatibility score for group {}: {}", response.getGroupId(), e.getMessage());
+                response.setCompatibilityScore(0.0);
+            }
+        });
+        
+        return responses;
     }
     
     /**
@@ -360,16 +494,41 @@ public class GroupService {
     
     /**
      * Converts Group entity to PublicGroupResponse DTO.
-     * Shows trip information instead of group names.
+     * Enhanced with additional fields for filtering and compatibility.
      */
     private PublicGroupResponse convertToPublicGroupResponse(Group group) {
         PublicGroupResponse response = new PublicGroupResponse();
         response.setGroupId(group.getId());
         response.setTripId(group.getTripId());
-        response.setTripName("Trip " + group.getTripId()); // TODO: Fetch actual trip name from trip service
+        response.setGroupName(group.getGroupName());
+        response.setTripName(group.getTripName() != null ? group.getTripName() : "Trip " + group.getTripId());
         response.setPreferences(group.getPreferences());
         response.setCollaboratorCount(group.getUserIds().size());
+        response.setMaxMembers(group.getMaxMembers());
         response.setCreatedAt(group.getCreatedAt());
+        response.setStatus(group.getStatus());
+        
+        // Extract enhanced fields from preferences
+        Map<String, Object> preferences = group.getPreferences();
+        if (preferences != null) {
+            response.setBaseCity((String) preferences.get("baseCity"));
+            response.setStartDate((String) preferences.get("startDate"));
+            response.setEndDate((String) preferences.get("endDate"));
+            response.setBudgetLevel((String) preferences.get("budgetLevel"));
+            response.setActivityPacing((String) preferences.get("activityPacing"));
+            
+            // Handle list fields safely
+            Object activitiesObj = preferences.get("preferredActivities");
+            if (activitiesObj instanceof List) {
+                response.setPreferredActivities((List<String>) activitiesObj);
+            }
+            
+            Object terrainsObj = preferences.get("preferredTerrains");
+            if (terrainsObj instanceof List) {
+                response.setPreferredTerrains((List<String>) terrainsObj);
+            }
+        }
+        
         return response;
     }
     
@@ -450,6 +609,7 @@ public class GroupService {
     
     /**
      * Approves or rejects a join request.
+     * Legacy method - now supports both single-admin and multi-member approval.
      */
     public JoinGroupResponse approveJoinRequest(String groupId, ApproveJoinRequestRequest request) {
         log.info("User '{}' reviewing join request '{}' for group '{}'", 
@@ -460,9 +620,9 @@ public class GroupService {
             Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new GroupNotFoundException("Group not found: " + groupId));
             
-            // Check permissions (only group creator or admin can approve)
-            if (!group.isCreator(request.getUserId())) {
-                throw new UnauthorizedGroupAccessException("Only group creator can approve join requests");
+            // Check permissions (only group members can approve)
+            if (!group.isMember(request.getUserId())) {
+                throw new UnauthorizedGroupAccessException("Only group members can vote on join requests");
             }
             
             // Find join request
@@ -475,36 +635,58 @@ public class GroupService {
                 throw new InvalidGroupOperationException("Join request is no longer pending");
             }
             
+            // Check if user has already voted
+            if (joinRequest.hasMemberResponded(request.getUserId())) {
+                throw new InvalidGroupOperationException("You have already voted on this join request");
+            }
+            
             JoinGroupResponse response = new JoinGroupResponse();
             response.setGroupId(groupId);
             
             if ("approve".equals(request.getAction())) {
-                if (group.isFull()) {
-                    throw new InvalidGroupOperationException("Group is full");
+                joinRequest.addMemberApproval(request.getUserId(), "approve", null);
+                
+                // Check if all members have now approved
+                if (joinRequest.hasAllMembersApproved(group.getUserIds())) {
+                    if (group.isFull()) {
+                        throw new InvalidGroupOperationException("Group is full");
+                    }
+                    
+                    joinRequest.finalizeBasedOnApprovals(group.getUserIds());
+                    group.addUser(joinRequest.getUserId());
+                    
+                    // Add action
+                    GroupAction action = GroupAction.create(
+                        request.getUserId(),
+                        "JOIN_REQUEST_APPROVED_ALL_MEMBERS",
+                        "Join request approved by all members for user: " + joinRequest.getUserId()
+                    );
+                    group.getActions().add(action);
+                    
+                    response.setStatus("success");
+                    response.setMessage("Join request approved by all members. User has been added to the group.");
+                } else {
+                    // Add action for individual approval
+                    GroupAction action = GroupAction.create(
+                        request.getUserId(),
+                        "JOIN_REQUEST_MEMBER_APPROVED",
+                        "Member approved join request for user: " + joinRequest.getUserId()
+                    );
+                    group.getActions().add(action);
+                    
+                    response.setStatus("pending");
+                    response.setMessage("Your approval recorded. Waiting for approval from remaining members.");
                 }
                 
-                joinRequest.approve(request.getUserId());
-                group.addUser(joinRequest.getUserId());
-                
-                // Add action
-                GroupAction action = GroupAction.create(
-                    request.getUserId(),
-                    "JOIN_REQUEST_APPROVED",
-                    "Join request approved for user: " + joinRequest.getUserId()
-                );
-                group.getActions().add(action);
-                
-                response.setStatus("success");
-                response.setMessage("Join request approved successfully");
-                
             } else if ("reject".equals(request.getAction())) {
-                joinRequest.reject(request.getUserId(), request.getReason());
+                joinRequest.addMemberApproval(request.getUserId(), "reject", request.getReason());
+                joinRequest.finalizeBasedOnApprovals(group.getUserIds());
                 
                 // Add action
                 GroupAction action = GroupAction.create(
                     request.getUserId(),
-                    "JOIN_REQUEST_REJECTED",
-                    "Join request rejected for user: " + joinRequest.getUserId()
+                    "JOIN_REQUEST_REJECTED_BY_MEMBER",
+                    "Join request rejected by member for user: " + joinRequest.getUserId()
                 );
                 group.getActions().add(action);
                 
@@ -573,14 +755,28 @@ public class GroupService {
      * @throws GroupCreationException if creation fails
      */
     public CreateGroupWithTripResponse createGroupWithTrip(CreateGroupWithTripRequest request) {
-        log.info("Creating group with trip for user {}", request.getUserId());
+        log.info("Creating {} group with trip for user {}", 
+                request.getVisibility() != null ? request.getVisibility() : "private", request.getUserId());
         
         try {
             // Validate input
             validateCreateGroupWithTripRequest(request);
             
-            // Create trip first
+            // Set default visibility if not specified
+            if (request.getVisibility() == null || request.getVisibility().trim().isEmpty()) {
+                request.setVisibility("private");
+            }
+            
+            // Set default max members based on configurable limits
+            if (request.getMaxMembers() == null || request.getMaxMembers() < 2 || request.getMaxMembers() > 20) {
+                request.setMaxMembers(6); // Default value
+            }
+            
+            // Create trip first with group type
             Map<String, Object> tripData = buildTripData(request);
+            tripData.put("type", "group"); // Mark as group trip
+            String groupId = UUID.randomUUID().toString();
+            tripData.put("groupId", groupId); // Include group ID in trip data
             Map<String, Object> tripResponse = itineraryServiceClient.createTripPlan(request.getUserId(), tripData).block();
             
             if (tripResponse == null || !"success".equals(tripResponse.get("status"))) {
@@ -589,21 +785,26 @@ public class GroupService {
             
             String tripId = (String) tripResponse.get("tripId");
             
-            // Generate group ID
-            String groupId = UUID.randomUUID().toString();
-            
             // Create group entity
             Group group = new Group();
             group.setId(groupId);
             group.setGroupName(request.getGroupName());
             group.setTripId(tripId);
+            group.setTripName(request.getTripName());
             group.setVisibility(request.getVisibility());
-            group.setStatus("draft"); // Start as draft for public pooling
+            group.setCreatorUserId(request.getUserId());
             group.setMaxMembers(request.getMaxMembers());
-            group.setRequiresApproval(request.getRequiresApproval());
+            group.setRequiresApproval(request.getRequiresApproval() != null ? request.getRequiresApproval() : false);
             group.setUserIds(List.of(request.getUserId()));
             group.setCreatedAt(Instant.now());
             group.setLastUpdated(Instant.now());
+            
+            // Set status based on visibility for hybrid workflow
+            if ("public".equals(request.getVisibility())) {
+                group.setStatus("draft"); // Public groups start as draft for suggestions
+            } else {
+                group.setStatus("finalized"); // Private groups are immediately finalized
+            }
             
             // Store trip preferences for compatibility matching
             Map<String, Object> preferences = new HashMap<>();
@@ -615,8 +816,8 @@ public class GroupService {
             preferences.put("multiCityAllowed", request.getMultiCityAllowed());
             preferences.put("activityPacing", request.getActivityPacing());
             preferences.put("budgetLevel", request.getBudgetLevel());
-            preferences.put("preferredTerrains", request.getPreferredTerrains());
-            preferences.put("preferredActivities", request.getPreferredActivities());
+            preferences.put("preferredTerrains", request.getPreferredTerrains() != null ? request.getPreferredTerrains() : new ArrayList<>());
+            preferences.put("preferredActivities", request.getPreferredActivities() != null ? request.getPreferredActivities() : new ArrayList<>());
             preferences.putAll(request.getAdditionalPreferences() != null ? request.getAdditionalPreferences() : new HashMap<>());
             group.setPreferences(preferences);
             
@@ -624,7 +825,7 @@ public class GroupService {
             GroupAction createAction = GroupAction.create(
                 request.getUserId(),
                 "GROUP_WITH_TRIP_CREATED",
-                "Created public pooling group with trip: " + request.getTripName()
+                String.format("Created %s group with trip: %s", request.getVisibility(), request.getTripName())
             );
             group.setActions(List.of(createAction));
             
@@ -636,10 +837,16 @@ public class GroupService {
             response.setStatus("success");
             response.setGroupId(savedGroup.getId());
             response.setTripId(tripId);
-            response.setMessage("Group with trip created successfully");
-            response.setDraft(true);
+            response.setDraft("public".equals(request.getVisibility())); // Only public groups are drafts
             
-            log.info("Group with trip created successfully: groupId={}, tripId={}", groupId, tripId);
+            if ("public".equals(request.getVisibility())) {
+                response.setMessage("Public group created as draft. Complete trip planning to get suggestions or finalize directly.");
+            } else {
+                response.setMessage("Private group created and finalized successfully.");
+            }
+            
+            log.info("Group with trip created successfully: groupId={}, tripId={}, visibility={}, status={}", 
+                    groupId, tripId, request.getVisibility(), group.getStatus());
             return response;
             
         } catch (Exception e) {
@@ -727,7 +934,7 @@ public class GroupService {
             response.setTripId(group.getTripId());
             
             if ("finalize".equals(request.getAction())) {
-                // Finalize current group
+                // Finalize current group directly (for private groups or when user chooses to proceed)
                 group.finalize();
                 
                 // Add finalization action
@@ -746,6 +953,47 @@ public class GroupService {
                 response.setSuccess(true);
                 
                 log.info("Trip finalized for group {}", groupId);
+                
+            } else if ("checkSuggestions".equals(request.getAction())) {
+                // Get suggestions for public groups only
+                if (!"public".equals(group.getVisibility())) {
+                    throw new InvalidGroupOperationException("Suggestions are only available for public groups");
+                }
+                
+                if (!"draft".equals(group.getStatus())) {
+                    throw new InvalidGroupOperationException("Group must be in draft status to check suggestions");
+                }
+                
+                // Get trip suggestions using compatibility service
+                try {
+                    // For now, we'll call the existing getTripSuggestions method
+                    // In a real implementation, this might call the trip-planning service for full trip data
+                    Map<String, Object> mockTripData = new HashMap<>();
+                    List<TripSuggestionsResponse.CompatibleGroup> suggestions = 
+                        tripCompatibilityService.findCompatibleGroups(group, mockTripData);
+                    
+                    response.setStatus("success");
+                    response.setAction("suggestions");
+                    response.setSuccess(true);
+                    
+                    if (suggestions.isEmpty()) {
+                        response.setMessage("No compatible groups found. You can finalize your trip.");
+                        response.setSuggestions(new ArrayList<>());
+                    } else {
+                        response.setMessage(String.format("Found %d compatible group(s)", suggestions.size()));
+                        response.setSuggestions(suggestions);
+                    }
+                    
+                    log.info("Generated {} suggestions for group {}", suggestions.size(), groupId);
+                    
+                } catch (Exception e) {
+                    log.warn("Failed to get suggestions for group {}: {}", groupId, e.getMessage());
+                    response.setStatus("success");
+                    response.setAction("suggestions");
+                    response.setSuccess(true);
+                    response.setMessage("Unable to find suggestions at this time. You can finalize your trip.");
+                    response.setSuggestions(new ArrayList<>());
+                }
                 
             } else if ("join".equals(request.getAction())) {
                 // Join existing group
@@ -784,7 +1032,8 @@ public class GroupService {
                 log.info("User {} joined existing group {} and discarded group {}", request.getUserId(), request.getTargetGroupId(), groupId);
                 
             } else {
-                throw new InvalidGroupOperationException("Invalid action: " + request.getAction());
+                throw new InvalidGroupOperationException("Invalid action: " + request.getAction() + 
+                    ". Supported actions: finalize, checkSuggestions, join");
             }
             
             return response;
@@ -821,6 +1070,163 @@ public class GroupService {
         
         if (request.getMaxMembers() < 2 || request.getMaxMembers() > 20) {
             throw new IllegalArgumentException("Maximum members must be between 2 and 20");
+        }
+    }
+    
+    /**
+     * Allows a group member to vote on a join request.
+     * Supports the multi-member approval system.
+     */
+    public MemberVoteResponse voteOnJoinRequest(String groupId, MemberVoteRequest request) {
+        log.info("Member '{}' voting '{}' on join request '{}' for group '{}'", 
+            request.getUserId(), request.getAction(), request.getJoinRequestId(), groupId);
+        
+        try {
+            // Find group
+            Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new GroupNotFoundException("Group not found: " + groupId));
+            
+            // Check permissions (only group members can vote)
+            if (!group.isMember(request.getUserId())) {
+                throw new UnauthorizedGroupAccessException("Only group members can vote on join requests");
+            }
+            
+            // Find join request
+            JoinRequest joinRequest = group.getJoinRequests().stream()
+                .filter(jr -> jr.getId().equals(request.getJoinRequestId()))
+                .findFirst()
+                .orElseThrow(() -> new JoinRequestNotFoundException("Join request not found"));
+            
+            if (!joinRequest.isPending()) {
+                throw new InvalidGroupOperationException("Join request is no longer pending");
+            }
+            
+            // Check if user has already voted
+            if (joinRequest.hasMemberResponded(request.getUserId())) {
+                throw new InvalidGroupOperationException("You have already voted on this join request");
+            }
+            
+            // Add the member's vote
+            joinRequest.addMemberApproval(request.getUserId(), request.getAction(), request.getReason());
+            
+            MemberVoteResponse response = new MemberVoteResponse();
+            response.setGroupId(groupId);
+            response.setJoinRequestId(request.getJoinRequestId());
+            
+            // Check if all members have now responded
+            if ("reject".equals(request.getAction()) || joinRequest.hasAnyMemberRejected()) {
+                // If any member rejects, the request is rejected
+                joinRequest.finalizeBasedOnApprovals(group.getUserIds());
+                
+                GroupAction action = GroupAction.create(
+                    request.getUserId(),
+                    "JOIN_REQUEST_REJECTED_BY_MEMBER",
+                    "Join request rejected by member for user: " + joinRequest.getUserId()
+                );
+                group.getActions().add(action);
+                
+                response.setStatus("success");
+                response.setRequestStatus("rejected");
+                response.setMessage("Join request rejected");
+                
+            } else if (joinRequest.hasAllMembersApproved(group.getUserIds())) {
+                // All members have approved
+                if (group.isFull()) {
+                    throw new InvalidGroupOperationException("Group is full");
+                }
+                
+                joinRequest.finalizeBasedOnApprovals(group.getUserIds());
+                group.addUser(joinRequest.getUserId());
+                
+                GroupAction action = GroupAction.create(
+                    request.getUserId(),
+                    "JOIN_REQUEST_APPROVED_ALL_MEMBERS",
+                    "Join request approved by all members for user: " + joinRequest.getUserId()
+                );
+                group.getActions().add(action);
+                
+                response.setStatus("success");
+                response.setRequestStatus("approved");
+                response.setMessage("Join request approved by all members. User has been added to the group.");
+                
+            } else {
+                // Still pending more votes
+                GroupAction action = GroupAction.create(
+                    request.getUserId(),
+                    "JOIN_REQUEST_MEMBER_VOTED",
+                    "Member voted on join request for user: " + joinRequest.getUserId()
+                );
+                group.getActions().add(action);
+                
+                response.setStatus("success");
+                response.setRequestStatus("pending");
+                response.setMessage("Your vote recorded. Waiting for votes from remaining members.");
+            }
+            
+            // Set additional response information
+            response.setPendingMembers(joinRequest.getPendingMemberIds(group.getUserIds()));
+            response.setTotalVotesReceived(joinRequest.getMemberApprovals().size());
+            response.setTotalMembersRequired(group.getUserIds().size());
+            
+            group.setLastUpdated(Instant.now());
+            groupRepository.save(group);
+            
+            return response;
+            
+        } catch (GroupNotFoundException | InvalidGroupOperationException | UnauthorizedGroupAccessException | JoinRequestNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error processing vote for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to process vote: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gets pending join requests for a group that require member votes.
+     */
+    public PendingJoinRequestsResponse getPendingJoinRequests(String groupId, String userId) {
+        log.info("Getting pending join requests for group '{}' by user '{}'", groupId, userId);
+        
+        try {
+            // Find group
+            Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new GroupNotFoundException("Group not found: " + groupId));
+            
+            // Check permissions (only group members can see pending requests)
+            if (!group.isMember(userId)) {
+                throw new UnauthorizedGroupAccessException("Only group members can view pending join requests");
+            }
+            
+            PendingJoinRequestsResponse response = new PendingJoinRequestsResponse();
+            response.setStatus("success");
+            
+            List<PendingJoinRequestsResponse.PendingJoinRequestInfo> pendingInfos = group.getJoinRequests().stream()
+                .filter(JoinRequest::isPending)
+                .map(joinRequest -> {
+                    PendingJoinRequestsResponse.PendingJoinRequestInfo info = new PendingJoinRequestsResponse.PendingJoinRequestInfo();
+                    info.setJoinRequestId(joinRequest.getId());
+                    info.setUserId(joinRequest.getUserId());
+                    info.setUserName(joinRequest.getUserName());
+                    info.setUserEmail(joinRequest.getUserEmail());
+                    info.setMessage(joinRequest.getMessage());
+                    info.setRequestedAt(joinRequest.getRequestedAt().toString());
+                    info.setPendingMembers(joinRequest.getPendingMemberIds(group.getUserIds()));
+                    info.setTotalVotesReceived(joinRequest.getMemberApprovals().size());
+                    info.setTotalMembersRequired(group.getUserIds().size());
+                    info.setHasCurrentUserVoted(joinRequest.hasMemberResponded(userId));
+                    return info;
+                })
+                .toList();
+            
+            response.setPendingRequests(pendingInfos);
+            
+            return response;
+            
+        } catch (GroupNotFoundException | UnauthorizedGroupAccessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error getting pending join requests for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get pending join requests: " + e.getMessage());
         }
     }
     
