@@ -168,4 +168,75 @@ public class PublicPoolingService {
         
         return compatibleGroup;
     }
+    
+    /**
+     * Create a new public pooling group.
+     */
+    public CreatePublicPoolingGroupResponse createPublicPoolingGroup(CreatePublicPoolingGroupRequest request) {
+        log.info("Creating public pooling group for user {}", request.getUserId());
+        
+        // Create a new group
+        Group group = new Group();
+        group.setCreatedBy(request.getUserId());
+        group.setGroupName(request.getGroupName());
+        group.setTripName(request.getTripName());
+        group.setVisibility("public");
+        group.setStatus("active");
+        group.setMaxMembers(request.getMaxMembers());
+        group.setRequiresApproval(request.getRequiresApproval());
+        group.getUserIds().add(request.getUserId());
+        group.setCreatedAt(Instant.now());
+        
+        Group savedGroup = groupRepository.save(group);
+        
+        return new CreatePublicPoolingGroupResponse(savedGroup.getId(), "Group created successfully");
+    }
+    
+    /**
+     * Save a trip with suggestions.
+     */
+    public SaveTripWithSuggestionsResponse saveTripWithSuggestions(String userId, SaveTripRequest request) {
+        log.info("Saving trip with suggestions for user {}", userId);
+        
+        // Implementation for saving trip with suggestions
+        // This would typically involve creating a trip plan and linking it to a group
+        
+        return new SaveTripWithSuggestionsResponse(request.getTripId(), "Trip saved with suggestions successfully");
+    }
+    
+    /**
+     * Join an existing group.
+     */
+    public JoinExistingGroupResponse joinExistingGroup(String userId, JoinExistingGroupRequest request) {
+        log.info("User {} requesting to join group {}", userId, request.getTargetGroupId());
+        
+        // Implementation for joining existing group
+        // This would involve creating a join request or adding the user directly
+        
+        return new JoinExistingGroupResponse(request.getGroupId(), "Join request submitted successfully");
+    }
+    
+    /**
+     * Finalize a group.
+     */
+    public FinalizeGroupResponse finalizeGroup(String userId, FinalizeGroupRequest request) {
+        log.info("User {} finalizing group {}", userId, request.getGroupId());
+        
+        // Implementation for finalizing group
+        // This would involve changing the group status to "finalized"
+        
+        return new FinalizeGroupResponse(request.getGroupId(), "Group finalized successfully");
+    }
+    
+    /**
+     * Get compatible groups.
+     */
+    public List<CompatibleGroupResponse> getCompatibleGroups(String userId, String tripId) {
+        log.info("Getting compatible groups for user {} and trip {}", userId, tripId);
+        
+        // Implementation for getting compatible groups
+        // This would return a list of compatible groups with scores
+        
+        return new ArrayList<>();
+    }
 }

@@ -402,25 +402,25 @@ public class TripCompatibilityService {
         List<String> userActivities = (List<String>) userPrefs.get("preferredActivities");
         List<String> groupActivities = (List<String>) groupPrefs.get("preferredActivities");
         
-        return calculateJaccardSimilarity(userActivities, groupActivities);
+        return calculateJaccardSimilarity(
+            userActivities != null ? new HashSet<>(userActivities) : new HashSet<>(),
+            groupActivities != null ? new HashSet<>(groupActivities) : new HashSet<>()
+        );
     }
     
     private double calculateTerrainScore(Map<String, Object> userPrefs, Map<String, Object> groupPrefs) {
         List<String> userTerrains = (List<String>) userPrefs.get("preferredTerrains");
         List<String> groupTerrains = (List<String>) groupPrefs.get("preferredTerrains");
         
-        return calculateJaccardSimilarity(userTerrains, groupTerrains);
+        return calculateJaccardSimilarity(
+            userTerrains != null ? new HashSet<>(userTerrains) : new HashSet<>(),
+            groupTerrains != null ? new HashSet<>(groupTerrains) : new HashSet<>()
+        );
     }
     
     // Weight getters with configurable defaults
     @Value("${pooling.compatibility.weights.baseCity:0.5}")
     private double baseCityWeight;
-    
-    @Value("${pooling.compatibility.weights.budget:0.2}")
-    private double budgetWeight;
-    
-    @Value("${pooling.compatibility.weights.dates:0.1}")
-    private double dateWeight;
     
     @Value("${pooling.compatibility.weights.activities:0.1}")
     private double activityWeight;

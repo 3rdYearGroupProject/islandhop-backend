@@ -24,6 +24,14 @@ public class Group {
     
     @Indexed
     private String tripId; // The trip this group is associated with
+    
+    private String groupName; // Name of the group
+    
+    private String tripName; // Name of the trip
+    
+    private String creatorUserId; // User who created the group
+    
+    private String createdBy; // Alias for creatorUserId for backward compatibility
         
     private List<String> userIds = new ArrayList<>();
     
@@ -182,5 +190,19 @@ public class Group {
      */
     public void removePendingInvitation(String invitationId) {
         pendingInvitations.removeIf(invitation -> invitation.getId().equals(invitationId));
+    }
+    
+    /**
+     * Backward compatibility methods
+     */
+    public String getCreatedBy() {
+        return createdBy != null ? createdBy : creatorUserId;
+    }
+    
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+        if (this.creatorUserId == null) {
+            this.creatorUserId = createdBy;
+        }
     }
 }
