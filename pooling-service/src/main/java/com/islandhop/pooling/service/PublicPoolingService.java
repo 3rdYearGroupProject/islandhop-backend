@@ -178,6 +178,8 @@ public class PublicPoolingService {
         // Create a new group
         Group group = new Group();
         group.setCreatedBy(request.getUserId());
+        group.setCreatorUserId(request.getUserId());
+        group.setCreatorEmail(request.getUserEmail()); // Store creator email for name lookup
         group.setGroupName(request.getGroupName());
         group.setTripName(request.getTripName());
         group.setVisibility("public");

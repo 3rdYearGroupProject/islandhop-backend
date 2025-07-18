@@ -246,6 +246,40 @@ public class GroupController {
             throw new GroupCreationException("Failed to get public groups: " + e.getMessage());
         }
     }
+
+    /**
+     * Gets list of enhanced public groups with detailed trip and creator information.
+     * Provides comprehensive details including creator names, cities, dates, and top attractions.
+     * 
+     * @param userId The requesting user's ID
+     * @param baseCity Optional filter by base city
+     * @param startDate Optional filter by start date
+     * @param endDate Optional filter by end date  
+     * @param budgetLevel Optional filter by budget level
+     * @param preferredActivities Optional filter by preferred activities
+     * @return ResponseEntity with filtered list of enhanced public groups
+     */
+    @GetMapping("/public/enhanced")
+    public ResponseEntity<List<EnhancedPublicGroupResponse>> getEnhancedPublicGroups(
+            @RequestParam String userId,
+            @RequestParam(required = false) String baseCity,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String budgetLevel,
+            @RequestParam(required = false) List<String> preferredActivities) {
+        try {
+            log.info("Getting enhanced public groups for user '{}' with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
+                    userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+            
+            List<EnhancedPublicGroupResponse> response = groupService.getEnhancedPublicGroups(
+                userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Unexpected error getting enhanced public groups for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get enhanced public groups: " + e.getMessage());
+        }
+    }
     
     /**
      * Health check endpoint for Pooling Service.

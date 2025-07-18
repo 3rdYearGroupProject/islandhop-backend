@@ -9,6 +9,9 @@ import com.islandhop.pooling.model.Invitation;
 import com.islandhop.pooling.repository.GroupRepository;
 import com.islandhop.pooling.repository.InvitationRepository;
 import com.islandhop.pooling.client.ItineraryServiceClient;
+import com.islandhop.pooling.client.UserServiceClient;
+import com.islandhop.pooling.client.TripServiceClient;
+import com.islandhop.pooling.util.DateUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,8 @@ public class GroupService {
     private final InvitationRepository invitationRepository;
     private final ItineraryServiceClient itineraryServiceClient;
     private final TripCompatibilityService tripCompatibilityService;
+    private final UserServiceClient userServiceClient;
+    private final TripServiceClient tripServiceClient;
     
     /**
      * Creates a new travel group for an existing trip.
@@ -58,6 +63,8 @@ public class GroupService {
             group.setVisibility(request.getVisibility());
             group.setPreferences(request.getPreferences());
             group.setUserIds(List.of(request.getUserId()));
+            group.setCreatorUserId(request.getUserId());
+            group.setCreatorEmail(request.getUserEmail()); // Store creator email for name lookup
             group.setCreatedAt(Instant.now());
             group.setLastUpdated(Instant.now());
             
@@ -361,6 +368,75 @@ public class GroupService {
             throw new GroupCreationException("Failed to get public groups: " + e.getMessage());
         }
     }
+
+    /**
+     * Gets list of enhanced public groups with detailed trip and creator information.
+     * This version provides comprehensive details for UI display like trip names, creator names,
+     * cities, dates, and top attractions.
+     */
+    public List<EnhancedPublicGroupResponse> getEnhancedPublicGroups(String userId, String baseCity, String startDate, 
+                                                                     String endDate, String budgetLevel, List<String> preferredActivities) {
+        log.info("Getting enhanced public groups for user '{}' with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
+                userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+        
+        try {
+            List<Group> publicGroups;
+            
+            // First check total groups in database
+            List<Group> allGroups = groupRepository.findAll();
+            log.info("DEBUG: Total groups in database: {}", allGroups.size());
+            
+            // Check public groups specifically
+            List<Group> allPublicGroups = groupRepository.findByVisibility("public");
+            log.info("DEBUG: Total public groups in database: {}", allPublicGroups.size());
+            
+            if (allPublicGroups.size() > 0) {
+                log.info("DEBUG: First public group details - ID: {}, Name: {}, Visibility: {}", 
+                    allPublicGroups.get(0).getId(), 
+                    allPublicGroups.get(0).getGroupName(), 
+                    allPublicGroups.get(0).getVisibility());
+            }
+            
+            // Apply repository-level filtering if multiple criteria provided
+            if (baseCity != null && budgetLevel != null && startDate != null && endDate != null) {
+                publicGroups = groupRepository.findPublicGroupsWithFilters(baseCity, budgetLevel, startDate, endDate);
+                log.debug("Applied repository filtering, found {} groups", publicGroups.size());
+            } else {
+                // Get all public groups and filter programmatically
+                publicGroups = groupRepository.findByVisibility("public");
+                log.info("DEBUG: Before programmatic filtering: {} groups", publicGroups.size());
+                publicGroups = applyFilters(publicGroups, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+                log.info("DEBUG: After programmatic filtering: {} groups", publicGroups.size());
+            }
+            
+            // Convert to enhanced response DTOs
+            List<EnhancedPublicGroupResponse> responses = publicGroups.stream()
+                .map(this::convertToEnhancedPublicGroupResponse)
+                .filter(response -> response != null) // Filter out groups with missing data
+                .collect(Collectors.toList());
+            
+            log.info("DEBUG: After DTO conversion and null filtering: {} responses", responses.size());
+            
+            // If user preferences are provided, calculate compatibility scores and sort
+            if (hasUserPreferences(baseCity, startDate, endDate, budgetLevel, preferredActivities)) {
+                responses = addEnhancedCompatibilityScores(responses, userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+                
+                // Sort by compatibility score descending
+                responses.sort((a, b) -> {
+                    Double scoreA = a.getCompatibilityScore() != null ? a.getCompatibilityScore() : 0.0;
+                    Double scoreB = b.getCompatibilityScore() != null ? b.getCompatibilityScore() : 0.0;
+                    return Double.compare(scoreB, scoreA);
+                });
+            }
+            
+            log.info("Found {} enhanced public groups for user '{}' after filtering", responses.size(), userId);
+            return responses;
+            
+        } catch (Exception e) {
+            log.error("Unexpected error getting enhanced public groups for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get enhanced public groups: " + e.getMessage());
+        }
+    }
     
     /**
      * Applies programmatic filters to groups when repository filtering is not used.
@@ -530,6 +606,176 @@ public class GroupService {
         }
         
         return response;
+    }
+
+    /**
+     * Converts Group entity to EnhancedPublicGroupResponse DTO with detailed trip and creator information.
+     * Fetches additional data from trip service and user service.
+     */
+    private EnhancedPublicGroupResponse convertToEnhancedPublicGroupResponse(Group group) {
+        try {
+            log.info("DEBUG: Converting group to enhanced response - Group ID: {}, Trip ID: {}", group.getId(), group.getTripId());
+            
+            EnhancedPublicGroupResponse response = new EnhancedPublicGroupResponse();
+            
+            // Basic group information
+            response.setGroupId(group.getId());
+            response.setTripId(group.getTripId());
+            response.setGroupName(group.getGroupName());
+            response.setStatus(group.getStatus());
+            response.setCreatedAt(group.getCreatedAt());
+            response.setMemberCount(group.getUserIds().size());
+            response.setMaxMembers(group.getMaxMembers());
+            response.setMemberCountText(group.getUserIds().size() + " participants / " + group.getMaxMembers());
+            
+            // Creator information
+            String creatorUserId = group.getCreatorUserId();
+            response.setCreatorUserId(creatorUserId);
+            
+            // Get creator name using stored email
+            response.setCreatorName(getCreatorName(creatorUserId, group.getCreatorEmail()));
+            
+            // Get trip details if tripId is available
+            if (group.getTripId() != null) {
+                log.info("DEBUG: Fetching trip details for trip ID: {}", group.getTripId());
+                TripServiceClient.TripDetails tripDetails = tripServiceClient.getTripDetails(group.getTripId(), creatorUserId);
+                if (tripDetails != null) {
+                    log.info("DEBUG: Trip details found for trip ID: {}, Trip name: {}", group.getTripId(), tripDetails.getTripName());
+                    response.setTripName(tripDetails.getTripName());
+                    response.setBaseCity(tripDetails.getBaseCity());
+                    response.setStartDate(tripDetails.getStartDate());
+                    response.setEndDate(tripDetails.getEndDate());
+                    response.setBudgetLevel(tripDetails.getBudgetLevel());
+                    response.setActivityPacing(tripDetails.getActivityPacing());
+                    response.setPreferredActivities(tripDetails.getPreferredActivities());
+                    response.setPreferredTerrains(tripDetails.getPreferredTerrains());
+                    response.setCities(tripDetails.getCities());
+                    response.setTopAttractions(tripDetails.getTopAttractions());
+                    
+                    // Calculate trip duration and format date range
+                    if (tripDetails.getStartDate() != null && tripDetails.getEndDate() != null) {
+                        response.setTripDurationDays(DateUtils.calculateTripDuration(tripDetails.getStartDate(), tripDetails.getEndDate()));
+                        response.setFormattedDateRange(DateUtils.formatDateRange(tripDetails.getStartDate(), tripDetails.getEndDate()));
+                    }
+                } else {
+                    log.warn("Trip details not found for trip ID: {}, using fallback data", group.getTripId());
+                    // Use fallback data from group preferences instead of returning null
+                    Map<String, Object> preferences = group.getPreferences();
+                    if (preferences != null) {
+                        response.setBaseCity((String) preferences.get("baseCity"));
+                        response.setStartDate((String) preferences.get("startDate"));
+                        response.setEndDate((String) preferences.get("endDate"));
+                        response.setBudgetLevel((String) preferences.get("budgetLevel"));
+                        response.setActivityPacing((String) preferences.get("activityPacing"));
+                        
+                        Object activitiesObj = preferences.get("preferredActivities");
+                        if (activitiesObj instanceof List) {
+                            response.setPreferredActivities((List<String>) activitiesObj);
+                        }
+                        
+                        Object terrainsObj = preferences.get("preferredTerrains");
+                        if (terrainsObj instanceof List) {
+                            response.setPreferredTerrains((List<String>) terrainsObj);
+                        }
+                    }
+                }
+            } else {
+                // Fallback to preferences if no trip ID
+                Map<String, Object> preferences = group.getPreferences();
+                if (preferences != null) {
+                    response.setBaseCity((String) preferences.get("baseCity"));
+                    response.setStartDate((String) preferences.get("startDate"));
+                    response.setEndDate((String) preferences.get("endDate"));
+                    response.setBudgetLevel((String) preferences.get("budgetLevel"));
+                    response.setActivityPacing((String) preferences.get("activityPacing"));
+                    
+                    Object activitiesObj = preferences.get("preferredActivities");
+                    if (activitiesObj instanceof List) {
+                        response.setPreferredActivities((List<String>) activitiesObj);
+                    }
+                    
+                    Object terrainsObj = preferences.get("preferredTerrains");
+                    if (terrainsObj instanceof List) {
+                        response.setPreferredTerrains((List<String>) terrainsObj);
+                    }
+                    
+                    // Calculate duration and format dates from preferences
+                    String startDate = (String) preferences.get("startDate");
+                    String endDate = (String) preferences.get("endDate");
+                    if (startDate != null && endDate != null) {
+                        response.setTripDurationDays(DateUtils.calculateTripDuration(startDate, endDate));
+                        response.setFormattedDateRange(DateUtils.formatDateRange(startDate, endDate));
+                    }
+                }
+            }
+            
+            // Set default trip name if not available
+            if (response.getTripName() == null || response.getTripName().isEmpty()) {
+                response.setTripName(group.getGroupName() != null ? group.getGroupName() : "Adventure Trip");
+            }
+            
+            log.info("DEBUG: Successfully converted group {} to enhanced response", group.getId());
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Error converting group {} to enhanced response: {}", group.getId(), e.getMessage(), e);
+            log.error("DEBUG: Returning null for group {}", group.getId());
+            return null;
+        }
+    }
+    
+    /**
+     * Gets creator name using the stored creator email.
+     * Calls user service to get the user's display name.
+     */
+    private String getCreatorName(String creatorUserId, String creatorEmail) {
+        if (creatorEmail != null && !creatorEmail.trim().isEmpty()) {
+            try {
+                return userServiceClient.getUserNameByEmail(creatorEmail);
+            } catch (Exception e) {
+                log.warn("Failed to get user name for email {}: {}", creatorEmail, e.getMessage());
+            }
+        }
+        
+        // Fallback to placeholder if email not available or lookup fails
+        return "Group Creator";
+    }
+    
+    /**
+     * Adds compatibility scores to enhanced public group responses.
+     */
+    private List<EnhancedPublicGroupResponse> addEnhancedCompatibilityScores(List<EnhancedPublicGroupResponse> responses, 
+            String userId, String baseCity, String startDate, String endDate, String budgetLevel, List<String> preferredActivities) {
+        
+        for (EnhancedPublicGroupResponse response : responses) {
+            try {
+                // Create preferences map for compatibility scoring
+                Map<String, Object> userPreferences = new HashMap<>();
+                if (baseCity != null) userPreferences.put("baseCity", baseCity);
+                if (startDate != null) userPreferences.put("startDate", startDate);
+                if (endDate != null) userPreferences.put("endDate", endDate);
+                if (budgetLevel != null) userPreferences.put("budgetLevel", budgetLevel);
+                if (preferredActivities != null) userPreferences.put("preferredActivities", preferredActivities);
+                
+                // Create group preferences map
+                Map<String, Object> groupPreferences = new HashMap<>();
+                if (response.getBaseCity() != null) groupPreferences.put("baseCity", response.getBaseCity());
+                if (response.getStartDate() != null) groupPreferences.put("startDate", response.getStartDate());
+                if (response.getEndDate() != null) groupPreferences.put("endDate", response.getEndDate());
+                if (response.getBudgetLevel() != null) groupPreferences.put("budgetLevel", response.getBudgetLevel());
+                if (response.getPreferredActivities() != null) groupPreferences.put("preferredActivities", response.getPreferredActivities());
+                
+                // Calculate compatibility score
+                double score = tripCompatibilityService.calculateCompatibilityScore(userPreferences, groupPreferences);
+                response.setCompatibilityScore(score);
+                
+            } catch (Exception e) {
+                log.warn("Failed to calculate compatibility score for group {}: {}", response.getGroupId(), e.getMessage());
+                response.setCompatibilityScore(0.0);
+            }
+        }
+        
+        return responses;
     }
     
     /**
@@ -793,6 +1039,7 @@ public class GroupService {
             group.setTripName(request.getTripName());
             group.setVisibility(request.getVisibility());
             group.setCreatorUserId(request.getUserId());
+            group.setCreatorEmail(request.getUserEmail()); // Store creator email for name lookup
             group.setMaxMembers(request.getMaxMembers());
             group.setRequiresApproval(request.getRequiresApproval() != null ? request.getRequiresApproval() : false);
             group.setUserIds(List.of(request.getUserId()));

@@ -16,6 +16,8 @@ public class CreatePublicPoolingGroupRequest {
     @NotBlank(message = "User ID is required")
     private String userId;
     
+    private String userEmail; // Email of the user creating the group (from frontend storage)
+    
     private String groupName;
     
     @NotBlank(message = "Trip name is required")

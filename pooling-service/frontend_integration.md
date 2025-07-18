@@ -1,26 +1,211 @@
-# Frontend Integration Guide - Enhanced Pooling Service with Hybrid Trip Suggestions
+# Frontend Integration Guide - Enhanced Pooling Service with Trip Planning Integration
 
-This document provides comprehensive integration details for frontend developers working with the Enhanced Pooling Service, including the new Hybrid Trip Suggestion System that allows users to check for compatible groups before or after creating their own.
+This document provides comprehensive integration details for frontend developers working with the Enhanced Pooling Service, including integration with the Trip Planning Service for detailed trip information and place management.
 
 ## Base URLs
 ```
 Pooling Service: http://localhost:8086/api/v1/groups
 Public Pooling: http://localhost:8086/api/v1/public-pooling
+Trip Planning Service: http://localhost:8082/api/v1/itinerary (via pooling service clients)
+User Service: http://localhost:8083/api/v1/tourist (via pooling service clients)
 ```
 
 ## Authentication
-All endpoints require a `userId` parameter. This will be replaced with JWT authentication in the future.
+All endpoints require a `userId` parameter and optionally `userEmail` for enhanced features. This will be replaced with JWT authentication in the future.
+
+## 🚀 Enhanced Public Groups Display
+
+### Get Enhanced Public Groups (NEW)
+**Endpoint**: `GET /api/v1/groups/public/enhanced`
+
+**Purpose**: Get detailed public groups with trip information, creator names, cities, and attractions fetched from the Trip Planning Service
+
+**Request Parameters**:
+```
+userId: user_123 (required)
+userEmail: user@example.com (optional, for creator name lookup via User Service)
+baseCity: Colombo (optional)
+startDate: 2025-07-20 (optional)
+endDate: 2025-07-25 (optional)
+budgetLevel: Medium (optional)
+preferredActivities: ["Hiking", "Cultural Tours"] (optional)
+```
+
+**JavaScript Example**:
+```javascript
+async function getEnhancedPublicGroups(filters) {
+    // Get user data from frontend storage (Firebase user data)
+    const user = getCurrentUser(); // Your method to get current user
+    
+    const params = new URLSearchParams({
+        userId: user.uid, // Firebase user ID
+        userEmail: user.email // Firebase user email for name resolution
+    });
+    
+    // Add optional filters
+    if (filters.baseCity) params.append('baseCity', filters.baseCity);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.budgetLevel) params.append('budgetLevel', filters.budgetLevel);
+    if (filters.preferredActivities) {
+        filters.preferredActivities.forEach(activity => 
+            params.append('preferredActivities', activity)
+        );
+    }
+        );
+    }
+    
+    const response = await fetch(`/api/v1/groups/public/enhanced?${params}`);
+    return await response.json();
+}
+```
+
+**Response JSON Example**:
+```json
+[
+  {
+    "groupId": "group_008",
+    "tripId": "trip_456",
+    "tripName": "Adventure to Ella",
+    "groupName": "Adventure to Ella",
+    "creatorUserId": "tEJNF1Lo1bUxpzwoPdIvRQwa9hm1",
+    "creatorName": "John Doe",
+    "baseCity": "Kandy",
+    "cities": ["Kandy", "Nuwara Eliya", "Ella"],
+    "startDate": "2025-08-15",
+    "endDate": "2025-08-17",
+    "formattedDateRange": "Aug 15-17, 2025",
+    "tripDurationDays": 3,
+    "memberCount": 3,
+    "maxMembers": 5,
+    "memberCountText": "3 participants / 5",
+    "topAttractions": [
+      "Tea Plantations",
+      "Nine Arch Bridge", 
+      "Little Adams Peak"
+    ],
+    "budgetLevel": "Medium",
+    "activityPacing": "Normal",
+    "preferredActivities": ["Hiking", "Cultural Tours"],
+    "preferredTerrains": ["Mountain", "Nature"],
+    "status": "active",
+    "compatibilityScore": 0.85
+  }
+]
+```
 
 ## 🚀 Enhanced Hybrid Trip Suggestion Workflow
 
 The enhanced system supports:
 1. **Pre-Check**: Check for compatible groups before creating a new one
-2. **Flexible Group Creation**: Create private or public groups with draft/finalized status
-3. **Post-Creation Suggestions**: Get suggestions during trip finalization
+2. **Unified Group Creation**: Single endpoint for both private and public groups using `visibility` parameter
+3. **Post-Creation Suggestions**: Get suggestions during trip finalization (for public groups)
 4. **Advanced Filtering**: Filter public groups by preferences and compatibility
 5. **Smart Joining**: Join existing groups and discard drafts automatically
 
+## 📋 Unified Group Creation Endpoint
+
+### Create Group with Trip (Unified for Public & Private)
+**Endpoint**: `POST /api/v1/groups/with-trip`
+
+**Purpose**: Creates both private and public groups with trip planning. The `visibility` parameter determines the behavior:
+- `"private"`: Group is immediately finalized
+- `"public"`: Group starts as draft for suggestion workflow
+
+**Request JSON Example**:
+```json
+{
+  "userId": "tEJNF1Lo1bUxpzwoPdIvRQwa9hm1",
+  "userEmail": "john.doe@example.com",
+  "groupName": "Adventure Seekers",
+  "tripName": "Sri Lanka Adventure",
+  "startDate": "2025-08-15",
+  "endDate": "2025-08-22",
+  "baseCity": "Colombo",
+  "arrivalTime": "14:30",
+  "multiCityAllowed": true,
+  "activityPacing": "Normal",
+  "budgetLevel": "Medium",
+  "preferredTerrains": ["Mountain", "Beach"],
+  "preferredActivities": ["Hiking", "Cultural Tours"],
+  "visibility": "public",
+  "maxMembers": 6,
+  "requiresApproval": false
+}
+```
+
+**Frontend Implementation**:
+```javascript
+const createGroupWithTrip = async (groupData) => {
+    try {
+        // Get current user data from frontend storage (Firebase user data)
+        const currentUser = getCurrentUser(); // Your method to get current user
+        
+        const response = await fetch('/api/v1/groups/with-trip', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: currentUser.uid, // Firebase user ID
+                userEmail: currentUser.email, // Firebase user email for creator name lookup
+                groupName: groupData.groupName,
+                tripName: groupData.tripName,
+                startDate: groupData.startDate,
+                endDate: groupData.endDate,
+                baseCity: groupData.baseCity,
+                arrivalTime: groupData.arrivalTime || "",
+                multiCityAllowed: groupData.multiCityAllowed ?? true,
+                activityPacing: groupData.activityPacing || "Normal",
+                budgetLevel: groupData.budgetLevel || "Medium",
+                preferredTerrains: groupData.preferredTerrains || [],
+                preferredActivities: groupData.preferredActivities || [],
+                visibility: groupData.visibility || "public", // "public" or "private"
+                maxMembers: groupData.maxMembers || 6,
+                requiresApproval: groupData.requiresApproval || false,
+                additionalPreferences: groupData.additionalPreferences || {}
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            if (groupData.visibility === 'public') {
+                // Public group - handle suggestion workflow if needed
+                handlePublicGroupCreated(result);
+            } else {
+                // Private group - immediately finalized
+                handlePrivateGroupCreated(result);
+            }
+        } else {
+            throw new Error(result.message || 'Failed to create group');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error creating group:', error);
+        throw error;
+    }
+};
+
+// Handle public group creation (draft state)
+function handlePublicGroupCreated(result) {
+    console.log('Public group created in draft mode:', result.groupId);
+    // Show trip planning interface
+    // After trip planning, finalize or get suggestions
+}
+
+// Handle private group creation (immediately finalized)
+function handlePrivateGroupCreated(result) {
+    console.log('Private group created and finalized:', result.groupId);
+    // Navigate to group management or trip planning
+}
+```
+
 ## 📋 New Hybrid Endpoints
+
+> **Note**: The unified `/api/v1/groups/with-trip` endpoint now handles both public and private group creation. The dedicated public pooling endpoints (`/api/v1/public-pooling/groups`) are still available but recommended to use the unified approach for consistency.
 
 ### 1. Pre-Check Compatible Groups (NEW)
 **Endpoint**: `POST /api/v1/public-pooling/pre-check`
@@ -188,13 +373,17 @@ const handleTripPlanningStart = async (formData) => {
 ```javascript
 const createGroupWithTrip = async (groupData, fromPreCheck = false) => {
     try {
+        // Get current user data from frontend storage (Firebase user data)
+        const currentUser = getCurrentUser(); // Your method to get current user
+        
         const response = await fetch('/api/v1/groups/with-trip', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                userId: currentUser.id,
+                userId: currentUser.uid, // Firebase user ID
+                userEmail: currentUser.email, // Firebase user email for creator name lookup
                 tripName: groupData.tripName,
                 startDate: groupData.startDate,
                 endDate: groupData.endDate,
@@ -3583,6 +3772,77 @@ const testData = {
     invalidBudget: 'VeryHigh'
   }
 };
+```
+
+---
+
+## 🔗 External Service Integrations
+
+The Pooling Service integrates with external microservices to provide enhanced functionality:
+
+### Trip Planning Service Integration
+
+**Purpose**: Fetches detailed trip information including cities, attractions, dates, and preferences
+
+**Key Features**:
+- Retrieves complete trip plans with daily itineraries
+- Gets user-selected attractions and places for group display
+- Supports trip modification operations (city updates, place additions)
+
+**Example Trip Data Retrieved**:
+```javascript
+// Data structure from Trip Planning Service
+const tripDetails = {
+  tripId: "trip_001",
+  tripName: "Sri Lanka Adventure", 
+  startDate: "2025-08-10",
+  endDate: "2025-08-15",
+  baseCity: "Colombo",
+  budgetLevel: "Medium",
+  activityPacing: "Normal",
+  preferredActivities: ["Hiking", "Cultural Tours"],
+  preferredTerrains: ["Beach", "Mountain"],
+  cities: ["Colombo", "Kandy", "Ella"],
+  topAttractions: ["Sigiriya Rock", "Temple of the Tooth", "Nine Arch Bridge"]
+};
+```
+
+### User Service Integration
+
+**Purpose**: Resolves user emails to display names for group creators
+
+**Key Features**:
+- Fetches user profile information by email
+- Provides full names for enhanced group display
+- Falls back to email if name is not available
+
+**Example User Data Retrieved**:
+```javascript
+// Data structure from User Service
+const userProfile = {
+  email: "john.doe@example.com",
+  firstName: "John",
+  lastName: "Doe",
+  nationality: "American"
+};
+```
+
+### Frontend Considerations
+
+**Trip Planning Integration**:
+- Trip data is automatically fetched when groups are displayed
+- No additional frontend calls needed - handled by pooling service backend
+- Enhanced group responses include trip details seamlessly
+
+**User Service Integration**:
+- Creator names are resolved using stored email addresses
+- Frontend should pass user email in group creation requests
+- Display names enhance user experience in group listings
+
+**Error Handling**:
+- External service failures gracefully degrade functionality
+- Basic group information always available even if trip details fail
+- Fallback displays maintain usable interface
 ```
 
 This comprehensive guide provides all the necessary JavaScript code, error handling, validation, and testing scenarios for integrating with the Pooling Service endpoints in your frontend application. The implementation includes proper error handling, loading states, form validation, and comprehensive testing strategies to ensure a robust user experience.

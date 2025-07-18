@@ -31,15 +31,17 @@ public class Group {
     
     private String creatorUserId; // User who created the group
     
+    private String creatorEmail; // Email of the user who created the group (for user name lookup)
+    
     private String createdBy; // Alias for creatorUserId for backward compatibility
         
-    private List<String> userIds = new ArrayList<>();
+    private List<String> userIds = new ArrayList<>(); // List of user IDs in the group
     
     @Indexed
     private String visibility; // "private" or "public"
     
     @Indexed
-    private Map<String, Object> preferences;
+    private Map<String, Object> preferences; // Group preferences (e.g., trip type, budget)
     
     private String status = "draft"; // "draft", "active", "finalized"
     

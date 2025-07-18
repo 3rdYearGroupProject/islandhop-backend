@@ -77,6 +77,39 @@ public class TripCompatibilityService {
     }
     
     /**
+     * Calculates compatibility score between two preference maps.
+     * Used for filtering and scoring without full Group objects.
+     * 
+     * @param userPreferences The user's preferences
+     * @param groupPreferences The group's preferences  
+     * @return Compatibility score between 0 and 1
+     */
+    public double calculateCompatibilityScore(Map<String, Object> userPreferences, Map<String, Object> groupPreferences) {
+        double totalScore = 0.0;
+        
+        // 1. Preference similarity (activities, terrains, pacing)
+        double preferenceScore = calculatePreferenceSimilarity(userPreferences, groupPreferences);
+        totalScore += preferenceScore * preferenceWeight;
+        
+        // 2. Date proximity  
+        double dateScore = calculateDateScore(userPreferences, groupPreferences);
+        totalScore += dateScore * dateWeight;
+        
+        // 3. Budget compatibility
+        double budgetScore = calculateBudgetSimilarity(userPreferences, groupPreferences);
+        totalScore += budgetScore * budgetWeight;
+        
+        // 4. Base city compatibility
+        double baseCityScore = calculateBaseCityScore(userPreferences, groupPreferences);
+        totalScore += baseCityScore * destinationWeight;
+        
+        log.debug("Compatibility score calculation: preference={}, date={}, budget={}, baseCity={}, total={}", 
+                 preferenceScore, dateScore, budgetScore, baseCityScore, totalScore);
+        
+        return Math.min(1.0, totalScore); // Cap at 1.0
+    }
+    
+    /**
      * Calculates compatibility score between two groups.
      * 
      * @param sourceGroup The source group
