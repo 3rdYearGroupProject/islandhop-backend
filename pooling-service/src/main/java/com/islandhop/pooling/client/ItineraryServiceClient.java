@@ -10,6 +10,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Client for communicating with the itinerary service.
@@ -19,10 +20,11 @@ import java.util.Map;
 public class ItineraryServiceClient {
     
     private final WebClient webClient;
-    
-    public ItineraryServiceClient(WebClient.Builder webClientBuilder,
-                                  @Value("${app.itinerary-service.url}") String itineraryServiceUrl) {
-        this.webClient = webClientBuilder.baseUrl(itineraryServiceUrl).build();
+
+    public ItineraryServiceClient(WebClient.Builder webClientBuilder) {
+        String baseUrl = "http://localhost:8084";
+        log.info("Initializing ItineraryServiceClient with baseUrl: {}", baseUrl);
+        this.webClient = webClientBuilder.baseUrl(baseUrl).build();
     }
     
     /**
@@ -60,10 +62,12 @@ public class ItineraryServiceClient {
      */
     public Mono<Map<String, Object>> createTripPlan(String userId, Map<String, Object> tripData) {
         log.info("Creating new trip plan for user {}", userId);
-        
+        // Ensure userId is included in the body
+        Map<String, Object> payload = new HashMap<>(tripData);
+        payload.put("userId", userId);
         return webClient.post()
-                .uri("/api/v1/itinerary?userId={userId}", userId)
-                .bodyValue(tripData)
+                .uri("/api/v1/itinerary/initiate")
+                .bodyValue(payload)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully created trip plan for user {}", userId))

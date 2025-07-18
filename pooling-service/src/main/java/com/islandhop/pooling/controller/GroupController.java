@@ -22,7 +22,7 @@ import java.util.Map;
  * Follows the same patterns as TripController for consistency.
  */
 @RestController
-@RequestMapping("/v1/groups")
+@RequestMapping("/api/v1/groups")
 @RequiredArgsConstructor
 @Slf4j
 public class GroupController {

@@ -22,7 +22,7 @@ import java.util.Map;
  * Separate from GroupController to maintain clean separation of concerns.
  */
 @RestController
-@RequestMapping("/v1/public-pooling")
+@RequestMapping("/api/v1/public-pooling")
 @RequiredArgsConstructor
 @Slf4j
 public class PublicPoolingController {
