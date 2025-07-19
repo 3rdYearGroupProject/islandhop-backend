@@ -372,12 +372,12 @@ public class GroupService {
     /**
      * Gets list of enhanced public groups with detailed trip and creator information.
      * This version provides comprehensive details for UI display like trip names, creator names,
-     * cities, dates, and top attractions.
+     * cities, dates, and top attractions. Supports both authenticated and anonymous access.
      */
     public List<EnhancedPublicGroupResponse> getEnhancedPublicGroups(String userId, String baseCity, String startDate, 
                                                                      String endDate, String budgetLevel, List<String> preferredActivities) {
-        log.info("Getting enhanced public groups for user '{}' with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
-                userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+        log.info("Getting enhanced public groups for user '{}' (anonymous: {}) with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
+                userId, userId == null ? "yes" : "no", baseCity, startDate, endDate, budgetLevel, preferredActivities);
         
         try {
             List<Group> publicGroups;

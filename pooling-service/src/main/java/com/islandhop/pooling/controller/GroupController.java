@@ -250,8 +250,9 @@ public class GroupController {
     /**
      * Gets list of enhanced public groups with detailed trip and creator information.
      * Provides comprehensive details including creator names, cities, dates, and top attractions.
+     * Can be accessed by both logged-in and anonymous users.
      * 
-     * @param userId The requesting user's ID
+     * @param userId Optional user ID for compatibility scoring (null for anonymous users)
      * @param baseCity Optional filter by base city
      * @param startDate Optional filter by start date
      * @param endDate Optional filter by end date  
@@ -261,22 +262,23 @@ public class GroupController {
      */
     @GetMapping("/public/enhanced")
     public ResponseEntity<List<EnhancedPublicGroupResponse>> getEnhancedPublicGroups(
-            @RequestParam String userId,
+            @RequestParam(required = false) String userId,
             @RequestParam(required = false) String baseCity,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) String budgetLevel,
             @RequestParam(required = false) List<String> preferredActivities) {
         try {
-            log.info("Getting enhanced public groups for user '{}' with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
-                    userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
+            log.info("Getting enhanced public groups for user '{}' (anonymous: {}) with filters: baseCity={}, startDate={}, endDate={}, budgetLevel={}, activities={}", 
+                    userId, userId == null ? "yes" : "no", baseCity, startDate, endDate, budgetLevel, preferredActivities);
             
             List<EnhancedPublicGroupResponse> response = groupService.getEnhancedPublicGroups(
                 userId, baseCity, startDate, endDate, budgetLevel, preferredActivities);
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Unexpected error getting enhanced public groups for user {}: {}", userId, e.getMessage(), e);
+            log.error("Unexpected error getting enhanced public groups for user {}: {}", 
+                    userId != null ? userId : "anonymous", e.getMessage(), e);
             throw new GroupCreationException("Failed to get enhanced public groups: " + e.getMessage());
         }
     }
