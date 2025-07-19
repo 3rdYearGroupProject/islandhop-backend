@@ -3,6 +3,7 @@ package com.islandhop.pooling.service;
 import com.islandhop.pooling.dto.*;
 import com.islandhop.pooling.model.Group;
 import com.islandhop.pooling.repository.GroupRepository;
+import com.islandhop.pooling.exception.GroupNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,7 +26,7 @@ public class PublicPoolingService {
     private final GroupRepository groupRepository;
     private final TripCompatibilityService tripCompatibilityService;
     
-    @Value("${pooling.compatibility.min-score:0.6}")
+    @Value("${pooling.compatibility.min-score:0.1}")
     private double minCompatibilityScore;
     
     /**
@@ -69,24 +70,22 @@ public class PublicPoolingService {
             // Sort by compatibility score descending
             compatibleGroups.sort((a, b) -> Double.compare(b.getCompatibilityScore(), a.getCompatibilityScore()));
             
-            // Limit to top 10 suggestions
-            List<PreCheckResponse.CompatibleGroup> topSuggestions = compatibleGroups.stream()
-                .limit(10)
-                .collect(Collectors.toList());
+            // Return ALL compatible groups instead of limiting to top 10
+            List<PreCheckResponse.CompatibleGroup> allSuggestions = new ArrayList<>(compatibleGroups);
             
             // Create response
             PreCheckResponse response = new PreCheckResponse();
             response.setStatus("success");
-            response.setSuggestions(topSuggestions);
-            response.setTotalSuggestions(topSuggestions.size());
-            response.setHasCompatibleGroups(!topSuggestions.isEmpty());
+            response.setSuggestions(allSuggestions);
+            response.setTotalSuggestions(allSuggestions.size());
+            response.setHasCompatibleGroups(!allSuggestions.isEmpty());
             
-            if (topSuggestions.isEmpty()) {
+            if (allSuggestions.isEmpty()) {
                 response.setMessage("No compatible groups found. You can create a new group.");
                 log.info("No compatible groups found for user '{}'", request.getUserId());
             } else {
-                response.setMessage(String.format("Found %d compatible group(s)", topSuggestions.size()));
-                log.info("Found {} compatible groups for user '{}'", topSuggestions.size(), request.getUserId());
+                response.setMessage(String.format("Found %d compatible group(s)", allSuggestions.size()));
+                log.info("Found {} compatible groups for user '{}'", allSuggestions.size(), request.getUserId());
             }
             
             // TODO: Publish PreCheckSuggestionsGeneratedEvent via Kafka
@@ -195,15 +194,176 @@ public class PublicPoolingService {
     }
     
     /**
-     * Save a trip with suggestions.
+     * Save a trip with suggestions for similar existing trips.
+     * Finds compatible groups with similar destinations, activities, and terrains.
      */
-    public SaveTripWithSuggestionsResponse saveTripWithSuggestions(String userId, SaveTripRequest request) {
-        log.info("Saving trip with suggestions for user {}", userId);
+    public SaveTripWithSuggestionsResponse saveTripWithSuggestions(String groupId, SaveTripRequest request) {
+        log.info("Saving trip with suggestions for group {} by user {}", groupId, request.getUserId());
         
-        // Implementation for saving trip with suggestions
-        // This would typically involve creating a trip plan and linking it to a group
+        try {
+            // First, update the current group with the trip data
+            Optional<Group> currentGroupOpt = groupRepository.findById(groupId);
+            if (currentGroupOpt.isEmpty()) {
+                throw new GroupNotFoundException("Group not found: " + groupId);
+            }
+            
+            Group currentGroup = currentGroupOpt.get();
+            
+            // Save trip data to the current group
+            Map<String, Object> tripPreferences = new HashMap<>();
+            if (request.getTripData() != null) {
+                tripPreferences.put("tripName", request.getTripData().getName());
+                tripPreferences.put("startDate", request.getTripData().getStartDate());
+                tripPreferences.put("endDate", request.getTripData().getEndDate());
+                tripPreferences.put("destinations", request.getTripData().getDestinations());
+                tripPreferences.put("terrains", request.getTripData().getTerrains());
+                tripPreferences.put("activities", request.getTripData().getActivities());
+                tripPreferences.put("itinerary", request.getTripData().getItinerary());
+            }
+            
+            currentGroup.setPreferences(tripPreferences);
+            currentGroup.setTripName(request.getTripData().getName());
+            groupRepository.save(currentGroup);
+            
+            // Find similar existing public groups
+            List<Group> publicGroups = groupRepository.findByVisibilityAndStatus("public", "finalized");
+            
+            List<SaveTripWithSuggestionsResponse.SimilarTrip> similarTrips = new ArrayList<>();
+            
+            for (Group group : publicGroups) {
+                if (group.getId().equals(groupId)) continue; // Skip current group
+                if (group.getUserIds().size() >= group.getMaxMembers()) continue; // Skip full groups
+                
+                Map<String, Object> groupPreferences = group.getPreferences();
+                if (groupPreferences == null) continue;
+                
+                // Calculate similarity score
+                double similarityScore = calculateTripSimilarity(tripPreferences, groupPreferences);
+                
+                if (similarityScore >= minCompatibilityScore) {
+                    SaveTripWithSuggestionsResponse.SimilarTrip similarTrip = mapToSimilarTrip(group, similarityScore);
+                    similarTrips.add(similarTrip);
+                }
+            }
+            
+            // Sort by similarity score descending
+            similarTrips.sort((a, b) -> Double.compare(b.getSimilarityScore(), a.getSimilarityScore()));
+            
+            // Return ALL similar trips instead of limiting to top 5
+            List<SaveTripWithSuggestionsResponse.SimilarTrip> allSuggestions = new ArrayList<>(similarTrips);
+            
+            SaveTripWithSuggestionsResponse response = new SaveTripWithSuggestionsResponse();
+            response.setTripId(request.getTripId());
+            response.setGroupId(groupId);
+            response.setSimilarTrips(allSuggestions);
+            response.setTotalSuggestions(allSuggestions.size());
+            
+            if (allSuggestions.isEmpty()) {
+                response.setMessage("Trip saved successfully. No similar trips found.");
+                response.setHasSimilarTrips(false);
+            } else {
+                response.setMessage(String.format("Trip saved successfully. Found %d similar trips.", allSuggestions.size()));
+                response.setHasSimilarTrips(true);
+            }
+            
+            log.info("Trip saved for group {} with {} similar trip suggestions", groupId, allSuggestions.size());
+            
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Error saving trip with suggestions for group {}: {}", groupId, e.getMessage(), e);
+            throw new RuntimeException("Failed to save trip with suggestions: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Calculate similarity between two trips based on destinations, activities, and terrains.
+     */
+    private double calculateTripSimilarity(Map<String, Object> trip1, Map<String, Object> trip2) {
+        double totalScore = 0.0;
+        int factors = 0;
         
-        return new SaveTripWithSuggestionsResponse(request.getTripId(), "Trip saved with suggestions successfully");
+        // Compare destinations (40% weight)
+        List<Map<String, String>> destinations1 = (List<Map<String, String>>) trip1.get("destinations");
+        List<Map<String, String>> destinations2 = (List<Map<String, String>>) trip2.get("destinations");
+        
+        if (destinations1 != null && destinations2 != null) {
+            Set<String> destNames1 = destinations1.stream().map(d -> d.get("name")).collect(Collectors.toSet());
+            Set<String> destNames2 = destinations2.stream().map(d -> d.get("name")).collect(Collectors.toSet());
+            
+            double destinationSimilarity = calculateSetSimilarity(destNames1, destNames2);
+            totalScore += destinationSimilarity * 0.4;
+            factors++;
+        }
+        
+        // Compare activities (30% weight)
+        List<String> activities1 = (List<String>) trip1.get("activities");
+        List<String> activities2 = (List<String>) trip2.get("activities");
+        
+        if (activities1 != null && activities2 != null) {
+            Set<String> activitySet1 = new HashSet<>(activities1);
+            Set<String> activitySet2 = new HashSet<>(activities2);
+            
+            double activitySimilarity = calculateSetSimilarity(activitySet1, activitySet2);
+            totalScore += activitySimilarity * 0.3;
+            factors++;
+        }
+        
+        // Compare terrains (30% weight)
+        List<String> terrains1 = (List<String>) trip1.get("terrains");
+        List<String> terrains2 = (List<String>) trip2.get("terrains");
+        
+        if (terrains1 != null && terrains2 != null) {
+            Set<String> terrainSet1 = new HashSet<>(terrains1);
+            Set<String> terrainSet2 = new HashSet<>(terrains2);
+            
+            double terrainSimilarity = calculateSetSimilarity(terrainSet1, terrainSet2);
+            totalScore += terrainSimilarity * 0.3;
+            factors++;
+        }
+        
+        return factors > 0 ? totalScore : 0.0;
+    }
+    
+    /**
+     * Calculate Jaccard similarity between two sets.
+     */
+    private double calculateSetSimilarity(Set<String> set1, Set<String> set2) {
+        if (set1.isEmpty() && set2.isEmpty()) return 1.0;
+        
+        Set<String> intersection = new HashSet<>(set1);
+        intersection.retainAll(set2);
+        
+        Set<String> union = new HashSet<>(set1);
+        union.addAll(set2);
+        
+        return union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
+    }
+    
+    /**
+     * Map Group to SimilarTrip DTO.
+     */
+    private SaveTripWithSuggestionsResponse.SimilarTrip mapToSimilarTrip(Group group, double similarityScore) {
+        SaveTripWithSuggestionsResponse.SimilarTrip similarTrip = new SaveTripWithSuggestionsResponse.SimilarTrip();
+        
+        similarTrip.setGroupId(group.getId());
+        similarTrip.setTripName(group.getTripName());
+        similarTrip.setGroupName(group.getGroupName());
+        similarTrip.setSimilarityScore(Math.round(similarityScore * 100.0) / 100.0);
+        similarTrip.setCurrentMembers(group.getUserIds().size());
+        similarTrip.setMaxMembers(group.getMaxMembers());
+        similarTrip.setCreatedBy(group.getCreatedBy());
+        
+        Map<String, Object> preferences = group.getPreferences();
+        if (preferences != null) {
+            similarTrip.setStartDate((String) preferences.get("startDate"));
+            similarTrip.setEndDate((String) preferences.get("endDate"));
+            similarTrip.setDestinations((List<Map<String, String>>) preferences.get("destinations"));
+            similarTrip.setActivities((List<String>) preferences.get("activities"));
+            similarTrip.setTerrains((List<String>) preferences.get("terrains"));
+        }
+        
+        return similarTrip;
     }
     
     /**
@@ -220,25 +380,153 @@ public class PublicPoolingService {
     
     /**
      * Finalize a group.
+     * Changes the group status to "finalized" and makes it available for other users to find compatible groups.
+     * Only the group creator can finalize the group.
      */
-    public FinalizeGroupResponse finalizeGroup(String userId, FinalizeGroupRequest request) {
-        log.info("User {} finalizing group {}", userId, request.getGroupId());
+    public FinalizeGroupResponse finalizeGroup(String groupId, FinalizeGroupRequest request) {
+        String userId = request.getUserId();
+        log.info("User {} attempting to finalize group {}", userId, groupId);
         
-        // Implementation for finalizing group
-        // This would involve changing the group status to "finalized"
-        
-        return new FinalizeGroupResponse(request.getGroupId(), "Group finalized successfully");
+        try {
+            // Find the group
+            Optional<Group> groupOpt = groupRepository.findById(groupId);
+            if (groupOpt.isEmpty()) {
+                log.warn("Group not found: {}", groupId);
+                return new FinalizeGroupResponse(groupId, "Group not found");
+            }
+            
+            Group group = groupOpt.get();
+            
+            // Validate that the user is authorized to finalize the group
+            if (!group.getCreatedBy().equals(userId) && !group.getCreatorUserId().equals(userId)) {
+                log.warn("User {} not authorized to finalize group {}. Group created by: {}", 
+                        userId, groupId, group.getCreatedBy());
+                return new FinalizeGroupResponse(groupId, "Not authorized to finalize this group");
+            }
+            
+            // Check if group is already finalized
+            if ("finalized".equals(group.getStatus())) {
+                log.info("Group {} is already finalized", groupId);
+                return new FinalizeGroupResponse(groupId, "Group is already finalized");
+            }
+            
+            // Validate that the group has the required data for finalization
+            if (group.getPreferences() == null || group.getPreferences().isEmpty()) {
+                log.warn("Cannot finalize group {} - missing trip preferences/data", groupId);
+                return new FinalizeGroupResponse(groupId, 
+                    "Cannot finalize group - trip data is required. Please save trip details first.");
+            }
+            
+            // Validate that the group has at least one member
+            if (group.getUserIds().isEmpty()) {
+                log.warn("Cannot finalize group {} - no members", groupId);
+                return new FinalizeGroupResponse(groupId, 
+                    "Cannot finalize group - group must have at least one member");
+            }
+            
+            // Update group status to finalized
+            group.finalizeBy(userId);
+            
+            // Save the updated group
+            Group finalizedGroup = groupRepository.save(group);
+            
+            log.info("Group {} successfully finalized by user {} with {} members", 
+                    finalizedGroup.getId(), userId, finalizedGroup.getUserIds().size());
+            
+            return new FinalizeGroupResponse(groupId, 
+                String.format("Group '%s' finalized successfully with %d member(s). Your trip is now visible to other users for compatibility matching.", 
+                        group.getGroupName() != null ? group.getGroupName() : "Trip Group", 
+                        group.getUserIds().size()));
+                        
+        } catch (Exception e) {
+            log.error("Error finalizing group {} by user {}: {}", groupId, userId, e.getMessage(), e);
+            return new FinalizeGroupResponse(groupId, 
+                "Failed to finalize group due to system error. Please try again.");
+        }
     }
     
     /**
-     * Get compatible groups.
+     * Get compatible groups for a specific trip.
+     * Similar to saveTripWithSuggestions but doesn't save the trip data.
      */
-    public List<CompatibleGroupResponse> getCompatibleGroups(String userId, String tripId) {
-        log.info("Getting compatible groups for user {} and trip {}", userId, tripId);
+    public List<CompatibleGroupResponse> getCompatibleGroups(String tripId, String userId) {
+        log.info("Getting compatible groups for trip {} and user {}", tripId, userId);
         
-        // Implementation for getting compatible groups
-        // This would return a list of compatible groups with scores
+        try {
+            // Get the trip/group data
+            Optional<Group> tripGroupOpt = groupRepository.findById(tripId);
+            if (tripGroupOpt.isEmpty()) {
+                log.warn("Trip/Group not found: {}", tripId);
+                return new ArrayList<>();
+            }
+            
+            Group tripGroup = tripGroupOpt.get();
+            Map<String, Object> tripPreferences = tripGroup.getPreferences();
+            
+            if (tripPreferences == null) {
+                log.warn("No trip preferences found for trip: {}", tripId);
+                return new ArrayList<>();
+            }
+            
+            // Find compatible public groups
+            List<Group> publicGroups = groupRepository.findByVisibilityAndStatus("public", "finalized");
+            
+            List<CompatibleGroupResponse> compatibleGroups = new ArrayList<>();
+            
+            for (Group group : publicGroups) {
+                if (group.getId().equals(tripId)) continue; // Skip current group
+                if (group.getUserIds().size() >= group.getMaxMembers()) continue; // Skip full groups
+                
+                Map<String, Object> groupPreferences = group.getPreferences();
+                if (groupPreferences == null) continue;
+                
+                // Calculate similarity score
+                double similarityScore = calculateTripSimilarity(tripPreferences, groupPreferences);
+                
+                if (similarityScore >= minCompatibilityScore) {
+                    CompatibleGroupResponse compatibleGroup = mapToCompatibleGroupResponse(group, similarityScore);
+                    compatibleGroups.add(compatibleGroup);
+                }
+            }
+            
+            // Sort by similarity score descending
+            compatibleGroups.sort((a, b) -> Double.compare(b.getCompatibilityScore(), a.getCompatibilityScore()));
+            
+            // Return ALL compatible groups instead of limiting to top 10
+            List<CompatibleGroupResponse> allSuggestions = new ArrayList<>(compatibleGroups);
+            
+            log.info("Found {} compatible groups for trip {}", allSuggestions.size(), tripId);
+            return allSuggestions;
+            
+        } catch (Exception e) {
+            log.error("Error getting compatible groups for trip {}: {}", tripId, e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+    
+    /**
+     * Map Group to CompatibleGroupResponse DTO.
+     */
+    private CompatibleGroupResponse mapToCompatibleGroupResponse(Group group, double compatibilityScore) {
+        CompatibleGroupResponse response = new CompatibleGroupResponse();
         
-        return new ArrayList<>();
+        response.setGroupId(group.getId());
+        response.setTripName(group.getTripName());
+        response.setGroupName(group.getGroupName());
+        response.setCompatibilityScore(Math.round(compatibilityScore * 100.0) / 100.0);
+        response.setCurrentMembers(group.getUserIds().size());
+        response.setMaxMembers(group.getMaxMembers());
+        response.setCreatedBy(group.getCreatedBy());
+        
+        Map<String, Object> preferences = group.getPreferences();
+        if (preferences != null) {
+            response.setStartDate((String) preferences.get("startDate"));
+            response.setEndDate((String) preferences.get("endDate"));
+            response.setDestinations((List<Map<String, String>>) preferences.get("destinations"));
+            response.setActivities((List<String>) preferences.get("activities"));
+            response.setTerrains((List<String>) preferences.get("terrains"));
+        }
+        
+        return response;
     }
 }
