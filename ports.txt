@@ -11,4 +11,7 @@ api-usgae - 8092
 firebase-service - 8093
 trip-initiation - 8095
 
+npm servers
+verification-service - 8060
+support-agent - 8061
 
