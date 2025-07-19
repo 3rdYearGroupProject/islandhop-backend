@@ -53,6 +53,6 @@ public class GuideCertificate {
     private LocalDateTime updatedAt;
     
     public enum CertificateStatus {
-        ACTIVE, PENDING, REJECTED
+        APPROVED, PENDING, REJECTED
     }
 }
