@@ -294,29 +294,7 @@ public class GroupController {
         return ResponseEntity.ok(status);
     }
     
-    /**
-     * Responds to an invitation (accept or reject).
-     *
-     * @param request The invitation response request
-     * @return ResponseEntity with the response details
-     */
-    @PostMapping("/invitations/respond")
-    public ResponseEntity<InvitationListResponse> respondToInvitation(@Valid @RequestBody InvitationResponseRequest request) {
-        try {
-            log.info("User '{}' responding to invitation '{}'", request.getUserId(), request.getInvitationId());
-            InvitationListResponse response = groupService.respondToInvitation(request);
-            return ResponseEntity.ok(response);
-        } catch (JoinRequestNotFoundException e) {
-            log.warn("Invitation not found: {}", e.getMessage());
-            throw e;
-        } catch (UnauthorizedGroupAccessException | InvalidGroupOperationException e) {
-            log.warn("Invalid invitation response: {}", e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            log.error("Unexpected error responding to invitation: {}", e.getMessage(), e);
-            throw new GroupCreationException("Failed to respond to invitation: " + e.getMessage());
-        }
-    }
+    
     
     /**
      * Approves or rejects a join request.
@@ -362,6 +340,31 @@ public class GroupController {
             throw new GroupCreationException("Failed to get invitations: " + e.getMessage());
         }
     }
+    
+    /**
+     * Responds to an invitation (accept or reject).
+     *
+     * @param request The invitation response request
+     * @return ResponseEntity with the response details
+     */
+    @PostMapping("/invitations/respond")
+    public ResponseEntity<InvitationListResponse> respondToInvitation(@Valid @RequestBody InvitationResponseRequest request) {
+        try {
+            log.info("User '{}' responding to invitation '{}'", request.getUserId(), request.getInvitationId());
+            InvitationListResponse response = groupService.respondToInvitation(request);
+            return ResponseEntity.ok(response);
+        } catch (JoinRequestNotFoundException e) {
+            log.warn("Invitation not found: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException | InvalidGroupOperationException e) {
+            log.warn("Invalid invitation response: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error responding to invitation: {}", e.getMessage(), e);
+            throw new GroupCreationException("Failed to respond to invitation: " + e.getMessage());
+        }
+    }
+
     
     /**
      * Allows a group member to vote on a join request.
