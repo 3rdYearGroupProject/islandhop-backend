@@ -1,5 +1,7 @@
 package com.islandhop.trip.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.islandhop.trip.config.ExternalApiConfig;
 import com.islandhop.trip.dto.SuggestionResponse;
 import com.islandhop.trip.dto.external.GooglePlacesResponse;
@@ -11,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,26 +30,220 @@ public class GooglePlacesService {
     private final ExternalApiConfig.GooglePlacesConfig googlePlacesConfig;
 
     private static final String PLACES_API_BASE_URL = "https://maps.googleapis.com/maps/api/place";
+    private static final String PLACES_NEW_API_BASE_URL = "https://places.googleapis.com/v1/places";
 
     /**
      * Search for places by text query (e.g., city name).
+     * Uses the new Google Places API.
      *
      * @param query The search query
      * @return Location coordinates and place info
      */
     public Mono<GooglePlacesResponse> searchByText(String query) {
-        String url = String.format("%s/textsearch/json?query=%s&key=%s",
-                PLACES_API_BASE_URL, query, googlePlacesConfig.getApiKey());
+        // First try the new Places API with text search
+        return searchByTextNewApi(query)
+                .onErrorResume(error -> {
+                    log.warn("New Places API failed, trying legacy API: {}", error.getMessage());
+                    return searchByTextLegacyApi(query);
+                });
+    }
 
-        log.debug("Searching Google Places for: {}", query);
+    /**
+     * Search using the new Google Places API (v1).
+     */
+    private Mono<GooglePlacesResponse> searchByTextNewApi(String query) {
+        try {
+            log.info("🆕 Trying new Places API for: {}", query);
+            
+            // New Places API uses POST with JSON body
+            String url = PLACES_NEW_API_BASE_URL + ":searchText";
+            
+            String requestBody = String.format("""
+                {
+                    "textQuery": "%s",
+                    "maxResultCount": 10,
+                    "locationBias": {
+                        "rectangle": {
+                            "low": {
+                                "latitude": 5.9,
+                                "longitude": 79.8
+                            },
+                            "high": {
+                                "latitude": 9.8,
+                                "longitude": 81.9
+                            }
+                        }
+                    }
+                }
+                """, query);
 
-        return webClient.get()
-                .uri(url)
-                .retrieve()
-                .bodyToMono(GooglePlacesResponse.class)
-                .timeout(Duration.ofSeconds(10))
-                .doOnSuccess(response -> log.debug("Google Places text search completed for: {}", query))
-                .doOnError(error -> log.error("Google Places text search failed for {}: {}", query, error.getMessage()));
+            return webClient.post()
+                    .uri(url)
+                    .header("Content-Type", "application/json")
+                    .header("X-Goog-Api-Key", googlePlacesConfig.getApiKey())
+                    .header("X-Goog-FieldMask", "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class) // Get raw response first
+                    .doOnSuccess(response -> log.debug("🆕 New Places API raw response: {}", response.substring(0, Math.min(500, response.length()))))
+                    .map(this::convertNewApiResponse)
+                    .timeout(Duration.ofSeconds(15));
+        } catch (Exception e) {
+            log.error("Failed to call new Places API: {}", e.getMessage());
+            return Mono.error(e);
+        }
+    }
+
+    /**
+     * Search using the legacy Google Places API.
+     */
+    private Mono<GooglePlacesResponse> searchByTextLegacyApi(String query) {
+        try {
+            String encodedQuery = java.net.URLEncoder.encode(query, "UTF-8");
+            String url = String.format("%s/textsearch/json?query=%s&key=%s",
+                    PLACES_API_BASE_URL, encodedQuery, googlePlacesConfig.getApiKey());
+
+            log.debug("🔗 Legacy Google Places API URL: {}", url.replace(googlePlacesConfig.getApiKey(), "***API_KEY***"));
+            log.debug("Searching Google Places (legacy) for: {} (encoded: {})", query, encodedQuery);
+
+            return webClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .bodyToMono(GooglePlacesResponse.class)
+                    .timeout(Duration.ofSeconds(10))
+                    .doOnSuccess(response -> {
+                        log.debug("Google Places legacy text search completed for: {}", query);
+                        if (response != null) {
+                            log.debug("📊 Legacy API Response - Status: {}, Results: {}", 
+                                    response.getStatus(), 
+                                    response.getResults() != null ? response.getResults().size() : 0);
+                        }
+                    })
+                    .doOnError(error -> log.error("Google Places legacy text search failed for {}: {}", query, error.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to encode query for Google Places legacy search: {}", e.getMessage());
+            return Mono.error(e);
+        }
+    }
+
+    /**
+     * Convert new Places API response to legacy format.
+     */
+    private GooglePlacesResponse convertNewApiResponse(String rawResponse) {
+        log.info("🔄 Converting new API response (length: {})", rawResponse.length());
+        
+        try {
+            // Parse the JSON response from new Places API v1
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(rawResponse);
+            
+            GooglePlacesResponse response = new GooglePlacesResponse();
+            response.setStatus("OK");
+            
+            List<GooglePlacesResponse.PlaceResult> results = new ArrayList<>();
+            
+            // Parse "places" array from new API
+            JsonNode placesArray = rootNode.get("places");
+            if (placesArray != null && placesArray.isArray()) {
+                for (JsonNode placeNode : placesArray) {
+                    GooglePlacesResponse.PlaceResult result = new GooglePlacesResponse.PlaceResult();
+                    
+                    // Set place ID
+                    JsonNode idNode = placeNode.get("id");
+                    if (idNode != null) {
+                        result.setPlaceId(idNode.asText());
+                    }
+                    
+                    // Set name from displayName
+                    JsonNode displayNameNode = placeNode.get("displayName");
+                    if (displayNameNode != null && displayNameNode.get("text") != null) {
+                        result.setName(displayNameNode.get("text").asText());
+                    }
+                    
+                    // Set formatted address
+                    JsonNode addressNode = placeNode.get("formattedAddress");
+                    if (addressNode != null) {
+                        result.setFormattedAddress(addressNode.asText());
+                    }
+                    
+                    // Set rating
+                    JsonNode ratingNode = placeNode.get("rating");
+                    if (ratingNode != null) {
+                        result.setRating(ratingNode.asDouble());
+                    }
+                    
+                    // Set user ratings total
+                    JsonNode userRatingCountNode = placeNode.get("userRatingCount");
+                    if (userRatingCountNode != null) {
+                        result.setUserRatingsTotal(userRatingCountNode.asInt());
+                    }
+                    
+                    // Set location (geometry)
+                    JsonNode locationNode = placeNode.get("location");
+                    if (locationNode != null) {
+                        GooglePlacesResponse.Geometry geometry = new GooglePlacesResponse.Geometry();
+                        GooglePlacesResponse.Location location = new GooglePlacesResponse.Location();
+                        
+                        JsonNode latNode = locationNode.get("latitude");
+                        JsonNode lngNode = locationNode.get("longitude");
+                        
+                        if (latNode != null && lngNode != null) {
+                            location.setLat(latNode.asDouble());
+                            location.setLng(lngNode.asDouble());
+                        }
+                        
+                        geometry.setLocation(location);
+                        result.setGeometry(geometry);
+                    }
+                    
+                    // Set types
+                    JsonNode typesNode = placeNode.get("types");
+                    if (typesNode != null && typesNode.isArray()) {
+                        List<String> types = new ArrayList<>();
+                        for (JsonNode typeNode : typesNode) {
+                            types.add(typeNode.asText());
+                        }
+                        result.setTypes(types);
+                    }
+                    
+                    // Set opening hours
+                    JsonNode openingHoursNode = placeNode.get("regularOpeningHours");
+                    if (openingHoursNode != null) {
+                        GooglePlacesResponse.OpeningHours openingHours = new GooglePlacesResponse.OpeningHours();
+                        
+                        JsonNode openNowNode = openingHoursNode.get("openNow");
+                        if (openNowNode != null) {
+                            openingHours.setOpenNow(openNowNode.asBoolean());
+                        }
+                        
+                        result.setOpeningHours(openingHours);
+                    }
+                    
+                    results.add(result);
+                    log.debug("✅ Parsed place: {} at {},{}", 
+                            result.getName(), 
+                            result.getGeometry() != null && result.getGeometry().getLocation() != null ? 
+                                result.getGeometry().getLocation().getLat() : "null",
+                            result.getGeometry() != null && result.getGeometry().getLocation() != null ? 
+                                result.getGeometry().getLocation().getLng() : "null");
+                }
+            }
+            
+            response.setResults(results);
+            log.info("✅ Successfully converted {} places from new API format", results.size());
+            
+            return response;
+            
+        } catch (Exception e) {
+            log.error("💥 Failed to parse new API response: {}", e.getMessage());
+            log.debug("Raw response: {}", rawResponse.substring(0, Math.min(500, rawResponse.length())));
+            
+            // Fallback to empty response
+            GooglePlacesResponse response = new GooglePlacesResponse();
+            response.setStatus("ZERO_RESULTS");
+            response.setResults(new ArrayList<>());
+            return response;
+        }
     }
 
     /**
@@ -63,16 +260,26 @@ public class GooglePlacesService {
         String url = String.format("%s/nearbysearch/json?location=%f,%f&radius=%d&type=%s&key=%s",
                 PLACES_API_BASE_URL, latitude, longitude, radius, type, googlePlacesConfig.getApiKey());
 
-        log.debug("Searching nearby {} places at {},{} within {}m", type, latitude, longitude, radius);
+        log.info("🔍 Searching nearby {} places at {},{} within {}m", type, latitude, longitude, radius);
+        log.debug("🔗 Nearby search URL: {}", url.replace(googlePlacesConfig.getApiKey(), "***API_KEY***"));
 
         return webClient.get()
                 .uri(url)
                 .retrieve()
                 .bodyToMono(GooglePlacesResponse.class)
                 .timeout(Duration.ofSeconds(15))
-                .doOnSuccess(response -> log.debug("Found {} nearby {} places", 
-                        response.getResults() != null ? response.getResults().size() : 0, type))
-                .doOnError(error -> log.error("Nearby places search failed: {}", error.getMessage()));
+                .doOnSuccess(response -> {
+                    int resultCount = response.getResults() != null ? response.getResults().size() : 0;
+                    log.info("📍 Found {} nearby {} places", resultCount, type);
+                    if (response != null) {
+                        log.debug("📊 Nearby API Response - Status: {}, Results: {}", 
+                                response.getStatus(), resultCount);
+                        if (response.getStatus() != null && !response.getStatus().equals("OK")) {
+                            log.warn("⚠️ Google Places API returned status: {}", response.getStatus());
+                        }
+                    }
+                })
+                .doOnError(error -> log.error("💥 Nearby places search failed: {}", error.getMessage()));
     }
 
     /**

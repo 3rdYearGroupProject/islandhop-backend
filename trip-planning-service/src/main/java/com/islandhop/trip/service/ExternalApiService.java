@@ -7,6 +7,7 @@ import com.islandhop.trip.dto.external.TripAdvisorResponse;
 import com.islandhop.trip.util.GeoUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -36,6 +37,13 @@ public class ExternalApiService {
     private static final String TRIPADVISOR_API_BASE_URL = "https://api.content.tripadvisor.com/api/v1/location";
     private static final int DEFAULT_RADIUS = 15000; // 15km radius
     private static final int MAX_RESULTS = 10;
+
+    // Rate limiting configuration
+    @Value("${api.max-concurrent-calls:5}")
+    private int maxConcurrentCalls;
+    
+    @Value("${api.request-delay-ms:200}")
+    private long requestDelayMs;
 
     // Enhanced activity keyword mappings for better preference matching
     private static final Map<String, List<String>> ACTIVITY_KEYWORDS = Map.of(
@@ -92,8 +100,14 @@ public class ExternalApiService {
      * Checks if external API keys are properly configured.
      */
     private boolean isApiConfigured() {
-        return !tripAdvisorConfig.getApiKey().equals("demo-key") && 
-               !googlePlacesConfig.getApiKey().equals("demo-key");
+        log.info("🔑 TripAdvisor API Key: {}", tripAdvisorConfig.getApiKey());
+        log.info("🔑 Google Places API Key: {}", googlePlacesConfig.getApiKey());
+        
+        boolean isConfigured = !tripAdvisorConfig.getApiKey().equals("demo-key") && 
+                              !googlePlacesConfig.getApiKey().equals("demo-key");
+        
+        log.info("🔧 API Configuration Status: {}", isConfigured ? "REAL APIs" : "MOCK DATA");
+        return isConfigured;
     }
 
     /**
@@ -135,16 +149,100 @@ public class ExternalApiService {
     private GooglePlacesResponse.PlaceResult getCityLocation(String city) {
         try {
             String query = city + " Sri Lanka";
+            log.info("🔍 Searching for city location: '{}'", query);
+            
             GooglePlacesResponse response = googlePlacesService.searchByText(query).block();
             
-            if (response != null && response.getResults() != null && !response.getResults().isEmpty()) {
-                return response.getResults().get(0);
+            log.info("📡 Google Places API Response Status: {}", response != null ? response.getStatus() : "null");
+            
+            if (response != null) {
+                log.info("📋 Response Results Count: {}", response.getResults() != null ? response.getResults().size() : 0);
+                
+                if (response.getResults() != null) {
+                    for (int i = 0; i < Math.min(3, response.getResults().size()); i++) {
+                        GooglePlacesResponse.PlaceResult result = response.getResults().get(i);
+                        log.info("📍 Result {}: Name='{}', Address='{}', Geometry='{}'", 
+                                i+1, 
+                                result.getName(), 
+                                result.getFormattedAddress(), 
+                                result.getGeometry() != null ? "Available" : "null");
+                        
+                        if (result.getGeometry() != null && result.getGeometry().getLocation() != null) {
+                            log.info("🌍 Coordinates: {}, {}", 
+                                    result.getGeometry().getLocation().getLat(),
+                                    result.getGeometry().getLocation().getLng());
+                        }
+                    }
+                }
             }
-            return null;
+            
+            if (response != null && response.getResults() != null && !response.getResults().isEmpty()) {
+                GooglePlacesResponse.PlaceResult cityResult = response.getResults().get(0);
+                log.info("✅ Using first result: {}", cityResult.getName());
+                return cityResult;
+            }
+            
+            log.warn("❌ No results found for city: {}, trying fallback coordinates", city);
+            
+            // Fallback: Use known coordinates for major Sri Lankan cities
+            return getFallbackCityLocation(city);
+            
         } catch (Exception e) {
-            log.error("Failed to get city location for {}: {}", city, e.getMessage());
-            return null;
+            log.error("💥 Failed to get city location for {}: {}, trying fallback", city, e.getMessage());
+            return getFallbackCityLocation(city);
         }
+    }
+
+    /**
+     * Fallback method to get coordinates for known Sri Lankan cities.
+     */
+    private GooglePlacesResponse.PlaceResult getFallbackCityLocation(String city) {
+        log.info("🗺️ Using fallback coordinates for: {}", city);
+        
+        String cityLower = city.toLowerCase().trim();
+        Double[] coords = switch (cityLower) {
+            case "colombo" -> new Double[]{6.9271, 79.8612};
+            case "kandy" -> new Double[]{7.2906, 80.6337};
+            case "galle" -> new Double[]{6.0535, 80.2210};
+            case "sigiriya" -> new Double[]{7.9568, 80.7592};
+            case "anuradhapura" -> new Double[]{8.3114, 80.4037};
+            case "polonnaruwa" -> new Double[]{7.9403, 81.0188};
+            case "ella" -> new Double[]{6.8679, 81.0461};
+            case "nuwara eliya" -> new Double[]{6.9497, 80.7891};
+            case "mirissa" -> new Double[]{5.9485, 80.4467};
+            case "unawatuna" -> new Double[]{6.0088, 80.2493};
+            case "hikkaduwa" -> new Double[]{6.1391, 80.0998};
+            case "negombo" -> new Double[]{7.2084, 79.8380};
+            case "bentota" -> new Double[]{6.4260, 79.9956};
+            case "yala" -> new Double[]{6.3732, 81.5218};
+            case "trincomalee" -> new Double[]{8.5874, 81.2152};
+            case "jaffna" -> new Double[]{9.6615, 80.0255};
+            case "batticaloa" -> new Double[]{7.7102, 81.6924};
+            case "matara" -> new Double[]{5.9549, 80.5550};
+            case "ratnapura" -> new Double[]{6.6828, 80.4003};
+            case "badulla" -> new Double[]{6.9934, 81.0550};
+            default -> null;
+        };
+        
+        if (coords != null) {
+            GooglePlacesResponse.PlaceResult result = new GooglePlacesResponse.PlaceResult();
+            result.setPlaceId("fallback_" + cityLower);
+            result.setName(city);
+            result.setFormattedAddress(city + ", Sri Lanka");
+            
+            GooglePlacesResponse.Geometry geometry = new GooglePlacesResponse.Geometry();
+            GooglePlacesResponse.Location location = new GooglePlacesResponse.Location();
+            location.setLat(coords[0]);
+            location.setLng(coords[1]);
+            geometry.setLocation(location);
+            result.setGeometry(geometry);
+            
+            log.info("✅ Using fallback coordinates for {}: {}, {}", city, coords[0], coords[1]);
+            return result;
+        }
+        
+        log.warn("❌ No fallback coordinates available for city: {}", city);
+        return null;
     }
 
     /**
@@ -184,14 +282,15 @@ public class ExternalApiService {
      */
     private List<SuggestionResponse> fetchHotels(String city, double lat, double lng, String budgetLevel) {
         try {
+            // First try nearby search with new Places API
             GooglePlacesResponse response = googlePlacesService.findNearbyPlaces(
                     lat, lng, DEFAULT_RADIUS, "lodging").block();
             
-            if (response != null && response.getResults() != null) {
+            if (response != null && response.getResults() != null && !response.getResults().isEmpty()) {
                 List<SuggestionResponse> hotels = googlePlacesService.convertToSuggestions(
                         response.getResults(), "hotels", lat, lng);
                 
-                log.info("Found {} hotels from Google Places for {}", hotels.size(), city);
+                log.info("Found {} hotels from Google Places nearby search for {}", hotels.size(), city);
                 return filterHotelsByBudget(hotels, budgetLevel)
                         .stream()
                         .sorted((h1, h2) -> Double.compare(h2.getRating() != null ? h2.getRating() : 0.0, 
@@ -200,10 +299,14 @@ public class ExternalApiService {
                         .collect(Collectors.toList());
             }
             
-            return Collections.emptyList();
+            // Fallback to text-based search for popular hotels
+            log.info("🏨 Nearby search returned empty, trying text-based search for popular hotels");
+            return fetchHotelsWithTextSearch(city, lat, lng, budgetLevel);
+            
         } catch (Exception e) {
             log.error("Error fetching hotels for {}: {}", city, e.getMessage());
-            return Collections.emptyList();
+            // Try text-based search as fallback
+            return fetchHotelsWithTextSearch(city, lat, lng, budgetLevel);
         }
     }
 
@@ -213,14 +316,15 @@ public class ExternalApiService {
     private List<SuggestionResponse> fetchRestaurants(String city, double lat, double lng, 
                                                      String budgetLevel, List<String> preferredTerrains) {
         try {
+            // First try nearby search with new Places API
             GooglePlacesResponse response = googlePlacesService.findNearbyPlaces(
                     lat, lng, DEFAULT_RADIUS, "restaurant").block();
             
-            if (response != null && response.getResults() != null) {
+            if (response != null && response.getResults() != null && !response.getResults().isEmpty()) {
                 List<SuggestionResponse> restaurants = googlePlacesService.convertToSuggestions(
                         response.getResults(), "restaurants", lat, lng);
                 
-                log.info("Found {} restaurants from Google Places for {}", restaurants.size(), city);
+                log.info("Found {} restaurants from Google Places nearby search for {}", restaurants.size(), city);
                 return filterRestaurantsByBudget(restaurants, budgetLevel)
                         .stream()
                         .sorted((r1, r2) -> Double.compare(r2.getRating() != null ? r2.getRating() : 0.0, 
@@ -229,10 +333,14 @@ public class ExternalApiService {
                         .collect(Collectors.toList());
             }
             
-            return Collections.emptyList();
+            // Fallback to text-based search for popular restaurants
+            log.info("🍽️ Nearby search returned empty, trying text-based search for popular restaurants");
+            return fetchRestaurantsWithTextSearch(city, lat, lng, budgetLevel);
+            
         } catch (Exception e) {
             log.error("Error fetching restaurants for {}: {}", city, e.getMessage());
-            return Collections.emptyList();
+            // Try text-based search as fallback
+            return fetchRestaurantsWithTextSearch(city, lat, lng, budgetLevel);
         }
     }
 
@@ -274,23 +382,267 @@ public class ExternalApiService {
                                                                  List<String> preferredActivities, 
                                                                  List<String> preferredTerrains) {
         try {
+            // Strategy 1: Try nearby search
             GooglePlacesResponse response = googlePlacesService.findNearbyPlaces(
                     lat, lng, DEFAULT_RADIUS, "tourist_attraction").block();
             
-            if (response != null && response.getResults() != null) {
+            if (response != null && response.getResults() != null && !response.getResults().isEmpty()) {
                 List<SuggestionResponse> attractions = googlePlacesService.convertToSuggestions(
                         response.getResults(), "attractions", lat, lng);
                 
-                log.info("Found {} attractions from Google Places", attractions.size());
+                log.info("✅ Found {} attractions from Google Places nearby search", attractions.size());
                 return filterAndEnhanceAttractions(attractions, preferredActivities, preferredTerrains)
                         .stream().limit(MAX_RESULTS).collect(Collectors.toList());
             }
             
-            return Collections.emptyList();
+            // Strategy 2: Try text-based searches for known Sri Lankan attractions
+            log.info("🔍 Nearby search returned empty, trying text-based search for popular attractions");
+            return fetchAttractionsWithTextSearch(lat, lng);
+            
         } catch (Exception e) {
-            log.error("Error fetching Google Places attractions: {}", e.getMessage());
-            return Collections.emptyList();
+            log.error("💥 Google Places attractions search failed: {}", e.getMessage());
+            return fetchAttractionsWithTextSearch(lat, lng);
         }
+    }
+    
+    /**
+     * Fetch attractions using text-based searches for popular Sri Lankan sites.
+     */
+    private List<SuggestionResponse> fetchAttractionsWithTextSearch(double lat, double lng) {
+        List<SuggestionResponse> textResults = new ArrayList<>();
+        
+        // Define popular attractions based on coordinates (rough location detection)
+        String[] searchQueries;
+        String cityName = detectCityFromCoordinates(lat, lng);
+        
+        switch (cityName.toLowerCase()) {
+            case "kandy":
+                searchQueries = new String[]{
+                    "Temple of the Tooth Relic Kandy",
+                    "Kandy Lake",
+                    "Royal Botanic Gardens Peradeniya",
+                    "Bahirawakanda Vihara Buddha Statue",
+                    "Udawatta Kele Sanctuary"
+                };
+                break;
+            case "colombo":
+                searchQueries = new String[]{
+                    "Gangaramaya Temple Colombo",
+                    "Independence Square Colombo",
+                    "Galle Face Green",
+                    "National Museum Colombo",
+                    "Red Mosque Colombo"
+                };
+                break;
+            case "galle":
+                searchQueries = new String[]{
+                    "Galle Fort",
+                    "Dutch Reformed Church Galle",
+                    "Galle Lighthouse",
+                    "National Maritime Museum Galle"
+                };
+                break;
+            default:
+                searchQueries = new String[]{
+                    "Sri Lanka tourist attractions",
+                    "Buddhist temples Sri Lanka",
+                    "Cultural sites Sri Lanka"
+                };
+        }
+        
+        // Use rate-limited search execution
+        textResults = executeRateLimitedSearches(searchQueries, "attractions", lat, lng);
+        
+        // Remove duplicates and limit results
+        List<SuggestionResponse> uniqueResults = textResults.stream()
+                .collect(Collectors.toMap(
+                        SuggestionResponse::getName,
+                        suggestion -> suggestion,
+                        (existing, replacement) -> existing))
+                .values()
+                .stream()
+                .limit(MAX_RESULTS)
+                .collect(Collectors.toList());
+        
+        log.info("✅ Text-based search found {} unique attractions for {}", uniqueResults.size(), cityName);
+        if (!uniqueResults.isEmpty()) {
+            log.info("📍 Found attractions: {}", uniqueResults.stream()
+                    .map(SuggestionResponse::getName)
+                    .collect(Collectors.joining(", ")));
+        }
+        
+        return uniqueResults;
+    }
+    
+    /**
+     * Simple city detection based on coordinates.
+     */
+    private String detectCityFromCoordinates(double lat, double lng) {
+        // Kandy: approximately 7.2906°N, 80.6337°E
+        if (Math.abs(lat - 7.2906) < 0.1 && Math.abs(lng - 80.6337) < 0.1) {
+            return "Kandy";
+        }
+        // Colombo: approximately 6.9271°N, 79.8612°E  
+        if (Math.abs(lat - 6.9271) < 0.1 && Math.abs(lng - 79.8612) < 0.1) {
+            return "Colombo";
+        }
+        // Galle: approximately 6.0329°N, 80.2168°E
+        if (Math.abs(lat - 6.0329) < 0.1 && Math.abs(lng - 80.2168) < 0.1) {
+            return "Galle";
+        }
+        return "Unknown";
+    }
+
+    /**
+     * Fetch hotels using text-based searches for popular Sri Lankan hotels.
+     */
+    private List<SuggestionResponse> fetchHotelsWithTextSearch(String city, double lat, double lng, String budgetLevel) {
+        List<SuggestionResponse> textResults = new ArrayList<>();
+        
+        // Define popular hotels based on city
+        String[] searchQueries;
+        String cityName = detectCityFromCoordinates(lat, lng);
+        
+        switch (cityName.toLowerCase()) {
+            case "kandy":
+                searchQueries = new String[]{
+                    "Earl's Regency Hotel Kandy",
+                    "The Elephant Stables Kandy",
+                    "Hotel Suisse Kandy",
+                    "Radisson Hotel Kandy",
+                    "Mahaweli Reach Hotel Kandy"
+                };
+                break;
+            case "colombo":
+                searchQueries = new String[]{
+                    "Galle Face Hotel Colombo",
+                    "Shangri-La Hotel Colombo",
+                    "Hilton Colombo",
+                    "Cinnamon Grand Colombo",
+                    "The Kingsbury Colombo"
+                };
+                break;
+            case "galle":
+                searchQueries = new String[]{
+                    "Amangalla Galle",
+                    "Fort Printers Galle",
+                    "The Fort Bazaar Galle",
+                    "Villa Republic Galle"
+                };
+                break;
+            default:
+                searchQueries = new String[]{
+                    "hotels " + city + " Sri Lanka",
+                    "luxury hotels " + city,
+                    "boutique hotels " + city
+                };
+        }
+        
+        // Use rate-limited search execution
+        textResults = executeRateLimitedSearches(searchQueries, "hotels", lat, lng);
+        
+        // Remove duplicates and filter by budget
+        List<SuggestionResponse> uniqueResults = textResults.stream()
+                .collect(Collectors.toMap(
+                        SuggestionResponse::getName,
+                        suggestion -> suggestion,
+                        (existing, replacement) -> existing))
+                .values()
+                .stream()
+                .collect(Collectors.toList());
+                
+        uniqueResults = filterHotelsByBudget(uniqueResults, budgetLevel);
+        
+        List<SuggestionResponse> finalResults = uniqueResults.stream()
+                .sorted((h1, h2) -> Double.compare(h2.getRating() != null ? h2.getRating() : 0.0, 
+                                                  h1.getRating() != null ? h1.getRating() : 0.0))
+                .limit(MAX_RESULTS)
+                .collect(Collectors.toList());
+        
+        log.info("✅ Text-based search found {} unique hotels for {}", finalResults.size(), cityName);
+        if (!finalResults.isEmpty()) {
+            log.info("🏨 Found hotels: {}", finalResults.stream()
+                    .map(SuggestionResponse::getName)
+                    .collect(Collectors.joining(", ")));
+        }
+        
+        return finalResults;
+    }
+
+    /**
+     * Fetch restaurants using text-based searches for popular Sri Lankan restaurants.
+     */
+    private List<SuggestionResponse> fetchRestaurantsWithTextSearch(String city, double lat, double lng, String budgetLevel) {
+        List<SuggestionResponse> textResults = new ArrayList<>();
+        
+        // Define popular restaurants based on city
+        String[] searchQueries;
+        String cityName = detectCityFromCoordinates(lat, lng);
+        
+        switch (cityName.toLowerCase()) {
+            case "kandy":
+                searchQueries = new String[]{
+                    "The Empire Cafe Kandy",
+                    "Balaji Dosai Kandy",
+                    "Devon Restaurant Kandy",
+                    "Slightly Chilled Lounge Bar Kandy",
+                    "Kandy Garden Cafe"
+                };
+                break;
+            case "colombo":
+                searchQueries = new String[]{
+                    "Ministry of Crab Colombo",
+                    "Tao Sri Lanka Colombo",
+                    "The Lagoon Restaurant Cinnamon Grand",
+                    "Raja Bojun Colombo",
+                    "Gallery Cafe Colombo"
+                };
+                break;
+            case "galle":
+                searchQueries = new String[]{
+                    "Pedlar's Inn Cafe Galle",
+                    "A Minute by Tuk Tuk Galle",
+                    "Mama's Roof Cafe Galle",
+                    "The Fort Printers Restaurant"
+                };
+                break;
+            default:
+                searchQueries = new String[]{
+                    "restaurants " + city + " Sri Lanka",
+                    "best food " + city,
+                    "local restaurants " + city
+                };
+        }
+        
+        // Use rate-limited search execution
+        textResults = executeRateLimitedSearches(searchQueries, "restaurants", lat, lng);
+        
+        // Remove duplicates and filter by budget
+        List<SuggestionResponse> uniqueResults = textResults.stream()
+                .collect(Collectors.toMap(
+                        SuggestionResponse::getName,
+                        suggestion -> suggestion,
+                        (existing, replacement) -> existing))
+                .values()
+                .stream()
+                .collect(Collectors.toList());
+                
+        uniqueResults = filterRestaurantsByBudget(uniqueResults, budgetLevel);
+        
+        List<SuggestionResponse> finalResults = uniqueResults.stream()
+                .sorted((r1, r2) -> Double.compare(r2.getRating() != null ? r2.getRating() : 0.0, 
+                                                  r1.getRating() != null ? r1.getRating() : 0.0))
+                .limit(MAX_RESULTS)
+                .collect(Collectors.toList());
+        
+        log.info("✅ Text-based search found {} unique restaurants for {}", finalResults.size(), cityName);
+        if (!finalResults.isEmpty()) {
+            log.info("🍽️ Found restaurants: {}", finalResults.stream()
+                    .map(SuggestionResponse::getName)
+                    .collect(Collectors.joining(", ")));
+        }
+        
+        return finalResults;
     }
 
     /**
@@ -653,5 +1005,45 @@ public class ExternalApiService {
         return userPreferences.stream()
                 .filter(availableOptions::contains)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Execute API search queries with rate limiting to avoid overwhelming external APIs.
+     * Processes queries in batches with delays between calls.
+     */
+    private List<SuggestionResponse> executeRateLimitedSearches(String[] searchQueries, String type, double lat, double lng) {
+        List<SuggestionResponse> allResults = new ArrayList<>();
+        
+        // Limit the number of queries to the configured maximum
+        int numQueries = Math.min(searchQueries.length, maxConcurrentCalls);
+        
+        log.info("🚦 Executing {} {} search queries (limited to {} concurrent calls)", 
+                numQueries, type, maxConcurrentCalls);
+        
+        for (int i = 0; i < numQueries; i++) {
+            String query = searchQueries[i];
+            try {
+                GooglePlacesResponse response = googlePlacesService.searchByText(query).block();
+                if (response != null && response.getResults() != null) {
+                    List<SuggestionResponse> queryResults = googlePlacesService.convertToSuggestions(
+                            response.getResults(), type, lat, lng);
+                    allResults.addAll(queryResults);
+                    log.debug("🔍 Query '{}' found {} results", query, queryResults.size());
+                }
+                
+                // Add delay between requests to respect rate limits
+                if (i < numQueries - 1 && requestDelayMs > 0) {
+                    Thread.sleep(requestDelayMs);
+                }
+                
+            } catch (Exception e) {
+                log.warn("⚠️ Query failed for '{}': {}", query, e.getMessage());
+            }
+        }
+        
+        log.info("✅ Rate-limited search completed: {} total results from {} queries", 
+                allResults.size(), numQueries);
+        
+        return allResults;
     }
 }

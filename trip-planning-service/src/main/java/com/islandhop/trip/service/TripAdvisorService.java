@@ -41,16 +41,25 @@ public class TripAdvisorService {
         String url = String.format("%s/search?key=%s&searchQuery=%s&language=en",
                 TRIPADVISOR_API_BASE_URL, tripAdvisorConfig.getApiKey(), query);
 
-        log.debug("Searching TripAdvisor locations for: {}", query);
+        log.debug("🔍 Searching TripAdvisor locations for: {}", query);
+        log.debug("🔗 TripAdvisor search URL: {}", url.replace(tripAdvisorConfig.getApiKey(), "***API_KEY***"));
 
         return webClient.get()
                 .uri(url)
                 .header("accept", "application/json")
+                .header("X-TripAdvisor-API-Key", tripAdvisorConfig.getApiKey())
+                .header("User-Agent", "IslandHop-Backend/1.0")
                 .retrieve()
                 .bodyToMono(TripAdvisorResponse.class)
                 .timeout(Duration.ofSeconds(15))
-                .doOnSuccess(response -> log.debug("TripAdvisor location search completed for: {}", query))
-                .doOnError(error -> log.error("TripAdvisor location search failed for {}: {}", query, error.getMessage()));
+                .doOnSuccess(response -> {
+                    log.debug("📍 TripAdvisor location search completed for: {}", query);
+                    if (response != null) {
+                        log.debug("📊 TripAdvisor Search Response - Data count: {}", 
+                                response.getData() != null ? response.getData().size() : 0);
+                    }
+                })
+                .doOnError(error -> log.error("💥 TripAdvisor location search failed for {}: {}", query, error.getMessage()));
     }
 
     /**
@@ -63,17 +72,22 @@ public class TripAdvisorService {
         String url = String.format("%s/%s/nearby_search?key=%s&language=en&category=attractions&radius=15",
                 TRIPADVISOR_API_BASE_URL, locationId, tripAdvisorConfig.getApiKey());
 
-        log.debug("Searching TripAdvisor nearby attractions for location: {}", locationId);
+        log.debug("🔍 Searching TripAdvisor nearby attractions for location: {}", locationId);
+        log.debug("🔗 TripAdvisor nearby URL: {}", url.replace(tripAdvisorConfig.getApiKey(), "***API_KEY***"));
 
         return webClient.get()
                 .uri(url)
                 .header("accept", "application/json")
+                .header("X-TripAdvisor-API-Key", tripAdvisorConfig.getApiKey())
+                .header("User-Agent", "IslandHop-Backend/1.0")
                 .retrieve()
                 .bodyToMono(TripAdvisorResponse.class)
                 .timeout(Duration.ofSeconds(15))
-                .doOnSuccess(response -> log.debug("Found {} nearby attractions for location {}",
-                        response.getData() != null ? response.getData().size() : 0, locationId))
-                .doOnError(error -> log.error("TripAdvisor nearby search failed for location {}: {}", locationId, error.getMessage()));
+                .doOnSuccess(response -> {
+                    int count = response != null && response.getData() != null ? response.getData().size() : 0;
+                    log.info("📍 Found {} nearby attractions for location {}", count, locationId);
+                })
+                .doOnError(error -> log.error("💥 TripAdvisor nearby search failed for location {}: {}", locationId, error.getMessage()));
     }
 
     /**
