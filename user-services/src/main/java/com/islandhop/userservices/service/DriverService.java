@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +28,7 @@ public class DriverService {
     private final DriverAccountRepository accountRepository;
     private final DriverProfileRepository profileRepository;
     private final DriverVehicleRepository vehicleRepository;
+    private final DriverProfileRepository driverProfileRepository;
 
     public String getEmailFromIdToken(String idToken) {
         try {
@@ -314,6 +316,50 @@ public class DriverService {
     }
 
 
+    public void uploadDrivingLicense(String email, MultipartFile file) {
+
+        DriverProfile driver = driverProfileRepository.findByEmail(email);
+        if (driver == null) {
+            throw new RuntimeException("Driver not found");
+        }
+
+        try {
+            if (file != null && !file.isEmpty()) {
+                // Convert file to base64 string for TEXT column storage
+                String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
+                driver.setDrivingLicenseImage(base64Image);
+                driver.setDrivingLicenseVerified(0); // pending verification
+                driverProfileRepository.save(driver);
+            } else {
+                throw new RuntimeException("File is empty or not provided");
+            }
+        } catch (Exception e) {
+            logger.error("Error uploading driving license: {}", e.getMessage());
+            throw new RuntimeException("Failed to upload driving license");
+        }
+    }
+
+    public void uploadSltdaLicense(String email, MultipartFile file) {
+        DriverProfile driver = driverProfileRepository.findByEmail(email);
+        if (driver == null) {
+            throw new RuntimeException("Driver not found");
+        }
+
+        try {
+            if (file != null && !file.isEmpty()) {
+                // Convert file to base64 string for TEXT column storage
+                String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
+                driver.setSltdaLicenseImage(base64Image);
+                driver.setSltdaLicenseVerified(0); // pending verification
+                driverProfileRepository.save(driver);
+            } else {
+                throw new RuntimeException("File is empty or not provided");
+            }
+        } catch (Exception e) {
+            logger.error("Error uploading SLTDA license: {}", e.getMessage());
+            throw new RuntimeException("Failed to upload SLTDA license");
+        }
+    }
+
 }
 
-// Note: Ensure that the DriverAccount, DriverProfile, and DriverVehicle classes are properly defined

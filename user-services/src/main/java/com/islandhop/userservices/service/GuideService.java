@@ -167,20 +167,7 @@ public class GuideService {
                 // Leave as null if parsing fails
             }
         }
-        
-        // Handle status enum
-        // if (certData.containsKey("status")) {
-        //     String statusStr = (String) certData.get("status");
-        //     if (statusStr != null && !statusStr.equals("-")) {
-        //         try {
-        //             CertificateStatus status = CertificateStatus.valueOf(statusStr.toUpperCase());
-        //             certificate.setStatus(status);
-        //         } catch (IllegalArgumentException e) {
-        //             logger.warn("Invalid status value: {}, using default", statusStr);
-        //         }
-        //     }
-        // }
-        
+
         // Handle base64 image
         if (certData.containsKey("certificatePictureBase64")) {
             String base64Image = (String) certData.get("certificatePictureBase64");
