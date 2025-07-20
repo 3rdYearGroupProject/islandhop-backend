@@ -214,7 +214,15 @@ public class PublicPoolingService {
                 tripPreferences.put("tripName", request.getTripData().getName());
                 tripPreferences.put("startDate", request.getTripData().getStartDate());
                 tripPreferences.put("endDate", request.getTripData().getEndDate());
-                tripPreferences.put("destinations", request.getTripData().getDestinations());
+                
+                // Convert destinations to the expected format
+                if (request.getTripData().getDestinations() != null) {
+                    List<Map<String, String>> destinationMaps = request.getTripData().getDestinations().stream()
+                            .map(dest -> Map.of("name", dest.getName()))
+                            .collect(Collectors.toList());
+                    tripPreferences.put("destinations", destinationMaps);
+                }
+                
                 tripPreferences.put("terrains", request.getTripData().getTerrains());
                 tripPreferences.put("activities", request.getTripData().getActivities());
                 tripPreferences.put("itinerary", request.getTripData().getItinerary());
@@ -283,12 +291,12 @@ public class PublicPoolingService {
         int factors = 0;
         
         // Compare destinations (40% weight)
-        List<Map<String, String>> destinations1 = (List<Map<String, String>>) trip1.get("destinations");
-        List<Map<String, String>> destinations2 = (List<Map<String, String>>) trip2.get("destinations");
+        Object destinations1Obj = trip1.get("destinations");
+        Object destinations2Obj = trip2.get("destinations");
         
-        if (destinations1 != null && destinations2 != null) {
-            Set<String> destNames1 = destinations1.stream().map(d -> d.get("name")).collect(Collectors.toSet());
-            Set<String> destNames2 = destinations2.stream().map(d -> d.get("name")).collect(Collectors.toSet());
+        if (destinations1Obj != null && destinations2Obj != null) {
+            Set<String> destNames1 = extractDestinationNames(destinations1Obj);
+            Set<String> destNames2 = extractDestinationNames(destinations2Obj);
             
             double destinationSimilarity = calculateSetSimilarity(destNames1, destNames2);
             totalScore += destinationSimilarity * 0.4;
@@ -337,6 +345,41 @@ public class PublicPoolingService {
         union.addAll(set2);
         
         return union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
+    }
+    
+    /**
+     * Extract destination names from either List<Map<String, String>> or List<Destination> format.
+     */
+    private Set<String> extractDestinationNames(Object destinationsObj) {
+        Set<String> names = new HashSet<>();
+        
+        if (destinationsObj instanceof List<?> destinations) {
+            log.debug("Processing destinations list with {} items", destinations.size());
+            for (Object dest : destinations) {
+                if (dest instanceof Map<?, ?> destMap) {
+                    // Handle Map format: {"name": "Colombo"}
+                    Object name = destMap.get("name");
+                    if (name instanceof String) {
+                        names.add((String) name);
+                        log.debug("Added destination from Map format: {}", name);
+                    }
+                } else if (dest instanceof SaveTripRequest.TripData.Destination destObj) {
+                    // Handle Destination object format
+                    if (destObj.getName() != null) {
+                        names.add(destObj.getName());
+                        log.debug("Added destination from Destination object: {}", destObj.getName());
+                    }
+                } else {
+                    log.warn("Unknown destination format: {} (type: {})", dest, dest.getClass().getSimpleName());
+                }
+            }
+        } else if (destinationsObj != null) {
+            log.warn("Destinations object is not a List. Type: {}, Value: {}", 
+                    destinationsObj.getClass().getSimpleName(), destinationsObj);
+        }
+        
+        log.debug("Extracted {} destination names: {}", names.size(), names);
+        return names;
     }
     
     /**
@@ -505,17 +548,18 @@ public class PublicPoolingService {
                     "Cannot finalize group - group must have at least one member");
             }
             
-            // Update group status to finalized
-            group.finalizeBy(userId);
+            // Update group status to active (will be finalized after payments)
+            group.setStatus("active");
+            group.setLastUpdated(Instant.now());
             
             // Save the updated group
-            Group finalizedGroup = groupRepository.save(group);
+            Group updatedGroup = groupRepository.save(group);
             
-            log.info("Group {} successfully finalized by user {} with {} members", 
-                    finalizedGroup.getId(), userId, finalizedGroup.getUserIds().size());
+            log.info("Group {} successfully activated by user {} with {} members", 
+                    updatedGroup.getId(), userId, updatedGroup.getUserIds().size());
             
             return new FinalizeGroupResponse(groupId, 
-                String.format("Group '%s' finalized successfully with %d member(s). Your trip is now visible to other users for compatibility matching.", 
+                String.format("Group '%s' activated successfully with %d member(s). Your trip is now ready for the next steps.", 
                         group.getGroupName() != null ? group.getGroupName() : "Trip Group", 
                         group.getUserIds().size()));
                         
@@ -609,5 +653,13 @@ public class PublicPoolingService {
         }
         
         return response;
+    }
+    
+    /**
+     * Generates a unique ID for join requests.
+     * @return A unique join request ID
+     */
+    private String generateJoinRequestId() {
+        return UUID.randomUUID().toString();
     }
 }

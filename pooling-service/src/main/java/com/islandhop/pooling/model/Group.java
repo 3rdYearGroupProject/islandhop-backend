@@ -79,9 +79,14 @@ public class Group {
     
     /**
      * Check if a user is the creator of this group.
+     * Checks both creatorUserId and createdBy for backward compatibility.
      */
     public boolean isCreator(String userId) {
-        return userId != null && userId.equals(getCreatorUserId());
+        if (userId == null) {
+            return false;
+        }
+        // Check both fields for backward compatibility
+        return userId.equals(getCreatorUserId()) || userId.equals(getCreatedBy());
     }
     
     /**

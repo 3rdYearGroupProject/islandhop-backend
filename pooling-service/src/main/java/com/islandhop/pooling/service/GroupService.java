@@ -64,6 +64,7 @@ public class GroupService {
             group.setPreferences(request.getPreferences());
             group.setUserIds(List.of(request.getUserId()));
             group.setCreatorUserId(request.getUserId());
+            group.setCreatedBy(request.getUserId()); // Set both fields for consistency
             group.setCreatorEmail(request.getUserEmail()); // Store creator email for name lookup
             group.setCreatedAt(Instant.now());
             group.setLastUpdated(Instant.now());
@@ -1039,6 +1040,7 @@ public class GroupService {
             group.setTripName(request.getTripName());
             group.setVisibility(request.getVisibility());
             group.setCreatorUserId(request.getUserId());
+            group.setCreatedBy(request.getUserId()); // Set both fields for consistency
             group.setCreatorEmail(request.getUserEmail()); // Store creator email for name lookup
             group.setMaxMembers(request.getMaxMembers());
             group.setRequiresApproval(request.getRequiresApproval() != null ? request.getRequiresApproval() : false);
@@ -1171,9 +1173,15 @@ public class GroupService {
             Group group = groupRepository.findById(groupId)
                     .orElseThrow(() -> new GroupNotFoundException("Group not found: " + groupId));
             
+            // Log creator information for debugging
+            log.debug("Group creator validation - Group ID: {}, Requesting User: {}, CreatorUserId: {}, CreatedBy: {}", 
+                     groupId, request.getUserId(), group.getCreatorUserId(), group.getCreatedBy());
+            
             // Verify user is creator
             if (!group.isCreator(request.getUserId())) {
-                throw new UnauthorizedGroupAccessException("Only group creator can finalize trip");
+                log.warn("User {} is not authorized to finalize group {}. Creator: {} / {}", 
+                        request.getUserId(), groupId, group.getCreatorUserId(), group.getCreatedBy());
+                throw new UnauthorizedGroupAccessException("Only the group creator can finalize the group");
             }
             
             FinalizeTripResponse response = new FinalizeTripResponse();
