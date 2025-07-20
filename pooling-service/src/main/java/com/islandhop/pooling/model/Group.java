@@ -53,6 +53,10 @@ public class Group {
     
     private Instant lastUpdated;
     
+    private Instant finalizedAt; // When the group was finalized
+    
+    private String finalizedBy; // User ID who finalized the group
+    
     private List<Invitation> pendingInvitations = new ArrayList<>();
     
     private boolean requiresApproval = true; // For public groups, whether join requests need approval
@@ -137,6 +141,17 @@ public class Group {
     public void finalize() {
         this.status = "finalized";
         this.lastUpdated = Instant.now();
+        this.finalizedAt = Instant.now();
+    }
+    
+    /**
+     * Mark the group as finalized by a specific user.
+     */
+    public void finalizeBy(String userId) {
+        this.status = "finalized";
+        this.lastUpdated = Instant.now();
+        this.finalizedAt = Instant.now();
+        this.finalizedBy = userId;
     }
     
     /**

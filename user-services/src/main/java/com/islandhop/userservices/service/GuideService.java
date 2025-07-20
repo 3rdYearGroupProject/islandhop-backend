@@ -125,7 +125,7 @@ public class GuideService {
 
     // Certificate management methods
     @Transactional
-public GuideCertificate saveCertificate(String email, Map<String, Object> certData) {
+    public GuideCertificate saveCertificate(String email, Map<String, Object> certData) {
     logger.info("Processing certificate data: {}", certData);
     
     try {
@@ -202,6 +202,8 @@ public GuideCertificate saveCertificate(String email, Map<String, Object> certDa
         throw e;
     }
 }
+
+
     public List<GuideCertificateDTO> getCertificates(String email) {
         List<GuideCertificate> certificates = certificateRepository.findByEmail(email);
         return certificates.stream()
