@@ -210,6 +210,12 @@ public class DriverService {
                     requestBody.get("Type") : requestBody.get("type"));
                 vehicle.setType(value);
             }
+
+            if(requestBody.containsKey("Boot Capacity") || requestBody.containsKey("bootCapacity")) {
+                String value = (String) (requestBody.containsKey("Boot Capacity") ?
+                    requestBody.get("Boot Capacity") : requestBody.get("bootCapacity"));
+                vehicle.setBootCapacity(value);
+            }
             
             // Update image files - handle frontend parameter names
             if (files != null) {
@@ -278,6 +284,7 @@ public class DriverService {
         response.put("Color", vehicle.getColor());
         response.put("Plate Number", vehicle.getPlateNumber());
         response.put("Type", vehicle.getType());
+        response.put("Boot Capacity", vehicle.getBootCapacity());
         response.put("Vehicle registration status", vehicle.getVehicleRegistrationStatus());
         response.put("Insurance certificate status", vehicle.getInsuranceCertificateStatus());
         response.put("createdAt", vehicle.getCreatedAt());
@@ -305,4 +312,8 @@ public class DriverService {
         
         return response;
     }
+
+
 }
+
+// Note: Ensure that the DriverAccount, DriverProfile, and DriverVehicle classes are properly defined

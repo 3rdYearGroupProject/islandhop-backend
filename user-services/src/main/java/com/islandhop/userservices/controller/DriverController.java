@@ -266,4 +266,6 @@ public class DriverController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error updating vehicle data");
         }
     }
+
+
 }
