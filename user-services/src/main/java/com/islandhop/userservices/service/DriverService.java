@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +28,7 @@ public class DriverService {
     private final DriverAccountRepository accountRepository;
     private final DriverProfileRepository profileRepository;
     private final DriverVehicleRepository vehicleRepository;
+    private final DriverProfileRepository driverProfileRepository;
 
     public String getEmailFromIdToken(String idToken) {
         try {
@@ -210,6 +212,12 @@ public class DriverService {
                     requestBody.get("Type") : requestBody.get("type"));
                 vehicle.setType(value);
             }
+
+            if(requestBody.containsKey("Boot Capacity") || requestBody.containsKey("bootCapacity")) {
+                String value = (String) (requestBody.containsKey("Boot Capacity") ?
+                    requestBody.get("Boot Capacity") : requestBody.get("bootCapacity"));
+                vehicle.setBootCapacity(value);
+            }
             
             // Update image files - handle frontend parameter names
             if (files != null) {
@@ -278,6 +286,7 @@ public class DriverService {
         response.put("Color", vehicle.getColor());
         response.put("Plate Number", vehicle.getPlateNumber());
         response.put("Type", vehicle.getType());
+        response.put("Boot Capacity", vehicle.getBootCapacity());
         response.put("Vehicle registration status", vehicle.getVehicleRegistrationStatus());
         response.put("Insurance certificate status", vehicle.getInsuranceCertificateStatus());
         response.put("createdAt", vehicle.getCreatedAt());
@@ -305,4 +314,52 @@ public class DriverService {
         
         return response;
     }
+
+
+    public void uploadDrivingLicense(String email, MultipartFile file) {
+
+        DriverProfile driver = driverProfileRepository.findByEmail(email);
+        if (driver == null) {
+            throw new RuntimeException("Driver not found");
+        }
+
+        try {
+            if (file != null && !file.isEmpty()) {
+                // Convert file to base64 string for TEXT column storage
+                String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
+                driver.setDrivingLicenseImage(base64Image);
+                driver.setDrivingLicenseVerified(0); // pending verification
+                driverProfileRepository.save(driver);
+            } else {
+                throw new RuntimeException("File is empty or not provided");
+            }
+        } catch (Exception e) {
+            logger.error("Error uploading driving license: {}", e.getMessage());
+            throw new RuntimeException("Failed to upload driving license");
+        }
+    }
+
+    public void uploadSltdaLicense(String email, MultipartFile file) {
+        DriverProfile driver = driverProfileRepository.findByEmail(email);
+        if (driver == null) {
+            throw new RuntimeException("Driver not found");
+        }
+
+        try {
+            if (file != null && !file.isEmpty()) {
+                // Convert file to base64 string for TEXT column storage
+                String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
+                driver.setSltdaLicenseImage(base64Image);
+                driver.setSltdaLicenseVerified(0); // pending verification
+                driverProfileRepository.save(driver);
+            } else {
+                throw new RuntimeException("File is empty or not provided");
+            }
+        } catch (Exception e) {
+            logger.error("Error uploading SLTDA license: {}", e.getMessage());
+            throw new RuntimeException("Failed to upload SLTDA license");
+        }
+    }
+
 }
+

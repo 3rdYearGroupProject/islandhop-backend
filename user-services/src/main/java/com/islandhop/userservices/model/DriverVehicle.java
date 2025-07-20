@@ -33,6 +33,7 @@ public class DriverVehicle {
     private String model;
     private String year;
     private String color;
+    private String bootCapacity;
     
     @Column(name = "plate_number")
     private String plateNumber;
