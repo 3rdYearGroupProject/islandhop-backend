@@ -1,20 +1,33 @@
 package com.islandhop.tripinit.config;
 
-import com.google.maps.GeoApiContext;
-import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
 
 @Configuration
-@Slf4j
 public class GoogleMapsConfig {
+    
+    private static final Logger log = LoggerFactory.getLogger(GoogleMapsConfig.class);
 
     @Value("${google.maps.api-key}")
     private String apiKey;
 
     @Bean
-    public GeoApiContext geoApiContext() {
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+
+    @Bean
+    public String googleMapsApiKey() {
         // Log API key for debugging (mask most characters for security)
         String maskedKey = apiKey != null && apiKey.length() > 8 ? 
             apiKey.substring(0, 8) + "..." + apiKey.substring(apiKey.length() - 4) : "null or too short";
@@ -25,13 +38,6 @@ public class GoogleMapsConfig {
             throw new IllegalStateException("Google Maps API key must be configured");
         }
         
-        return new GeoApiContext.Builder()
-                .apiKey(apiKey)
-                .build();
-    }
-
-    @Bean
-    public String googleMapsApiKey() {
         return apiKey;
     }
 }

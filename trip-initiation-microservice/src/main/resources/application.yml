@@ -11,7 +11,7 @@ spring:
 
 google:
   maps:
-    api-key: AIzaSyD4ToeGRn5mekbZotV_VOd5I_mes9IL-VY
+    api-key: AIzaSyCCk35BJWjRvG7KHskc0GETOWe0qrBE-Go
 
 logging:
   level:
