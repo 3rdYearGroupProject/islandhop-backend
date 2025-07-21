@@ -54,8 +54,14 @@ echo.
 
 timeout /t 3 /nobreak > nul
 
-start /wait mvn spring-boot:run -Dspring-boot.run.profiles=test-connections -Dspring-boot.run.arguments="--logging.level.com.islandhop.pooling=INFO" -Dspring-boot.run.fork=false
+set PROFILE=test-connections
+set LOGGING_LEVEL=--logging.level.com.islandhop.pooling=INFO
+set FORK=false
 
+start /wait mvn spring-boot:run ^
+    -Dspring-boot.run.profiles=%PROFILE% ^
+    -Dspring-boot.run.arguments="%LOGGING_LEVEL%" ^
+    -Dspring-boot.run.fork=%FORK%
 echo.
 echo ================================================
 echo    TEST SUMMARY
