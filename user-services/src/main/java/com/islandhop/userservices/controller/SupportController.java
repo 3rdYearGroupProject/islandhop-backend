@@ -1,5 +1,6 @@
 package com.islandhop.userservices.controller;
 
+import com.islandhop.userservices.config.CorsConfig;
 import com.islandhop.userservices.model.SupportProfile;
 import com.islandhop.userservices.service.SupportService;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/support")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = CorsConfig.ALLOWED_ORIGIN, allowCredentials = CorsConfig.ALLOW_CREDENTIALS)
 @RequiredArgsConstructor
 public class SupportController {
 

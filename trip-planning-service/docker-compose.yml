@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: islandhop-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    networks:
+      - islandhop-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+
+  # Trip Planning Service
+  trip-planning-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: islandhop-trip-planning
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      
+      # Redis Configuration
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      
+      # User Services Integration
+      USER_SERVICE_BASE_URL: http://host.docker.internal:8081/api
+      
+      # External API Keys (set these in .env file)
+      TRIPADVISOR_API_KEY: ${TRIPADVISOR_API_KEY:-your-tripadvisor-key}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-your-google-maps-key}
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-your-weather-key}
+      
+      # JVM Options
+      JAVA_OPTS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
+      
+      # Logging
+      LOGGING_LEVEL_COM_ISLANDHOP: DEBUG
+      LOGGING_LEVEL_ROOT: INFO
+      
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - islandhop-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/api/trip/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  islandhop-network:
+    driver: bridge

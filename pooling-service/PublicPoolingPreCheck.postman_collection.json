@@ -1,0 +1,356 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6",
+		"name": "Public Pooling Pre-Check API",
+		"description": "Collection for testing the public pooling pre-check endpoint",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Pre-Check Compatible Groups",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"    pm.expect(jsonData).to.have.property('suggestions');",
+							"    pm.expect(jsonData).to.have.property('totalSuggestions');",
+							"    pm.expect(jsonData).to.have.property('hasCompatibleGroups');",
+							"    pm.expect(jsonData).to.have.property('message');",
+							"});",
+							"",
+							"pm.test(\"Status is success\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql('success');",
+							"});",
+							"",
+							"pm.test(\"Suggestions is an array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.suggestions).to.be.an('array');",
+							"});",
+							"",
+							"pm.test(\"Total suggestions matches array length\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.totalSuggestions).to.eql(jsonData.suggestions.length);",
+							"});",
+							"",
+							"if (pm.response.json().suggestions.length > 0) {",
+							"    pm.test(\"Each suggestion has required properties\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        jsonData.suggestions.forEach(function(suggestion) {",
+							"            pm.expect(suggestion).to.have.property('groupId');",
+							"            pm.expect(suggestion).to.have.property('tripName');",
+							"            pm.expect(suggestion).to.have.property('groupName');",
+							"            pm.expect(suggestion).to.have.property('compatibilityScore');",
+							"            pm.expect(suggestion).to.have.property('currentMembers');",
+							"            pm.expect(suggestion).to.have.property('maxMembers');",
+							"            pm.expect(suggestion).to.have.property('createdBy');",
+							"        });",
+							"    });",
+							"",
+							"    pm.test(\"Compatibility scores are within valid range\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        jsonData.suggestions.forEach(function(suggestion) {",
+							"            pm.expect(suggestion.compatibilityScore).to.be.within(0, 1);",
+							"        });",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"wBuieMHjt1RKKgRoDgI9v6VyNHF3\",\n  \"baseCity\": \"Colombo\",\n  \"startDate\": \"2025-07-22\",\n  \"endDate\": \"2025-07-23\",\n  \"budgetLevel\": \"Medium\",\n  \"activityPacing\": \"Normal\",\n  \"multiCityAllowed\": true,\n  \"preferredActivities\": [\"wellness\", \"shopping\"],\n  \"preferredTerrains\": [\"city\", \"parks\"]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/public-pooling/pre-check",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"public-pooling",
+						"pre-check"
+					]
+				},
+				"description": "Test the pre-check endpoint for compatible groups with user preferences for Colombo trip from July 22-23, 2025."
+			},
+			"response": [
+				{
+					"name": "Success - Compatible Groups Found",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"wBuieMHjt1RKKgRoDgI9v6VyNHF3\",\n  \"baseCity\": \"Colombo\",\n  \"startDate\": \"2025-07-22\",\n  \"endDate\": \"2025-07-23\",\n  \"budgetLevel\": \"Medium\",\n  \"activityPacing\": \"Normal\",\n  \"multiCityAllowed\": true,\n  \"preferredActivities\": [\"wellness\", \"shopping\"],\n  \"preferredTerrains\": [\"city\", \"parks\"]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8086/api/v1/public-pooling/pre-check",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8086",
+							"path": [
+								"api",
+								"v1",
+								"public-pooling",
+								"pre-check"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"status\": \"success\",\n  \"suggestions\": [\n    {\n      \"groupId\": \"group_001\",\n      \"tripName\": \"Colombo City Exploration\",\n      \"groupName\": \"Wellness & Shopping Tour\",\n      \"compatibilityScore\": 0.85,\n      \"currentMembers\": 3,\n      \"maxMembers\": 6,\n      \"createdBy\": \"user123\",\n      \"baseCity\": \"Colombo\",\n      \"startDate\": \"2025-07-22\",\n      \"endDate\": \"2025-07-23\",\n      \"budgetLevel\": \"Medium\",\n      \"commonActivities\": [\"wellness\", \"shopping\"],\n      \"commonTerrains\": [\"city\"]\n    }\n  ],\n  \"totalSuggestions\": 1,\n  \"hasCompatibleGroups\": true,\n  \"message\": \"Found 1 compatible group(s)\"\n}"
+				},
+				{
+					"name": "Success - No Compatible Groups",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"wBuieMHjt1RKKgRoDgI9v6VyNHF3\",\n  \"baseCity\": \"Colombo\",\n  \"startDate\": \"2025-07-22\",\n  \"endDate\": \"2025-07-23\",\n  \"budgetLevel\": \"Medium\",\n  \"activityPacing\": \"Normal\",\n  \"multiCityAllowed\": true,\n  \"preferredActivities\": [\"wellness\", \"shopping\"],\n  \"preferredTerrains\": [\"city\", \"parks\"]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8086/api/v1/public-pooling/pre-check",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8086",
+							"path": [
+								"api",
+								"v1",
+								"public-pooling",
+								"pre-check"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"status\": \"success\",\n  \"suggestions\": [],\n  \"totalSuggestions\": 0,\n  \"hasCompatibleGroups\": false,\n  \"message\": \"No compatible groups found. You can create a new group.\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Pre-Check - Invalid Request (Missing User ID)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Response contains validation error\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('message');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"baseCity\": \"Colombo\",\n  \"startDate\": \"2025-07-22\",\n  \"endDate\": \"2025-07-23\",\n  \"budgetLevel\": \"Medium\",\n  \"activityPacing\": \"Normal\",\n  \"multiCityAllowed\": true,\n  \"preferredActivities\": [\"wellness\", \"shopping\"],\n  \"preferredTerrains\": [\"city\", \"parks\"]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/public-pooling/pre-check",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"public-pooling",
+						"pre-check"
+					]
+				},
+				"description": "Test validation error when userId is missing from the request."
+			},
+			"response": []
+		},
+		{
+			"name": "Pre-Check - Different Preferences",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has suggestions array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.suggestions).to.be.an('array');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"testUser456\",\n  \"baseCity\": \"Kandy\",\n  \"startDate\": \"2025-08-01\",\n  \"endDate\": \"2025-08-05\",\n  \"budgetLevel\": \"High\",\n  \"activityPacing\": \"Fast\",\n  \"multiCityAllowed\": false,\n  \"preferredActivities\": [\"adventure\", \"cultural\"],\n  \"preferredTerrains\": [\"mountain\", \"forest\"]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/public-pooling/pre-check",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"public-pooling",
+						"pre-check"
+					]
+				},
+				"description": "Test with different preferences - Kandy mountain trip with adventure activities."
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set base URL if not already set",
+					"if (!pm.environment.get('base_url')) {",
+					"    pm.environment.set('base_url', 'http://localhost:8086');",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test to log response time",
+					"pm.test(\"Response time is less than 5 seconds\", function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});",
+					"",
+					"// Log response for debugging",
+					"console.log('Response Status:', pm.response.status);",
+					"console.log('Response Time:', pm.response.responseTime + 'ms');"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8086",
+			"type": "string"
+		},
+		{
+			"key": "test_user_id",
+			"value": "wBuieMHjt1RKKgRoDgI9v6VyNHF3",
+			"type": "string"
+		}
+	]
+}

@@ -20,6 +20,13 @@ public class SupportProfile {
     private String contactNo;
     private String address;
     
+    
     @Column(name = "profile_picture", columnDefinition = "TEXT")
-    private String profilePicture; // Base64 encoded image data
+    private String profilePicture; 
+    
+    @Column(name = "profile_completion", nullable = false)
+    private Integer profileCompletion = 0; 
+
+    @Column(name = "permission")
+    private Integer permission; 
 }

@@ -92,3 +92,49 @@ Thumbs.db
 !ml_models/*/config.json
 !ml_models/*/.gitkeep
 
+# Environment variables and secrets
+*.env
+.env
+.env.*
+admin-service/.env
+user-services/.env
+emergency-services/.env
+review-service/.env
+booking-service/.env
+hotel-service/.env
+notification-service/.env
+personalization-service/.env
+pooling-service/.env
+
+# Firebase service account keys
+**/serviceAccountKey.json
+**/firebase-service-account.json
+firebase-user-microservice/src/main/resources/serviceAccountKey.json
+
+# Maven target directories
+target/
+**/target/
+
+# VS Code settings
+.vscode/
+
+# IDE files
+*.iml
+*.iws
+*.ipr
+.project
+.settings/
+.classpath
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+.user-services/logs/
+user-services/logs/*.log
+user-services/logs/*.gz

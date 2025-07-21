@@ -1,49 +1,153 @@
 package com.islandhop.reviewservice.service;
 
-import com.islandhop.reviewservice.dto.ReviewRequest;
-import com.islandhop.reviewservice.dto.ReviewResponse;
+import com.islandhop.reviewservice.dto.AIAnalysisResult;
+import com.islandhop.reviewservice.dto.ReviewRequestDTO;
+import com.islandhop.reviewservice.dto.ReviewResponseDTO;
 import com.islandhop.reviewservice.entity.GuideReview;
+import com.islandhop.reviewservice.entity.PendingReview;
 import com.islandhop.reviewservice.enums.ReviewStatus;
 import com.islandhop.reviewservice.repository.GuideReviewRepository;
-import com.islandhop.reviewservice.util.ReviewValidator;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.islandhop.reviewservice.repository.PendingReviewRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class GuideReviewService {
 
-    @Autowired
-    private GuideReviewRepository guideReviewRepository;
+    private final GuideReviewRepository guideReviewRepository;
+    private final PendingReviewRepository pendingReviewRepository;
+    private final GeminiAIService geminiAIService;
+    private final ConfigurationService configurationService;
 
-    @Autowired
-    private ReviewValidator reviewValidator;
+    @Transactional
+    public ReviewResponseDTO submitGuideReview(ReviewRequestDTO request) {
+        log.info("Submitting guide review for email: {}", request.getEmail());
 
-    public ReviewResponse submitReview(ReviewRequest reviewRequest) {
-        reviewValidator.validateReviewRequest(reviewRequest);
+        // Analyze review with AI
+        double confidenceThreshold = configurationService.getConfidenceThreshold();
+        AIAnalysisResult aiResult = geminiAIService.analyzeReview(request.getReview(), confidenceThreshold);
 
-        GuideReview guideReview = new GuideReview();
-        guideReview.setGuideEmail(reviewRequest.getGuideEmail());
-        guideReview.setReview(reviewRequest.getReview());
-        guideReview.setRate(reviewRequest.getRate());
-        guideReview.setStatus(ReviewStatus.PENDING);
-
-        GuideReview savedReview = guideReviewRepository.save(guideReview);
-        return new ReviewResponse(savedReview.getId(), savedReview.getGuideEmail(), savedReview.getReview(), savedReview.getRate(), savedReview.getStatus());
-    }
-
-    public List<GuideReview> getReviewsByGuideEmail(String guideEmail) {
-        return guideReviewRepository.findByGuideEmail(guideEmail);
-    }
-
-    public void changeReviewStatus(Long reviewId, ReviewStatus status) {
-        Optional<GuideReview> reviewOptional = guideReviewRepository.findById(reviewId);
-        if (reviewOptional.isPresent()) {
-            GuideReview guideReview = reviewOptional.get();
-            guideReview.setStatus(status);
-            guideReviewRepository.save(guideReview);
+        // If AI confidence is below 0.95, add to pending_reviews
+        if (aiResult.getConfidenceScore() < 0.95) {
+            PendingReview pending = new PendingReview();
+            pending.setReview(request.getReview());
+            pending.setApproved(0);
+            pending.setApprovedBy("");
+            pending.setStatus(ReviewStatus.PENDING);
+            pending.setSource("guide");
+            pending.setReviewerEmail(request.getReviewerEmail());
+            pendingReviewRepository.save(pending);
+            log.info("Review added to pending_reviews due to low AI confidence: {}", aiResult.getConfidenceScore());
         }
+
+        // Create and save guide review
+        GuideReview review = GuideReview.builder()
+                .email(request.getEmail())
+                .review(request.getReview())
+                .reviewerEmail(request.getReviewerEmail())
+                .reviewerFirstname(request.getReviewerFirstname())
+                .reviewerLastname(request.getReviewerLastname())
+                .rating(request.getRating())
+                .status(aiResult.getRecommendedStatus())
+                .aiConfidenceScore(aiResult.getConfidenceScore())
+                .aiAnalysis(aiResult.getAnalysis())
+                .build();
+
+        GuideReview savedReview = guideReviewRepository.save(review);
+        
+        log.info("Guide review saved with ID: {} and status: {}", 
+                savedReview.getReviewId(), savedReview.getStatus());
+
+        return mapToResponseDTO(savedReview);
+    }
+
+    public List<ReviewResponseDTO> getGuideReviewsByEmail(String email) {
+        return guideReviewRepository.findByEmail(email)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<ReviewResponseDTO> getGuideReviewsByStatus(ReviewStatus status) {
+        return guideReviewRepository.findByStatusOrderByCreatedAtDesc(status)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<ReviewResponseDTO> getPendingGuideReviews() {
+        return getGuideReviewsByStatus(ReviewStatus.PENDING);
+    }
+
+    public List<ReviewResponseDTO> getReviewsForSupportAgents() {
+        return getGuideReviewsByStatus(ReviewStatus.TO_SUPPORT_AGENTS);
+    }
+
+    @Transactional
+    public ReviewResponseDTO updateReviewStatus(Long reviewId, ReviewStatus newStatus) {
+        GuideReview review = guideReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("Guide review not found with ID: " + reviewId));
+
+        log.info("Updating guide review {} status from {} to {}", 
+                reviewId, review.getStatus(), newStatus);
+
+        review.setStatus(newStatus);
+        // If status is 1 (approved) or 2 (rejected), set ai_confidence_score to 1.0
+        if (newStatus != null && (newStatus.ordinal() == 1 || newStatus.ordinal() == 2)) {
+            review.setAiConfidenceScore(1.0);
+            log.info("Set ai_confidence_score to 1.0 for review {}", reviewId);
+        }
+        GuideReview updatedReview = guideReviewRepository.save(review);
+
+        return mapToResponseDTO(updatedReview);
+    }
+
+    @Transactional
+    public ReviewResponseDTO updateReviewStatusAndConfidence(Long reviewId, ReviewStatus newStatus, double confidenceScore) {
+        GuideReview review = guideReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("Guide review not found with ID: " + reviewId));
+        log.info("Updating guide review {} status from {} to {} and ai_confidence_score to {}", reviewId, review.getStatus(), newStatus, confidenceScore);
+        review.setStatus(newStatus);
+        review.setAiConfidenceScore(confidenceScore);
+        GuideReview updatedReview = guideReviewRepository.save(review);
+        return mapToResponseDTO(updatedReview);
+    }
+
+    public ReviewResponseDTO getGuideReviewById(Long reviewId) {
+        GuideReview review = guideReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("Guide review not found with ID: " + reviewId));
+        return mapToResponseDTO(review);
+    }
+
+    @Transactional
+    public List<ReviewResponseDTO> getLowConfidenceReviews() {
+        log.info("Fetching guide reviews with AI confidence below threshold using stored procedure");
+        List<GuideReview> reviews = guideReviewRepository.findLowConfidenceReviews();
+        log.info("Found {} guide reviews with low AI confidence", reviews.size());
+        return reviews.stream().map(this::mapToResponseDTO).collect(Collectors.toList());
+    }
+
+    private ReviewResponseDTO mapToResponseDTO(GuideReview review) {
+        return ReviewResponseDTO.builder()
+                .reviewId(review.getReviewId())
+                .email(review.getEmail())
+                .review(review.getReview())
+                .status(review.getStatus())
+                .reviewerEmail(review.getReviewerEmail())
+                .reviewerFirstname(review.getReviewerFirstname())
+                .reviewerLastname(review.getReviewerLastname())
+                .rating(review.getRating())
+                .aiConfidenceScore(review.getAiConfidenceScore())
+                .aiAnalysis(review.getAiAnalysis())
+                .createdAt(review.getCreatedAt())
+                .updatedAt(review.getUpdatedAt())
+                .build();
     }
 }

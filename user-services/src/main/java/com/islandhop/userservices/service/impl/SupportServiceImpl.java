@@ -26,10 +26,10 @@ public class SupportServiceImpl implements SupportService {
     @Override
     public SupportProfile getProfileByEmail(String email) {
         logger.info("Getting profile for email: {}", email);
-        Optional<SupportProfile> profileOpt = supportProfileRepository.findByEmail(email);
+        SupportProfile profile = supportProfileRepository.findByEmail(email);
         
-        if (profileOpt.isPresent()) {
-            return profileOpt.get();
+        if (profile != null) {
+            return profile;
         } else {
             // Check if support account exists, if so create basic profile
             Optional<SupportAccount> accountOpt = supportAccountRepository.findByEmail(email);
@@ -48,15 +48,14 @@ public class SupportServiceImpl implements SupportService {
             logger.info("Creating/updating profile for email: {}", email);
             
             // Find existing profile or create new one
-            Optional<SupportProfile> profileOpt = supportProfileRepository.findByEmail(email);
-            SupportProfile profile;
+            SupportProfile profile = supportProfileRepository.findByEmail(email);
             
-            if (profileOpt.isPresent()) {
-                profile = profileOpt.get();
+            if (profile != null) {
                 logger.info("Updating existing profile for: {}", email);
             } else {
                 profile = new SupportProfile();
                 profile.setEmail(email);
+                profile.setProfileCompletion(0); // Initialize as incomplete
                 logger.info("Creating new profile for: {}", email);
             }
             
@@ -75,6 +74,15 @@ public class SupportServiceImpl implements SupportService {
                 }
             }
             
+            // Check if profile is complete and update completion status
+            boolean isComplete = profile.getFirstName() != null && !profile.getFirstName().trim().isEmpty() &&
+                               profile.getLastName() != null && !profile.getLastName().trim().isEmpty() &&
+                               profile.getContactNo() != null && !profile.getContactNo().trim().isEmpty() &&
+                               profile.getAddress() != null && !profile.getAddress().trim().isEmpty();
+            
+            profile.setProfileCompletion(isComplete ? 1 : 0);
+            logger.info("Profile completion status set to {} for email: {}", profile.getProfileCompletion(), email);
+            
             return supportProfileRepository.save(profile);
             
         } catch (Exception e) {
@@ -88,7 +96,6 @@ public class SupportServiceImpl implements SupportService {
         try {
             Optional<SupportAccount> accountOpt = supportAccountRepository.findByEmail(email);
             if (accountOpt.isPresent()) {
-                SupportAccount account = accountOpt.get();
                 // Assuming SupportAccount has a status field as String
                 // Update this based on your actual SupportAccount model
                 logger.info("Account status changed to {} for email: {}", status, email);

@@ -1,6 +1,7 @@
 package com.islandhop.reviewservice.entity;
 
 import jakarta.persistence.*;
+import com.islandhop.reviewservice.enums.ReviewStatus;
 
 @Entity
 @Table(name = "pending_reviews")
@@ -18,6 +19,16 @@ public class PendingReview {
 
     @Column(nullable = false)
     private String approvedBy; // Email of the approver
+
+    @Enumerated(EnumType.ORDINAL)
+    @Column(name = "status", nullable = false)
+    private ReviewStatus status = ReviewStatus.PENDING;
+
+    @Column(nullable = false)
+    private String source; // 'driver' or 'guide'
+
+    @Column(nullable = false)
+    private String reviewerEmail;
 
     // Getters and Setters
 
@@ -51,5 +62,29 @@ public class PendingReview {
 
     public void setApprovedBy(String approvedBy) {
         this.approvedBy = approvedBy;
+    }
+
+    public ReviewStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ReviewStatus status) {
+        this.status = status;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getReviewerEmail() {
+        return reviewerEmail;
+    }
+
+    public void setReviewerEmail(String reviewerEmail) {
+        this.reviewerEmail = reviewerEmail;
     }
 }

@@ -2,6 +2,7 @@ package com.islandhop.userservices.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,10 +19,20 @@ public class TouristProfile {
 
     private String firstName;
     private String lastName;
+    
+    @Column(name = "dob")
+    private LocalDate dob;
+    
     private String nationality;
 
     @ElementCollection
     @CollectionTable(name = "tourist_profile_languages", joinColumns = @JoinColumn(name = "profile_id"))
     @Column(name = "language")
     private List<String> languages;
+    
+    @Column(name = "profile_completion", nullable = false)
+    private Integer profileCompletion = 0; // 0 = incomplete, 1 = complete
+
+    @Column(name = "profile_pic", columnDefinition = "bytea")
+    private byte[] profilePic; // Store as bytea to avoid oid issues
 }

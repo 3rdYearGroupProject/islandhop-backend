@@ -1,7 +1,9 @@
 package com.islandhop.userservices.controller;
 
+import com.islandhop.userservices.config.CorsConfig;
 import com.islandhop.userservices.model.DriverAccount;
 import com.islandhop.userservices.model.DriverProfile;
+import com.islandhop.userservices.model.DriverVehicle;
 import com.islandhop.userservices.repository.DriverAccountRepository;
 import com.islandhop.userservices.repository.DriverProfileRepository;
 import com.islandhop.userservices.service.DriverService;
@@ -11,9 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,7 +25,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/driver")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = CorsConfig.ALLOWED_ORIGIN, allowCredentials = CorsConfig.ALLOW_CREDENTIALS)
 @RequiredArgsConstructor
 public class DriverController {
 
@@ -76,8 +79,12 @@ public class DriverController {
     public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> requestBody, HttpSession session) {
         logger.info("PUT /driver/profile called with body: {}", requestBody);
         
-        // Get email from session
-        String email = (String) session.getAttribute("driverEmail");
+        // Get email from request body or session
+        String email = (String) requestBody.get("email");
+        if (email == null) {
+            email = (String) session.getAttribute("userEmail");
+        }
+        
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
@@ -102,13 +109,15 @@ public class DriverController {
      * Gets the driver profile.
      */
     @GetMapping("/profile")
-    public ResponseEntity<?> getProfile(HttpSession session) {
-        String email = (String) session.getAttribute("driverEmail");
-        if (email == null) {
+    public ResponseEntity<?> getProfile(@RequestParam(required = false) String email, HttpSession session) {
+        // Use email from parameter if provided, otherwise get from session
+        String profileEmail = email != null ? email : (String) session.getAttribute("userEmail");
+        
+        if (profileEmail == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
 
-        DriverProfile profile = profileRepository.findByEmail(email);
+        DriverProfile profile = profileRepository.findByEmail(profileEmail);
         if (profile == null) {
             return ResponseEntity.notFound().build();
         }
@@ -141,8 +150,9 @@ public class DriverController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Driver account not found");
         }
 
-        session.setAttribute("driverEmail", email);
-        session.setAttribute("isDriverAuthenticated", true);
+        session.setAttribute("userEmail", email);
+        session.setAttribute("userRole", "driver");
+        session.setAttribute("isAuthenticated", true);
         logger.info("Driver logged in: {}", email);
 
         // Get profile completion status
@@ -161,7 +171,7 @@ public class DriverController {
      */
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpSession session) {
-        String email = (String) session.getAttribute("driverEmail");
+        String email = (String) session.getAttribute("userEmail");
         session.invalidate();
         logger.info("Driver logged out: {}", email);
         return ResponseEntity.ok(Map.of("message", "Logged out"));
@@ -172,12 +182,13 @@ public class DriverController {
      */
     @GetMapping("/session/validate")
     public ResponseEntity<?> validateSession(HttpSession session) {
-        Boolean isAuthenticated = (Boolean) session.getAttribute("isDriverAuthenticated");
-        String email = (String) session.getAttribute("driverEmail");
+        Boolean isAuthenticated = (Boolean) session.getAttribute("isAuthenticated");
+        String email = (String) session.getAttribute("userEmail");
+        String role = (String) session.getAttribute("userRole");
 
-        logger.info("GET /driver/session/validate called. Authenticated: {}, Email: {}", isAuthenticated, email);
+        logger.info("GET /driver/session/validate called. Authenticated: {}, Email: {}, Role: {}", isAuthenticated, email, role);
 
-        if (Boolean.TRUE.equals(isAuthenticated) && email != null) {
+        if (Boolean.TRUE.equals(isAuthenticated) && email != null && "driver".equals(role)) {
             // Get profile completion status
             DriverProfile profile = profileRepository.findByEmail(email);
             boolean profileComplete = profile != null && profile.getProfileCompletion() == 1;
@@ -200,4 +211,124 @@ public class DriverController {
         logger.info("GET /driver/health called");
         return ResponseEntity.ok("OK");
     }
+
+    /**
+     * Get driver vehicle information with images as base64.
+     */
+    @GetMapping("/vehicle")
+    public ResponseEntity<?> getDriverVehicle(@RequestParam(required = false) String email, HttpSession session) {
+        logger.info("GET /driver/vehicle called with email parameter: {}", email);
+        
+        // Use email from parameter if provided, otherwise get from session
+        String driverEmail = email != null ? email : (String) session.getAttribute("userEmail");
+        if (driverEmail == null) {
+            logger.warn("No email provided and no email in session for vehicle request");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        try {
+            Map<String, Object> vehicleData = driverService.getDriverVehicleWithImages(driverEmail);
+            if (vehicleData == null) {
+                // Create basic vehicle record if it doesn't exist
+                driverService.createBasicDriverVehicle(driverEmail);
+                vehicleData = driverService.getDriverVehicleWithImages(driverEmail);
+            }
+            return ResponseEntity.ok(vehicleData);
+        } catch (Exception e) {
+            logger.error("Error getting driver vehicle: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error retrieving vehicle data");
+        }
+    }
+
+    /**
+     * Update driver vehicle information with multipart form data.
+     */
+    @PutMapping("/vehicle")
+    public ResponseEntity<?> updateDriverVehicle(
+            HttpSession session,
+            @RequestParam Map<String, Object> requestBody,
+            @RequestParam Map<String, MultipartFile> files) {
+        logger.info("PUT /driver/vehicle called with {} fields and {} files", 
+                   requestBody.size(), files.size());
+        
+        String email = (String) session.getAttribute("userEmail");
+        if (email == null) {
+            logger.warn("No email in session for vehicle update");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        try {
+            driverService.updateDriverVehicle(email, requestBody, files);
+            Map<String, Object> response = driverService.getDriverVehicleWithImages(email);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error updating driver vehicle: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error updating vehicle data");
+        }
+    }
+
+    /**
+     * Upload driver's driving license document.
+     */
+    @PostMapping("/uploadDrivingLicense")
+    public ResponseEntity<?> uploadDrivingLicense(
+            @RequestParam("drivingLicense") MultipartFile file,
+            HttpSession session) {
+        logger.info("POST /driver/uploadDrivingLicense called with file: {}",
+                   file != null ? file.getOriginalFilename() : "null");
+
+        String email = (String) session.getAttribute("userEmail");
+        if (email == null) {
+            logger.warn("No email in session for driving license upload");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        if (file == null || file.isEmpty()) {
+            logger.warn("Empty or null file provided for driving license upload");
+            return ResponseEntity.badRequest().body("File is required");
+        }
+
+        try {
+            driverService.uploadDrivingLicense(email, file);
+            logger.info("Driving license uploaded successfully for: {}", email);
+            return ResponseEntity.ok(Map.of("message", "Driving license uploaded successfully"));
+        } catch (Exception e) {
+            logger.error("Error uploading driving license for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error uploading driving license: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Upload driver's SLTDA license document.
+     */
+    @PostMapping("/uploadSltdaLicense")
+    public ResponseEntity<?> uploadSltdaLicense(
+            @RequestParam("sltdaLicense") MultipartFile file,
+            HttpSession session) {
+        logger.info("POST /driver/uploadSltdaLicense called with file: {}",
+                   file != null ? file.getOriginalFilename() : "null");
+
+        String email = (String) session.getAttribute("userEmail");
+        if (email == null) {
+            logger.warn("No email in session for SLTDA license upload");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        if (file == null || file.isEmpty()) {
+            logger.warn("Empty or null file provided for SLTDA license upload");
+            return ResponseEntity.badRequest().body("File is required");
+        }
+
+        try {
+            driverService.uploadSltdaLicense(email, file);
+            logger.info("SLTDA license uploaded successfully for: {}", email);
+            return ResponseEntity.ok(Map.of("message", "SLTDA license uploaded successfully"));
+        } catch (Exception e) {
+            logger.error("Error uploading SLTDA license for {}: {}", email, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error uploading SLTDA license: " + e.getMessage());
+        }
+    }
+
 }

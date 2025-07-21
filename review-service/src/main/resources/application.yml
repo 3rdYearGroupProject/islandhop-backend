@@ -1,15 +1,11 @@
-database:
-  url: jdbc:postgresql://<YOUR_POSTGRES_HOST>:<YOUR_POSTGRES_PORT>/<YOUR_DATABASE_NAME>
-  username: <YOUR_DATABASE_USERNAME>
-  password: <YOUR_DATABASE_PASSWORD>
-  driver-class-name: org.postgresql.Driver
-
 spring:
+  application:
+    name: review-service
   datasource:
-    url: ${database.url}
-    username: ${database.username}
-    password: ${database.password}
-    driver-class-name: ${database.driver-class-name}
+    url: jdbc:postgresql://ep-empty-base-a194u9qt-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+    username: neondb_owner
+    password: npg_Ig3thklS7cZm
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
@@ -17,31 +13,22 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
-ml:
-  model:
-    endpoint: <YOUR_ML_MODEL_ENDPOINT>
-    threshold: 0.5
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 # Gemini AI Configuration
 gemini:
   api:
-    key: ${GEMINI_API_KEY:your-gemini-api-key-here}
-    endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-    timeout: 30
-  model:
-    name: gemini-pro
-    temperature: 0.1
-    max-tokens: 150
-  toxicity:
-    threshold:
-      inappropriate: 3.0 # Below 3 = banned
-      pending-lower: 3.0 # 3-7 = pending review
-      pending-upper: 7.0
-      approved: 7.0 # Above 7 = approved
+    key: ${GEMINI_API_KEY:AIzaSyDFfy8AdCiZSwHQy1zLhC96MvWpOLUIjgs}
+    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent
+
+# Review AI Configuration
+review:
+  ai:
+    confidence:
+      threshold: 0.9 # Default confidence threshold
 
 server:
-  port: 8080
+  port: 8082
 
 logging:
   level:

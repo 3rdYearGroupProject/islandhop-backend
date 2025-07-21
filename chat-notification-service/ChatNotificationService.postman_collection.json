@@ -1,0 +1,124 @@
+{
+  "info": {
+    "name": "Chat Notification Service API",
+    "description": "Postman collection for testing Chat, Group, and Notification endpoints with Firebase Auth.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Send Personal Message",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{authToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/chat/personal/send",
+          "host": ["{{baseUrl}}"],
+          "path": ["chat", "personal", "send"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"senderId\": \"user123\",\n  \"receiverId\": \"user456\",\n  \"content\": \"Hello! How are you?\",\n  \"messageType\": \"TEXT\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Get Message History",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{authToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/chat/personal/messages?senderId=user123&receiverId=user456&page=0&size=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["chat", "personal", "messages"],
+          "query": [
+            { "key": "senderId", "value": "user123" },
+            { "key": "receiverId", "value": "user456" },
+            { "key": "page", "value": "0" },
+            { "key": "size", "value": "20" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get User Conversations",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{authToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/chat/personal/conversations/user123",
+          "host": ["{{baseUrl}}"],
+          "path": ["chat", "personal", "conversations", "user123"]
+        }
+      }
+    },
+    {
+      "name": "Send Group Message",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{authToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/chat/group/send",
+          "host": ["{{baseUrl}}"],
+          "path": ["chat", "group", "send"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"groupId\": \"group_123456789\",\n  \"senderId\": \"user123\",\n  \"content\": \"Hey everyone! Ready for the trip?\",\n  \"messageType\": \"TEXT\",\n  \"senderName\": \"John Doe\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Create Group",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{authToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/chat/group/create",
+          "host": ["{{baseUrl}}"],
+          "path": ["chat", "group", "create"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"groupName\": \"Travel Buddies\",\n  \"description\": \"Planning our next adventure\",\n  \"groupType\": \"PRIVATE\",\n  \"memberIds\": [\"user456\", \"user789\"],\n  \"adminId\": \"user123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Send Notification",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{authToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/notifications/send",
+          "host": ["{{baseUrl}}"],
+          "path": ["notifications", "send"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"user123\",\n  \"title\": \"New Message\",\n  \"message\": \"You have received a new message from John\",\n  \"type\": \"CHAT\",\n  \"priority\": \"MEDIUM\",\n  \"relatedEntityId\": \"msg_123456789\"\n}"
+        }
+      }
+    }
+  ],
+  "event": [],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8083/api/v1" },
+    { "key": "authToken", "value": "" }
+  ]
+}

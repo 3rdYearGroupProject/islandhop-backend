@@ -35,6 +35,20 @@ public class TouristServiceImpl implements TouristService {
         account.setStatus(TouristStatus.ACTIVE);
         TouristAccount saved = accountRepository.save(account);
         logger.info("Tourist account saved: {}", saved);
+        // Also create a blank profile row with null/defaults
+        if (!profileRepository.existsByEmail(email)) {
+            TouristProfile profile = new TouristProfile();
+            profile.setEmail(email);
+            profile.setFirstName(null);
+            profile.setLastName(null);
+            profile.setDob(null);
+            profile.setNationality(null);
+            profile.setLanguages(null);
+            profile.setProfileCompletion(0);
+            profile.setProfilePic(null);
+            profileRepository.save(profile);
+            logger.info("Blank tourist profile created for email: {}", email);
+        }
         return saved;
     }
 
@@ -48,6 +62,7 @@ public class TouristServiceImpl implements TouristService {
         profile.setLastName(lastName);
         profile.setNationality(nationality);
         profile.setLanguages(languages);
+        profile.setProfileCompletion(1); // Set profile completion to 1 when profile is completed
         TouristProfile saved = profileRepository.save(profile);
         logger.info("Tourist profile saved: {}", saved);
         return saved;

@@ -1,26 +1,32 @@
 package com.islandhop.reviewservice.util;
 
-import com.islandhop.reviewservice.dto.ReviewRequest;
+import com.islandhop.reviewservice.dto.ReviewRequestDTO;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ReviewValidator {
 
-    public void validateDriverReview(ReviewRequest reviewRequest) {
+    public void validateDriverReview(ReviewRequestDTO reviewRequest) {
         if (reviewRequest.getReview() == null || reviewRequest.getReview().isEmpty()) {
             throw new IllegalArgumentException("Review cannot be empty");
         }
-        if (reviewRequest.getRating() < 0 || reviewRequest.getRating() > 5) {
-            throw new IllegalArgumentException("Rating must be between 0 and 5");
+        if (reviewRequest.getEmail() == null || reviewRequest.getEmail().isEmpty()) {
+            throw new IllegalArgumentException("Email cannot be empty");
+        }
+        if (reviewRequest.getReviewerEmail() == null || reviewRequest.getReviewerEmail().isEmpty()) {
+            throw new IllegalArgumentException("Reviewer email cannot be empty");
         }
     }
 
-    public void validateGuideReview(ReviewRequest reviewRequest) {
+    public void validateGuideReview(ReviewRequestDTO reviewRequest) {
         if (reviewRequest.getReview() == null || reviewRequest.getReview().isEmpty()) {
             throw new IllegalArgumentException("Review cannot be empty");
         }
-        if (reviewRequest.getRating() < 0 || reviewRequest.getRating() > 5) {
-            throw new IllegalArgumentException("Rating must be between 0 and 5");
+        if (reviewRequest.getEmail() == null || reviewRequest.getEmail().isEmpty()) {
+            throw new IllegalArgumentException("Email cannot be empty");
+        }
+        if (reviewRequest.getReviewerEmail() == null || reviewRequest.getReviewerEmail().isEmpty()) {
+            throw new IllegalArgumentException("Reviewer email cannot be empty");
         }
     }
 }

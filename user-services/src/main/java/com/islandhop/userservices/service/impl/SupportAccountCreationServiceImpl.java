@@ -68,6 +68,7 @@ public class SupportAccountCreationServiceImpl implements SupportAccountCreation
             profile.setContactNo(null);
             profile.setAddress(null);
             profile.setProfilePicture(null);
+            profile.setProfileCompletion(0); // Set profile completion to 0 for new accounts
             supportProfileRepository.save(profile);
             logger.info("Basic support profile created for email: {}", email);
 

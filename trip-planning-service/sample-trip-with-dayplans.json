@@ -1,0 +1,378 @@
+{
+  "tripId": "sample_trip_complete_001",
+  "userId": "user@example.com",
+  "tripName": "Complete Sri Lanka Adventure",
+  "startDate": "2025-08-01",
+  "endDate": "2025-08-04",
+  "arrivalTime": "14:30",
+  "baseCity": "Colombo",
+  "multiCity": true,
+  "categories": ["Culture", "Nature", "Adventure"],
+  "pacing": "NORMAL",
+  "status": "PLANNING",
+  
+  "terrainPreferences": ["beaches", "mountains", "forests"],
+  "activityPreferences": ["sightseeing", "photography", "cultural_tours"],
+  "plannedCities": ["Colombo", "Kandy", "Galle"],
+  "cityDays": {
+    "Colombo": 2,
+    "Kandy": 1,
+    "Galle": 1
+  },
+  
+  "places": [
+    {
+      "placeId": "place_001",
+      "name": "Gangaramaya Temple",
+      "city": "Colombo",
+      "latitude": 6.9162,
+      "longitude": 79.8562,
+      "description": "Famous Buddhist temple in heart of Colombo",
+      "categories": ["Culture", "Religion"],
+      "type": "ATTRACTION",
+      "estimatedVisitDurationMinutes": 90,
+      "dayNumber": 1,
+      "orderInDay": 1,
+      "rating": 4.3,
+      "reviewCount": 1250,
+      "priceLevel": "FREE",
+      "userAdded": false,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_002", 
+      "name": "The Kingsbury Hotel",
+      "city": "Colombo",
+      "latitude": 6.9271,
+      "longitude": 79.8612,
+      "description": "Luxury hotel in Colombo with ocean views",
+      "categories": ["Accommodation"],
+      "type": "HOTEL",
+      "estimatedVisitDurationMinutes": 480,
+      "dayNumber": 1,
+      "orderInDay": 0,
+      "rating": 4.5,
+      "reviewCount": 2340,
+      "priceLevel": "EXPENSIVE",
+      "userAdded": true,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_003",
+      "name": "Ministry of Crab",
+      "city": "Colombo",
+      "latitude": 6.9271,
+      "longitude": 79.8612,
+      "description": "Famous seafood restaurant",
+      "categories": ["Dining", "Seafood"],
+      "type": "RESTAURANT",
+      "estimatedVisitDurationMinutes": 120,
+      "dayNumber": 1,
+      "orderInDay": 3,
+      "rating": 4.6,
+      "reviewCount": 3450,
+      "priceLevel": "EXPENSIVE",
+      "userAdded": true,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_004",
+      "name": "Temple of the Sacred Tooth Relic",
+      "city": "Kandy",
+      "latitude": 7.2941,
+      "longitude": 80.6413,
+      "description": "Sacred Buddhist temple housing tooth relic of Buddha",
+      "categories": ["Culture", "Religion"],
+      "type": "ATTRACTION",
+      "estimatedVisitDurationMinutes": 120,
+      "dayNumber": 2,
+      "orderInDay": 1,
+      "rating": 4.7,
+      "reviewCount": 5670,
+      "priceLevel": "BUDGET",
+      "userAdded": false,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_005",
+      "name": "Queen's Hotel Kandy",
+      "city": "Kandy",
+      "latitude": 7.2906,
+      "longitude": 80.6337,
+      "description": "Historic colonial hotel in Kandy",
+      "categories": ["Accommodation"],
+      "type": "HOTEL",
+      "estimatedVisitDurationMinutes": 480,
+      "dayNumber": 2,
+      "orderInDay": 0,
+      "rating": 4.2,
+      "reviewCount": 1890,
+      "priceLevel": "MODERATE",
+      "userAdded": true,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_006",
+      "name": "The Empire Cafe",
+      "city": "Kandy",
+      "latitude": 7.2926,
+      "longitude": 80.6350,
+      "description": "Colonial-style cafe with local cuisine",
+      "categories": ["Dining", "Cafe"],
+      "type": "CAFE",
+      "estimatedVisitDurationMinutes": 90,
+      "dayNumber": 2,
+      "orderInDay": 2,
+      "rating": 4.3,
+      "reviewCount": 1200,
+      "priceLevel": "MODERATE",
+      "userAdded": true,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_007",
+      "name": "Galle Fort",
+      "city": "Galle",
+      "latitude": 6.0329,
+      "longitude": 80.2168,
+      "description": "Historic Dutch fort and UNESCO World Heritage site",
+      "categories": ["Culture", "History"],
+      "type": "ATTRACTION",
+      "estimatedVisitDurationMinutes": 150,
+      "dayNumber": 3,
+      "orderInDay": 1,
+      "rating": 4.5,
+      "reviewCount": 4320,
+      "priceLevel": "FREE",
+      "userAdded": false,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_008",
+      "name": "Amangalla",
+      "city": "Galle",
+      "latitude": 6.0329,
+      "longitude": 80.2170,
+      "description": "Luxury heritage hotel within Galle Fort",
+      "categories": ["Accommodation"],
+      "type": "ACCOMMODATION",
+      "estimatedVisitDurationMinutes": 480,
+      "dayNumber": 3,
+      "orderInDay": 0,
+      "rating": 4.8,
+      "reviewCount": 890,
+      "priceLevel": "EXPENSIVE",
+      "userAdded": true,
+      "confirmed": true
+    },
+    {
+      "placeId": "place_009",
+      "name": "Pedlar's Inn Cafe",
+      "city": "Galle",
+      "latitude": 6.0325,
+      "longitude": 80.2165,
+      "description": "Charming cafe in historic Galle Fort",
+      "categories": ["Dining", "Cafe"],
+      "type": "RESTAURANT",
+      "estimatedVisitDurationMinutes": 75,
+      "dayNumber": 3,
+      "orderInDay": 2,
+      "rating": 4.4,
+      "reviewCount": 1560,
+      "priceLevel": "MODERATE",
+      "userAdded": true,
+      "confirmed": true
+    }
+  ],
+  
+  "dayPlans": [
+    {
+      "dayNumber": 1,
+      "date": "2025-08-01",
+      "baseCity": "Colombo",
+      "startTime": "14:30",
+      "endTime": "22:00",
+      "activities": [
+        {
+          "activityId": "place_001",
+          "place": {
+            "placeId": "place_001",
+            "name": "Gangaramaya Temple",
+            "city": "Colombo",
+            "latitude": 6.9162,
+            "longitude": 79.8562,
+            "description": "Famous Buddhist temple in heart of Colombo",
+            "type": "ATTRACTION",
+            "estimatedVisitDurationMinutes": 90,
+            "rating": 4.3,
+            "priceLevel": "FREE"
+          },
+          "type": "VISIT",
+          "durationMinutes": 90,
+          "confirmed": true
+        }
+      ],
+      "accommodation": {
+        "placeId": "place_002",
+        "name": "The Kingsbury Hotel",
+        "city": "Colombo",
+        "latitude": 6.9271,
+        "longitude": 79.8612,
+        "description": "Luxury hotel in Colombo with ocean views",
+        "type": "HOTEL",
+        "rating": 4.5,
+        "priceLevel": "EXPENSIVE"
+      },
+      "dining": [
+        {
+          "placeId": "place_003",
+          "name": "Ministry of Crab",
+          "city": "Colombo",
+          "latitude": 6.9271,
+          "longitude": 79.8612,
+          "description": "Famous seafood restaurant",
+          "type": "RESTAURANT",
+          "estimatedVisitDurationMinutes": 120,
+          "rating": 4.6,
+          "priceLevel": "EXPENSIVE"
+        }
+      ],
+      "totalTravelTimeMinutes": 30,
+      "totalVisitTimeMinutes": 210,
+      "totalActivities": 1,
+      "pacingAssessment": "Relaxed"
+    },
+    {
+      "dayNumber": 2,
+      "date": "2025-08-02",
+      "baseCity": "Kandy",
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "activities": [
+        {
+          "activityId": "place_004",
+          "place": {
+            "placeId": "place_004",
+            "name": "Temple of the Sacred Tooth Relic",
+            "city": "Kandy",
+            "latitude": 7.2941,
+            "longitude": 80.6413,
+            "description": "Sacred Buddhist temple housing tooth relic of Buddha",
+            "type": "ATTRACTION",
+            "estimatedVisitDurationMinutes": 120,
+            "rating": 4.7,
+            "priceLevel": "BUDGET"
+          },
+          "type": "VISIT",
+          "durationMinutes": 120,
+          "confirmed": true
+        }
+      ],
+      "accommodation": {
+        "placeId": "place_005",
+        "name": "Queen's Hotel Kandy",
+        "city": "Kandy",
+        "latitude": 7.2906,
+        "longitude": 80.6337,
+        "description": "Historic colonial hotel in Kandy",
+        "type": "HOTEL",
+        "rating": 4.2,
+        "priceLevel": "MODERATE"
+      },
+      "dining": [
+        {
+          "placeId": "place_006",
+          "name": "The Empire Cafe",
+          "city": "Kandy",
+          "latitude": 7.2926,
+          "longitude": 80.6350,
+          "description": "Colonial-style cafe with local cuisine",
+          "type": "CAFE",
+          "estimatedVisitDurationMinutes": 90,
+          "rating": 4.3,
+          "priceLevel": "MODERATE"
+        }
+      ],
+      "totalTravelTimeMinutes": 180,
+      "totalVisitTimeMinutes": 210,
+      "totalActivities": 1,
+      "pacingAssessment": "Perfect"
+    },
+    {
+      "dayNumber": 3,
+      "date": "2025-08-03",
+      "baseCity": "Galle",
+      "startTime": "10:00",
+      "endTime": "19:00",
+      "activities": [
+        {
+          "activityId": "place_007",
+          "place": {
+            "placeId": "place_007",
+            "name": "Galle Fort",
+            "city": "Galle",
+            "latitude": 6.0329,
+            "longitude": 80.2168,
+            "description": "Historic Dutch fort and UNESCO World Heritage site",
+            "type": "ATTRACTION",
+            "estimatedVisitDurationMinutes": 150,
+            "rating": 4.5,
+            "priceLevel": "FREE"
+          },
+          "type": "VISIT",
+          "durationMinutes": 150,
+          "confirmed": true
+        }
+      ],
+      "accommodation": {
+        "placeId": "place_008",
+        "name": "Amangalla",
+        "city": "Galle",
+        "latitude": 6.0329,
+        "longitude": 80.2170,
+        "description": "Luxury heritage hotel within Galle Fort",
+        "type": "ACCOMMODATION",
+        "rating": 4.8,
+        "priceLevel": "EXPENSIVE"
+      },
+      "dining": [
+        {
+          "placeId": "place_009",
+          "name": "Pedlar's Inn Cafe",
+          "city": "Galle",
+          "latitude": 6.0325,
+          "longitude": 80.2165,
+          "description": "Charming cafe in historic Galle Fort",
+          "type": "RESTAURANT",
+          "estimatedVisitDurationMinutes": 75,
+          "rating": 4.4,
+          "priceLevel": "MODERATE"
+        }
+      ],
+      "totalTravelTimeMinutes": 120,
+      "totalVisitTimeMinutes": 225,
+      "totalActivities": 1,
+      "pacingAssessment": "Relaxed"
+    }
+  ],
+  
+  "statistics": {
+    "totalDays": 3,
+    "totalPlaces": 9,
+    "totalDistanceKm": 250.0,
+    "totalTravelTimeMinutes": 330,
+    "totalVisitTimeMinutes": 645,
+    "predominantCategory": "Culture",
+    "citiesVisited": 3
+  },
+  
+  "preferences": {
+    "maxDailyTravelHours": 8,
+    "bufferTimeMinutes": 30,
+    "maxAttractionsPerDay": 4
+  },
+  
+  "excludedAttractions": [],
+  "createdAt": "2025-07-08T10:00:00Z",
+  "updatedAt": "2025-07-08T15:30:00Z"
+}

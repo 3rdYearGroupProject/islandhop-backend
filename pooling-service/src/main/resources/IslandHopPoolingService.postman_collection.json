@@ -1,0 +1,213 @@
+{
+    "info": {
+        "name": "Pooling Service - Full Group Flow",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_postman_id": "97e87886-701c-44cb-82bb-1795dd3894c4"
+    },
+    "item": [
+        {
+            "name": "Create Private Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user123\",\n    \"groupName\": \"Private Trip Group\",\n    \"tripId\": \"trip789\",\n    \"visibility\": \"private\",\n    \"preferences\": {\n        \"theme\": \"hiking\",\n        \"budget\": \"high\"\n    }\n}"
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Create Public Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user789\",\n    \"groupName\": \"Public Tour Group\",\n    \"tripId\": \"trip789\",\n    \"visibility\": \"public\",\n    \"preferences\": {\n        \"theme\": \"culture\",\n        \"budget\": \"low\"\n    }\n}"
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Get Private Group Details",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1?userId=user123",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1?userId=user123"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Get Public Group Details",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/c21dd46b-091c-4176-bb15-e55686ff1cf6?userId=user789",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "c21dd46b-091c-4176-bb15-e55686ff1cf6?userId=user789"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Invite User to Private Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1/invite",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "cb648c9a-bab4-42bf-a0c7-3eec2e0fa1c1",
+                        "invite"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user123\",\n    \"invitedUserId\": \"user456\"\n}"
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Join Public Group",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/c21dd46b-091c-4176-bb15-e55686ff1cf6/join",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "c21dd46b-091c-4176-bb15-e55686ff1cf6",
+                        "join"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"userId\": \"user456\"\n}"
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Get Public Groups",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/public?userId=user123",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "public?userId=user123"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Health Check",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8086/v1/groups/health",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8086",
+                    "path": [
+                        "v1",
+                        "groups",
+                        "health"
+                    ]
+                }
+            },
+            "response": []
+        }
+    ]
+}

@@ -11,6 +11,12 @@ spring:
       ddl-auto: update
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
+    properties:
+      hibernate:
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        format_sql: true
   redis:
     host: ${REDIS_HOST:your-redis-cloud-host}
     port: ${REDIS_PORT:6379}
