@@ -189,6 +189,38 @@ public class PublicPoolingController {
     }
     
     /**
+     * Gets comprehensive trip details including itinerary and joined group members.
+     * This endpoint is publicly accessible and provides trip information for both logged-in and anonymous users.
+     * Does not include sensitive information like invitations or join requests.
+     *
+     * @param tripId The ID of the trip
+     * @param userId The ID of the user making the request (optional, for personalization)
+     * @return ResponseEntity with ComprehensiveTripResponse or error details
+     */
+    @GetMapping("/trips/{tripId}/comprehensive")
+    public ResponseEntity<?> getComprehensiveTripDetails(
+            @PathVariable String tripId,
+            @RequestParam(required = false) String userId) {
+        try {
+            log.info("Getting comprehensive trip details for trip '{}' requested by user '{}'", tripId, userId != null ? userId : "anonymous");
+            ComprehensiveTripResponse response = publicPoolingService.getComprehensiveTripDetails(tripId, userId);
+            return ResponseEntity.ok(response);
+        } catch (TripNotFoundException e) {
+            log.warn("Trip not found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "status", "error",
+                "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            log.error("Unexpected error getting comprehensive trip details for trip {}: {}", tripId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Failed to retrieve comprehensive trip details. Please try again later."
+            ));
+        }
+    }
+
+    /**
      * Health check endpoint for Public Pooling Service.
      */
     @GetMapping("/health")

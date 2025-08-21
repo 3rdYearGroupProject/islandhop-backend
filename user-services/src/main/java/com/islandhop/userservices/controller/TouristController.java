@@ -149,6 +149,57 @@ public class TouristController {
     }
 
     /**
+     * Gets tourist profile by Firebase UID.
+     * This endpoint converts Firebase UID to email and returns profile information.
+     * 
+     * @param uid Firebase UID
+     * @return ResponseEntity with profile info or error status
+     */
+    @GetMapping("/profile/by-uid/{uid}")
+    public ResponseEntity<?> getProfileByFirebaseUid(@PathVariable String uid) {
+        logger.info("GET /tourist/profile/by-uid/{} called", uid);
+        
+        try {
+            // Get email from Firebase UID
+            com.google.firebase.auth.UserRecord userRecord = com.google.firebase.auth.FirebaseAuth.getInstance().getUser(uid);
+            String email = userRecord.getEmail();
+            
+            if (email == null) {
+                logger.warn("No email found for Firebase UID: {}", uid);
+                return ResponseEntity.badRequest().body("No email associated with this UID");
+            }
+            
+            // Get profile using existing logic
+            TouristProfile profile = profileRepository.findByEmail(email);
+            if (profile == null) {
+                logger.warn("Profile not found for email: {} (UID: {})", email, uid);
+                return ResponseEntity.notFound().build();
+            }
+
+            logger.info("Tourist profile retrieved for UID: {} -> email: {}", uid, email);
+            
+            // Return same response format as existing /profile endpoint
+            Map<String, Object> response = new HashMap<>();
+            response.put("email", profile.getEmail());
+            response.put("firstName", profile.getFirstName());
+            response.put("lastName", profile.getLastName());
+            response.put("dob", profile.getDob() != null ? profile.getDob().toString() : null);
+            response.put("nationality", profile.getNationality());
+            response.put("languages", profile.getLanguages());
+            response.put("profilePic", profile.getProfilePic());
+            response.put("profileCompletion", profile.getProfileCompletion());
+            return ResponseEntity.ok(response);
+            
+        } catch (com.google.firebase.auth.FirebaseAuthException e) {
+            logger.error("Firebase error when looking up UID {}: {}", uid, e.getMessage());
+            return ResponseEntity.badRequest().body("Invalid Firebase UID: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Unexpected error getting profile for UID {}: {}", uid, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error");
+        }
+    }
+
+    /**
      * Updates the tourist profile with new information.
      * 
      * @param requestBody Map containing profile fields to update

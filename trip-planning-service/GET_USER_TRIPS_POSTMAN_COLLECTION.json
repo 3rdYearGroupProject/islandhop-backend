@@ -1,0 +1,600 @@
+{
+	"info": {
+		"_postman_id": "get-user-trips-collection",
+		"name": "IslandHop - Get User Trips API Tests",
+		"description": "Postman collection for testing the GET /api/v1/itinerary endpoint - retrieves all trips for a specific user",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Get User Trips - Success Case",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is an array\", function () {",
+							"    pm.expect(pm.response.json()).to.be.an('array');",
+							"});",
+							"",
+							"pm.test(\"Each trip has required fields\", function () {",
+							"    const trips = pm.response.json();",
+							"    if (trips.length > 0) {",
+							"        trips.forEach(trip => {",
+							"            pm.expect(trip).to.have.property('status');",
+							"            pm.expect(trip).to.have.property('tripId');",
+							"            pm.expect(trip).to.have.property('tripName');",
+							"            pm.expect(trip).to.have.property('startDate');",
+							"            pm.expect(trip).to.have.property('endDate');",
+							"            pm.expect(trip).to.have.property('baseCity');",
+							"        });",
+							"    }",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 5000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary?userId=wBuieMHjt1RKKgRoDgI9v6VyNHF3",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "wBuieMHjt1RKKgRoDgI9v6VyNHF3",
+							"description": "Valid Firebase user ID"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Get User Trips - Different User ID",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is an array\", function () {",
+							"    pm.expect(pm.response.json()).to.be.an('array');",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 5000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary?userId=test-user-123",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "test-user-123",
+							"description": "Different test user ID"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Get User Trips - Missing UserId Parameter",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400 Bad Request\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Response contains error message\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('error');",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 3000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(3000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Get User Trips - Empty UserId",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400 Bad Request\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Response contains error information\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('status', 'error');",
+							"    pm.expect(responseJson).to.have.property('message');",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 3000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(3000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary?userId=",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "",
+							"description": "Empty user ID"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5. Get User Trips - Null UserId",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400 Bad Request\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Response contains error information\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('status', 'error');",
+							"    pm.expect(responseJson).to.have.property('message');",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 3000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(3000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary?userId=null",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "null",
+							"description": "Null user ID value"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6. Get User Trips - Very Long UserId",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200 or 400\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 5000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary?userId=verylonguseridthatmightcauseissuesverylonguseridthatmightcauseissuesverylonguseridthatmightcauseissuesverylonguseridthatmightcauseissues",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "verylonguseridthatmightcauseissuesverylonguseridthatmightcauseissuesverylonguseridthatmightcauseissuesverylonguseridthatmightcauseissues",
+							"description": "Very long user ID to test limits"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "7. Get User Trips - Special Characters in UserId",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200 or 400\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 5000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary?userId=user@domain.com#123!$%",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "user@domain.com#123!$%",
+							"description": "User ID with special characters"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "8. Get User Trips - Invalid HTTP Method",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 405 Method Not Allowed\", function () {",
+							"    pm.response.to.have.status(405);",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 3000ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(3000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"userId\": \"wBuieMHjt1RKKgRoDgI9v6VyNHF3\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "9. Get User Trips - Service Unavailable Test",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response received within timeout\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(30000);",
+							"});",
+							"",
+							"pm.test(\"Status code indicates server response\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([200, 400, 500, 503]);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8085/api/v1/itinerary?userId=wBuieMHjt1RKKgRoDgI9v6VyNHF3",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8085",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "wBuieMHjt1RKKgRoDgI9v6VyNHF3",
+							"description": "Testing with wrong port to simulate service unavailable"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "10. Get User Trips - Load Test (Multiple Users)",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"// Generate random user ID for load testing",
+							"const randomUserId = 'user_' + Math.random().toString(36).substr(2, 9);",
+							"pm.environment.set('randomUserId', randomUserId);"
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is an array\", function () {",
+							"    pm.expect(pm.response.json()).to.be.an('array');",
+							"});",
+							"",
+							"pm.test(\"Response time is acceptable for load\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(10000);",
+							"});",
+							"",
+							"// Log performance metrics",
+							"console.log('Response time:', pm.response.responseTime, 'ms');",
+							"console.log('Response size:', pm.response.responseSize, 'bytes');"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8084/api/v1/itinerary?userId={{randomUserId}}",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"api",
+						"v1",
+						"itinerary"
+					],
+					"query": [
+						{
+							"key": "userId",
+							"value": "{{randomUserId}}",
+							"description": "Random user ID for load testing"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global pre-request script",
+					"pm.environment.set('baseUrl', 'http://localhost:8084');",
+					"pm.environment.set('timestamp', new Date().toISOString());"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test script",
+					"pm.test('Response has proper content type', function() {",
+					"    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8084",
+			"type": "string"
+		},
+		{
+			"key": "validUserId",
+			"value": "wBuieMHjt1RKKgRoDgI9v6VyNHF3",
+			"type": "string"
+		},
+		{
+			"key": "testUserId",
+			"value": "test-user-123",
+			"type": "string"
+		}
+	]
+}

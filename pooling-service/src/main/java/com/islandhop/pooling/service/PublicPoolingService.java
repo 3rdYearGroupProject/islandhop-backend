@@ -3,8 +3,13 @@ package com.islandhop.pooling.service;
 import com.islandhop.pooling.dto.*;
 import com.islandhop.pooling.model.Group;
 import com.islandhop.pooling.model.JoinRequest;
+import com.islandhop.pooling.model.Invitation;
 import com.islandhop.pooling.repository.GroupRepository;
 import com.islandhop.pooling.exception.GroupNotFoundException;
+import com.islandhop.pooling.exception.TripNotFoundException;
+import com.islandhop.pooling.exception.UnauthorizedTripAccessException;
+import com.islandhop.pooling.client.ItineraryServiceClient;
+import com.islandhop.pooling.client.UserServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +30,8 @@ public class PublicPoolingService {
     
     private final GroupRepository groupRepository;
     private final TripCompatibilityService tripCompatibilityService;
+    private final ItineraryServiceClient itineraryServiceClient;
+    private final UserServiceClient userServiceClient;
     
     @Value("${pooling.compatibility.min-score:0.1}")
     private double minCompatibilityScore;
@@ -408,6 +415,228 @@ public class PublicPoolingService {
         return similarTrip;
     }
     
+    /**
+     * Get comprehensive trip details including itinerary and joined group members.
+     * This method is publicly accessible for both logged-in and anonymous users.
+     *
+     * @param tripId The ID of the trip
+     * @param userId The ID of the user making the request (optional)
+     * @return ComprehensiveTripResponse with trip and member information
+     */
+    public ComprehensiveTripResponse getComprehensiveTripDetails(String tripId, String userId) {
+        log.info("Fetching comprehensive trip details for trip {} requested by user {}", tripId, userId != null ? userId : "anonymous");
+        
+        try {
+            // 1. Find associated group first to determine which userId to use for trip service
+            Optional<Group> groupOpt = groupRepository.findFirstByTripId(tripId);
+            Group group = groupOpt.orElse(null);
+            
+            // 2. Determine which userId to use for trip service call
+            String effectiveUserId = userId;
+            if (group != null && group.isPublic()) {
+                // For public groups, use the group owner's userId to fetch trip details
+                effectiveUserId = group.getCreatorUserId();
+                log.info("Using group owner's userId {} for public group trip {}", effectiveUserId, tripId);
+            } else if (userId == null) {
+                // For private groups or no group, userId is required
+                log.warn("No userId provided for non-public trip: {}", tripId);
+                throw new IllegalArgumentException("User ID is required for this trip");
+            }
+            
+            // 3. Get trip data from itinerary service
+            Map<String, Object> tripData = itineraryServiceClient.getTripPlan(tripId, effectiveUserId)
+                .doOnError(error -> log.warn("Failed to fetch trip data from itinerary service: {}", error.getMessage()))
+                .onErrorReturn(new HashMap<>()) // Return empty map if trip service fails
+                .block();
+            
+            if (tripData == null || tripData.isEmpty()) {
+                log.warn("No trip data found for tripId: {}", tripId);
+                throw new TripNotFoundException("Trip not found with ID: " + tripId);
+            }
+            
+            // 4. Build comprehensive response
+            ComprehensiveTripResponse response = ComprehensiveTripResponse.builder()
+                .tripDetails(buildTripDetails(tripData))
+                .groupInfo(group != null ? buildGroupInfo(group) : null)
+                .members(group != null ? buildMemberSummaries(group) : List.of())
+                .status("success")
+                .message("Comprehensive trip details retrieved successfully")
+                .fetchedAt(Instant.now())
+                .build();
+            
+            log.info("Successfully built comprehensive trip response for trip {} with {} members", 
+                    tripId, group != null ? group.getUserIds().size() : 0);
+            
+            return response;
+            
+        } catch (TripNotFoundException e) {
+            // Re-throw these specific exceptions
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error fetching comprehensive trip details for trip {}: {}", tripId, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch comprehensive trip details: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Build trip details from itinerary service response.
+     */
+    private ComprehensiveTripResponse.TripDetails buildTripDetails(Map<String, Object> tripData) {
+        // Extract daily plans
+        List<Map<String, Object>> dailyPlansData = (List<Map<String, Object>>) tripData.get("dailyPlans");
+        List<ComprehensiveTripResponse.DailyPlanSummary> dailyPlans = dailyPlansData != null ? 
+            dailyPlansData.stream()
+                .map(this::convertToDailyPlanSummary)
+                .collect(Collectors.toList()) : new ArrayList<>();
+        
+        return ComprehensiveTripResponse.TripDetails.builder()
+            .tripId((String) tripData.get("tripId"))
+            .tripName((String) tripData.get("tripName"))
+            .startDate((String) tripData.get("startDate"))
+            .endDate((String) tripData.get("endDate"))
+            .baseCity((String) tripData.get("baseCity"))
+            .budgetLevel((String) tripData.getOrDefault("budgetLevel", "Medium"))
+            .activityPacing((String) tripData.getOrDefault("activityPacing", "Normal"))
+            .preferredActivities((List<String>) tripData.getOrDefault("preferredActivities", new ArrayList<>()))
+            .preferredTerrains((List<String>) tripData.getOrDefault("preferredTerrains", new ArrayList<>()))
+            .multiCityAllowed((Boolean) tripData.getOrDefault("multiCityAllowed", true))
+            .dailyPlans(dailyPlans)
+            .createdAt(parseInstant((String) tripData.get("createdAt")))
+            .lastUpdated(parseInstant((String) tripData.get("lastUpdated")))
+            .build();
+    }
+    
+    /**
+     * Convert daily plan data to summary format.
+     */
+    private ComprehensiveTripResponse.DailyPlanSummary convertToDailyPlanSummary(Map<String, Object> dailyPlan) {
+        List<Map<String, Object>> attractions = (List<Map<String, Object>>) dailyPlan.getOrDefault("attractions", new ArrayList<>());
+        List<Map<String, Object>> hotels = (List<Map<String, Object>>) dailyPlan.getOrDefault("hotels", new ArrayList<>());
+        List<Map<String, Object>> restaurants = (List<Map<String, Object>>) dailyPlan.getOrDefault("restaurants", new ArrayList<>());
+        
+        return ComprehensiveTripResponse.DailyPlanSummary.builder()
+            .day((Integer) dailyPlan.get("day"))
+            .city((String) dailyPlan.get("city"))
+            .userSelected((Boolean) dailyPlan.getOrDefault("userSelected", false))
+            .attractionsCount(attractions.size())
+            .hotelsCount(hotels.size())
+            .restaurantsCount(restaurants.size())
+            .attractions(convertToPlaceSummaries(attractions))
+            .hotels(convertToPlaceSummaries(hotels))
+            .restaurants(convertToPlaceSummaries(restaurants))
+            .build();
+    }
+    
+    /**
+     * Convert place data to place summaries.
+     */
+    private List<ComprehensiveTripResponse.PlaceSummary> convertToPlaceSummaries(List<Map<String, Object>> places) {
+        return places.stream()
+            .map(place -> ComprehensiveTripResponse.PlaceSummary.builder()
+                .name((String) place.get("name"))
+                .category((String) place.get("category"))
+                .rating(parseDouble(place.get("rating")))
+                .address((String) place.get("address"))
+                .userSelected((Boolean) place.getOrDefault("userSelected", false))
+                .build())
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Build group information.
+     */
+    private ComprehensiveTripResponse.GroupInfo buildGroupInfo(Group group) {
+        return ComprehensiveTripResponse.GroupInfo.builder()
+            .groupId(group.getId())
+            .groupName(group.getGroupName())
+            .visibility(group.getVisibility())
+            .status(group.getStatus())
+            .groupLeader(group.getCreatedBy())
+            .currentMembers(group.getUserIds().size())
+            .maxMembers(group.getMaxMembers())
+            .availableSlots(group.getMaxMembers() - group.getUserIds().size())
+            .requiresApproval(group.isRequiresApproval())
+            .createdAt(group.getCreatedAt())
+            .lastUpdated(group.getLastUpdated())
+            .build();
+    }
+    
+    /**
+     * Build member summaries with basic information.
+     */
+    private List<ComprehensiveTripResponse.MemberSummary> buildMemberSummaries(Group group) {
+        return group.getUserIds().stream()
+            .map(userId -> {
+                boolean isLeader = userId.equals(group.getCreatedBy());
+                
+                // Fetch real user details from user service
+                UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(userId);
+                String userName = userProfile != null ? userProfile.getFullName() : userId;
+                String userEmail = userProfile != null ? userProfile.getEmail() : userId + "@example.com";
+                
+                return ComprehensiveTripResponse.MemberSummary.builder()
+                    .userId(userId)
+                    .name(userName)
+                    .email(userEmail)
+                    .role(isLeader ? "leader" : "member")
+                    .joinedAt(group.getCreatedAt()) // Simplified - would track individual join times
+                    .status("active")
+                    .preferences(extractMemberPreferences(group))
+                    .build();
+            })
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Extract member preferences from group preferences.
+     */
+    private ComprehensiveTripResponse.TravelPreferences extractMemberPreferences(Group group) {
+        Map<String, Object> groupPrefs = group.getPreferences();
+        if (groupPrefs == null) {
+            return ComprehensiveTripResponse.TravelPreferences.builder()
+                .budgetLevel("Medium")
+                .preferredActivities(new ArrayList<>())
+                .preferredTerrains(new ArrayList<>())
+                .activityPacing("Normal")
+                .build();
+        }
+        
+        return ComprehensiveTripResponse.TravelPreferences.builder()
+            .budgetLevel((String) groupPrefs.getOrDefault("budgetLevel", "Medium"))
+            .preferredActivities((List<String>) groupPrefs.getOrDefault("preferredActivities", new ArrayList<>()))
+            .preferredTerrains((List<String>) groupPrefs.getOrDefault("preferredTerrains", new ArrayList<>()))
+            .activityPacing((String) groupPrefs.getOrDefault("activityPacing", "Normal"))
+            .build();
+    }
+    
+    /**
+     * Utility method to parse Instant from string.
+     */
+    private Instant parseInstant(String instantString) {
+        try {
+            return instantString != null ? Instant.parse(instantString) : Instant.now();
+        } catch (Exception e) {
+            log.warn("Failed to parse instant: {}", instantString);
+            return Instant.now();
+        }
+    }
+    
+    /**
+     * Utility method to parse Double from object.
+     */
+    private Double parseDouble(Object value) {
+        try {
+            if (value instanceof Number) {
+                return ((Number) value).doubleValue();
+            } else if (value instanceof String) {
+                return Double.parseDouble((String) value);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /**
      * Join an existing group.
      */

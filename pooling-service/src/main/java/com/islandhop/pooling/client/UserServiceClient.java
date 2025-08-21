@@ -74,6 +74,53 @@ public class UserServiceClient {
         return email; // Fallback to email if name not available
     }
     
+    /**
+     * Gets user profile information by Firebase UID.
+     * 
+     * @param uid The user's Firebase UID
+     * @return UserProfile containing name and other details, or null if not found
+     */
+    public UserProfile getUserByUid(String uid) {
+        try {
+            String url = userServiceBaseUrl + "/api/v1/tourist/profile/by-uid/" + uid;
+            log.debug("Fetching user profile from: {}", url);
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            
+            if (response != null) {
+                UserProfile profile = new UserProfile();
+                profile.setEmail((String) response.get("email"));
+                profile.setFirstName((String) response.get("firstName"));
+                profile.setLastName((String) response.get("lastName"));
+                profile.setNationality((String) response.get("nationality"));
+                
+                return profile;
+            }
+            
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("User profile not found for UID: {}", uid);
+        } catch (Exception e) {
+            log.error("Error fetching user profile for UID {}: {}", uid, e.getMessage());
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Gets user full name by Firebase UID.
+     * 
+     * @param uid The user's Firebase UID
+     * @return Full name (firstName + lastName) or UID if name not available
+     */
+    public String getUserNameByUid(String uid) {
+        UserProfile profile = getUserByUid(uid);
+        if (profile != null && profile.getFirstName() != null && profile.getLastName() != null) {
+            return profile.getFirstName() + " " + profile.getLastName();
+        }
+        return uid; // Fallback to UID if name not available
+    }
+    
     @Data
     public static class UserProfile {
         private String email;

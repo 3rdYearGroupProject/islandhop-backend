@@ -31,6 +31,11 @@ public interface GroupRepository extends MongoRepository<Group, String> {
     List<Group> findByTripId(String tripId);
     
     /**
+     * Find first group by trip ID.
+     */
+    Optional<Group> findFirstByTripId(String tripId);
+    
+    /**
      * Find public groups with preferences containing specific interests.
      */
     @Query("{'visibility': 'public', 'preferences.interests': { $in: ?0 }}")
@@ -42,6 +47,11 @@ public interface GroupRepository extends MongoRepository<Group, String> {
     @Query("{'visibility': 'public', 'preferences.destination': ?0}")
     List<Group> findPublicGroupsByDestination(String destination);
     
+    /**
+     * Find group by trip ID and user ID.
+     */
+    Optional<Group> findByTripIdAndUserIdsContaining(String tripId, String userId);
+
     /**
      * Find groups by visibility and status, excluding a specific group.
      */

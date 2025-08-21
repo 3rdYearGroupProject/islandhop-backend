@@ -21,8 +21,8 @@ public class ItineraryServiceClient {
     
     private final WebClient webClient;
 
-    public ItineraryServiceClient(WebClient.Builder webClientBuilder) {
-        String baseUrl = "http://localhost:8084";
+    public ItineraryServiceClient(WebClient.Builder webClientBuilder, 
+                                @Value("${app.itinerary-service.url:http://localhost:8084}") String baseUrl) {
         log.info("Initializing ItineraryServiceClient with baseUrl: {}", baseUrl);
         this.webClient = webClientBuilder.baseUrl(baseUrl).build();
     }
@@ -35,7 +35,10 @@ public class ItineraryServiceClient {
         log.info("Fetching trip plan {} for user {}", tripId, userId);
         
         return webClient.get()
-                .uri("/api/v1/itinerary/{tripId}?userId={userId}", tripId, userId)
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/itinerary/{tripId}")
+                        .queryParam("userId", userId)
+                        .build(tripId))
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully fetched trip plan {}", tripId))
