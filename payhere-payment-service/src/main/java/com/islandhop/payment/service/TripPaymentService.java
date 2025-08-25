@@ -12,6 +12,11 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -31,16 +36,19 @@ public class TripPaymentService {
     private final PaidTripRepository paidTripRepository;
     private final MongoTemplate mongoTemplate;
     private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate;
     
     @Autowired
     public TripPaymentService(PaymentDetailsRepository paymentDetailsRepository,
                             PaidTripRepository paidTripRepository,
                             MongoTemplate mongoTemplate,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            RestTemplate restTemplate) {
         this.paymentDetailsRepository = paymentDetailsRepository;
         this.paidTripRepository = paidTripRepository;
         this.mongoTemplate = mongoTemplate;
         this.objectMapper = objectMapper;
+        this.restTemplate = restTemplate;
     }
     
     /**
@@ -88,6 +96,9 @@ public class TripPaymentService {
             PaidTrip paidTrip = convertToPaidTrip(initiatedTripData, paymentAmount);
             paidTripRepository.save(paidTrip);
             logger.info("Trip {} moved to paid trips collection", tripId);
+            
+            // 5. Notify active-trips service
+            notifyActiveTripService(tripId);
             
             return true;
             
@@ -288,6 +299,10 @@ public class TripPaymentService {
                         PaidTrip paidTrip = convertToPaidTrip(initiatedTripData, paymentAmount);
                         paidTripRepository.save(paidTrip);
                         logger.info("Trip {} migrated to paid trips collection", tripId);
+                        
+                        // Notify active-trips service
+                        notifyActiveTripService(tripId);
+                        
                     } catch (Exception e) {
                         logger.error("Error migrating trip {} to paid collection", tripId, e);
                     }
@@ -500,6 +515,41 @@ public class TripPaymentService {
         } catch (Exception e) {
             logger.error("Error retrieving trip data for ID: {}", tripId, e);
             return null;
+        }
+    }
+    
+    /**
+     * Notify the active-trips microservice about a new activated trip
+     * @param tripId Trip ID that was activated
+     */
+    private void notifyActiveTripService(String tripId) {
+        try {
+            logger.info("Notifying active-trips service about new trip: {}", tripId);
+            
+            // Create request payload
+            Map<String, Object> payload = Map.of("tripId", tripId);
+            
+            // Set headers
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            // Create HTTP entity
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
+            
+            // Send request to active-trips service
+            String url = "http://localhost:5006/new_active_trip";
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                logger.info("Successfully notified active-trips service for trip: {}", tripId);
+            } else {
+                logger.warn("Failed to notify active-trips service for trip: {}, status: {}", 
+                          tripId, response.getStatusCode());
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error notifying active-trips service for trip: {}", tripId, e);
+            // Don't throw exception as this is a notification - the main process should continue
         }
     }
 }
