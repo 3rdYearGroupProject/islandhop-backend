@@ -371,6 +371,58 @@ public class GroupService {
     }
 
     /**
+     * Gets all groups (public and private) created by a specific user with full details.
+     * Includes creator information, member details, and enhanced trip information.
+     */
+    public List<EnhancedPublicGroupResponse> getGroupsCreatedByUser(String userId) {
+        log.info("Getting all groups created by user '{}'", userId);
+        
+        try {
+            // Find groups by creator user ID
+            List<Group> createdGroups = groupRepository.findByCreatorUserId(userId);
+            
+            // Also check createdBy field for backward compatibility
+            List<Group> createdByGroups = groupRepository.findByCreatedBy(userId);
+            
+            // Combine and deduplicate
+            Set<String> groupIds = new HashSet<>();
+            List<Group> allGroups = new ArrayList<>();
+            
+            for (Group group : createdGroups) {
+                if (!groupIds.contains(group.getId())) {
+                    groupIds.add(group.getId());
+                    allGroups.add(group);
+                }
+            }
+            
+            for (Group group : createdByGroups) {
+                if (!groupIds.contains(group.getId())) {
+                    groupIds.add(group.getId());
+                    allGroups.add(group);
+                }
+            }
+            
+            log.info("Found {} groups created by user '{}'", allGroups.size(), userId);
+            
+            // Convert to enhanced response DTOs with full details
+            List<EnhancedPublicGroupResponse> responses = allGroups.stream()
+                .map(this::convertToEnhancedPublicGroupResponse)
+                .filter(response -> response != null)
+                .collect(Collectors.toList());
+            
+            // Sort by creation date (newest first)
+            responses.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+            
+            log.info("Successfully converted {} groups created by user '{}'", responses.size(), userId);
+            return responses;
+            
+        } catch (Exception e) {
+            log.error("Unexpected error getting groups created by user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get groups created by user: " + e.getMessage());
+        }
+    }
+
+    /**
      * Gets list of enhanced public groups with detailed trip and creator information.
      * This version provides comprehensive details for UI display like trip names, creator names,
      * cities, dates, and top attractions. Supports both authenticated and anonymous access.
@@ -410,7 +462,7 @@ public class GroupService {
                 log.info("DEBUG: After programmatic filtering: {} groups", publicGroups.size());
             }
             
-            // Convert to enhanced response DTOs
+            // Convert to enhanced response DTOs with member details
             List<EnhancedPublicGroupResponse> responses = publicGroups.stream()
                 .map(this::convertToEnhancedPublicGroupResponse)
                 .filter(response -> response != null) // Filter out groups with missing data
@@ -624,6 +676,7 @@ public class GroupService {
             response.setTripId(group.getTripId());
             response.setGroupName(group.getGroupName());
             response.setStatus(group.getStatus());
+            response.setVisibility(group.getVisibility()); // "public" or "private"
             response.setCreatedAt(group.getCreatedAt());
             response.setMemberCount(group.getUserIds().size());
             response.setMaxMembers(group.getMaxMembers());
@@ -633,8 +686,12 @@ public class GroupService {
             String creatorUserId = group.getCreatorUserId();
             response.setCreatorUserId(creatorUserId);
             
-            // Get creator name using stored email
+            // Get creator name using stored email or UserServiceClient
             response.setCreatorName(getCreatorName(creatorUserId, group.getCreatorEmail()));
+            
+            // Build member details with real user names
+            List<ComprehensiveTripResponse.MemberSummary> memberDetails = buildMemberSummaries(group);
+            response.setMembers(memberDetails);
             
             // Get trip details if tripId is available
             if (group.getTripId() != null) {
@@ -726,19 +783,48 @@ public class GroupService {
     }
     
     /**
-     * Gets creator name using the stored creator email.
-     * Calls user service to get the user's display name.
+     * Gets creator name using UserServiceClient for consistency with member names.
+     * Falls back to email-based lookup if Firebase UID lookup fails.
      */
     private String getCreatorName(String creatorUserId, String creatorEmail) {
+        log.info("Attempting to get creator name for userId: '{}', email: '{}'", creatorUserId, creatorEmail);
+        
+        // First try to get user by Firebase UID using the direct name method
+        try {
+            String userName = userServiceClient.getUserNameByUid(creatorUserId);
+            log.info("UserServiceClient.getUserNameByUid('{}') returned: '{}'", creatorUserId, userName);
+            
+            if (userName != null && !userName.equals(creatorUserId)) {
+                // If we got back something other than the UID, it's a real name
+                log.info("Successfully retrieved creator name '{}' for UID '{}'", userName, creatorUserId);
+                return userName;
+            } else {
+                log.warn("getUserNameByUid returned fallback value '{}' for UID '{}'", userName, creatorUserId);
+            }
+        } catch (Exception e) {
+            log.warn("Firebase UID lookup failed for creator {}: {}", creatorUserId, e.getMessage());
+        }
+        
+        // Fallback to email-based lookup
         if (creatorEmail != null && !creatorEmail.trim().isEmpty()) {
             try {
-                return userServiceClient.getUserNameByEmail(creatorEmail);
+                String emailName = userServiceClient.getUserNameByEmail(creatorEmail);
+                log.info("UserServiceClient.getUserNameByEmail('{}') returned: '{}'", creatorEmail, emailName);
+                
+                if (emailName != null && !emailName.equals(creatorEmail)) {
+                    // If we got back something other than the email, it's a real name
+                    log.info("Successfully retrieved creator name '{}' for email '{}'", emailName, creatorEmail);
+                    return emailName;
+                } else {
+                    log.warn("getUserNameByEmail returned fallback value '{}' for email '{}'", emailName, creatorEmail);
+                }
             } catch (Exception e) {
                 log.warn("Failed to get user name for email {}: {}", creatorEmail, e.getMessage());
             }
         }
         
-        // Fallback to placeholder if email not available or lookup fails
+        // Final fallback to placeholder
+        log.warn("Using fallback creator name 'Group Creator' for userId: '{}', email: '{}'", creatorUserId, creatorEmail);
         return "Group Creator";
     }
     
@@ -1503,5 +1589,77 @@ public class GroupService {
         tripData.put("preferredActivities", request.getPreferredActivities());
         tripData.put("type", "group"); // Mark as group trip
         return tripData;
+    }
+    
+    /**
+     * Builds member summaries with real user names from UserServiceClient.
+     */
+    private List<ComprehensiveTripResponse.MemberSummary> buildMemberSummaries(Group group) {
+        return group.getUserIds().stream()
+            .map(userId -> {
+                boolean isLeader = userId.equals(group.getCreatorUserId()) || userId.equals(group.getCreatedBy());
+                
+                // Fetch real user details from user service
+                try {
+                    log.info("Attempting to get member details for userId: '{}'", userId);
+                    
+                    String userName = userServiceClient.getUserNameByUid(userId);
+                    UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(userId);
+                    
+                    log.info("UserServiceClient.getUserNameByUid('{}') returned: '{}'", userId, userName);
+                    log.info("UserServiceClient.getUserByUid('{}') returned profile: {}", userId, userProfile != null ? "found" : "null");
+                    
+                    // Use the name from getUserNameByUid if it's not just the fallback
+                    String finalUserName = (userName != null && !userName.equals(userId)) ? userName : "User " + userId;
+                    String userEmail = (userProfile != null && userProfile.getEmail() != null) ? userProfile.getEmail() : userId + "@example.com";
+                    
+                    log.info("Final member details - userId: '{}', name: '{}', email: '{}'", userId, finalUserName, userEmail);
+                    
+                    return ComprehensiveTripResponse.MemberSummary.builder()
+                        .userId(userId)
+                        .name(finalUserName)
+                        .email(userEmail)
+                        .role(isLeader ? "leader" : "member")
+                        .joinedAt(group.getCreatedAt()) // Simplified - would track individual join times
+                        .status("active")
+                        .preferences(extractMemberPreferences(group))
+                        .build();
+                } catch (Exception e) {
+                    log.warn("Failed to get user details for userId {}: {}", userId, e.getMessage());
+                    // Return fallback data if user service call fails
+                    return ComprehensiveTripResponse.MemberSummary.builder()
+                        .userId(userId)
+                        .name("User " + userId)
+                        .email(userId + "@example.com")
+                        .role(isLeader ? "leader" : "member")
+                        .joinedAt(group.getCreatedAt())
+                        .status("active")
+                        .preferences(extractMemberPreferences(group))
+                        .build();
+                }
+            })
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Extract member preferences from group preferences.
+     */
+    private ComprehensiveTripResponse.TravelPreferences extractMemberPreferences(Group group) {
+        Map<String, Object> groupPrefs = group.getPreferences();
+        if (groupPrefs == null) {
+            return ComprehensiveTripResponse.TravelPreferences.builder()
+                .budgetLevel("Medium")
+                .preferredActivities(new ArrayList<>())
+                .preferredTerrains(new ArrayList<>())
+                .activityPacing("Normal")
+                .build();
+        }
+        
+        return ComprehensiveTripResponse.TravelPreferences.builder()
+            .budgetLevel((String) groupPrefs.getOrDefault("budgetLevel", "Medium"))
+            .preferredActivities((List<String>) groupPrefs.getOrDefault("preferredActivities", new ArrayList<>()))
+            .preferredTerrains((List<String>) groupPrefs.getOrDefault("preferredTerrains", new ArrayList<>()))
+            .activityPacing((String) groupPrefs.getOrDefault("activityPacing", "Normal"))
+            .build();
     }
 }
