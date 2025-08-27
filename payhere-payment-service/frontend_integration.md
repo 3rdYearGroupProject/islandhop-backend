@@ -8,6 +8,13 @@ This guide provides detailed instructions for integrating the PayHere Payment Se
 http://localhost:8088/api/v1
 ```
 
+## Database Collections
+
+### MongoDB Collections Created
+
+- **payment_details**: Stores payment transaction details
+- **payed_trips_advance**: Stores trip data after successful payment (with additional fields: driver_status, driver_email, guide_status, guide_email, payed_amount)
+
 ## Endpoints
 
 ### 1. Create PayHere Payment
@@ -252,7 +259,124 @@ checkPaymentStatus("ORDER_cbe3e879-996e-4249-bcf6-527814b2b756")
 }
 ```
 
-### 4. Health Check
+### 4. Get Paid Trip Details
+
+**GET** `/payments/paid-trip/{tripId}`
+
+#### JavaScript Implementation
+
+```javascript
+const getPaidTripDetails = async (tripId) => {
+  try {
+    const response = await fetch(
+      `http://localhost:8088/api/v1/payments/paid-trip/${tripId}`
+    );
+    const result = await response.json();
+
+    if (result.status === "success") {
+      console.log("Paid trip details:", result.data);
+      return result.data;
+    } else {
+      console.error("Error getting paid trip:", result.message);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching paid trip details:", error);
+    return null;
+  }
+};
+```
+
+#### Response Format
+
+```javascript
+{
+  "status": "success",
+  "data": {
+    "id": "042cea55-afae-4c2e-9d19-e3c40490579b",
+    "userId": "J0INIUkpCDNpUHCUkY0xmyPwoEe2",
+    "tripName": "testtrip1",
+    "startDate": "2025-08-26",
+    "endDate": "2025-08-28",
+    "arrivalTime": "21:30",
+    "baseCity": "Colombo",
+    "multiCityAllowed": true,
+    "activityPacing": "Normal",
+    "budgetLevel": "Medium",
+    "preferredTerrains": ["mountains"],
+    "preferredActivities": ["wellness"],
+    "dailyPlans": [...],
+    "mapData": [...],
+    "driverNeeded": 1,
+    "guideNeeded": 1,
+    "averageTripDistance": 400.86,
+    "averageDriverCost": 60279,
+    "averageGuideCost": 0,
+    "vehicleType": "Luxury Van",
+    "driverStatus": null,
+    "driverEmail": null,
+    "guideStatus": null,
+    "guideEmail": null,
+    "payedAmount": 75.00,
+    "createdAt": "2025-08-25T02:46:30.769Z",
+    "lastUpdated": "2025-08-25T10:44:13.319Z"
+  }
+}
+```
+
+### 5. Get Payment Details
+
+**GET** `/payments/payment-details/{orderId}`
+
+#### JavaScript Implementation
+
+```javascript
+const getPaymentDetails = async (orderId) => {
+  try {
+    const response = await fetch(
+      `http://localhost:8088/api/v1/payments/payment-details/${orderId}`
+    );
+    const result = await response.json();
+
+    if (result.status === "success") {
+      console.log("Payment details:", result.data);
+      return result.data;
+    } else {
+      console.error("Error getting payment details:", result.message);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching payment details:", error);
+    return null;
+  }
+};
+```
+
+#### Response Format
+
+```javascript
+{
+  "status": "success",
+  "data": {
+    "paymentId": "generated-payment-id",
+    "orderId": "trip_042cea55-afae-4c2e-9d19-e3c40490579b_payment",
+    "tripId": "042cea55-afae-4c2e-9d19-e3c40490579b",
+    "userId": "J0INIUkpCDNpUHCUkY0xmyPwoEe2",
+    "amount": 75.00,
+    "currency": "LKR",
+    "paymentMethod": "PayHere",
+    "paymentStatus": "SUCCESS",
+    "payHereTransactionId": "payhere-transaction-id",
+    "payHereStatusCode": "2",
+    "payHereStatusMessage": "Success",
+    "paymentDate": "2025-08-25T10:44:13.319Z",
+    "createdAt": "2025-08-25T10:44:13.319Z",
+    "lastUpdated": "2025-08-25T10:44:13.319Z"
+  }
+}
+```
+
+### 6. Health Check
 
 **GET** `/payments/health`
 
@@ -540,6 +664,59 @@ Use any future date for expiry and any 3-digit CVV.
 3. **Input Validation**: Validate all inputs on the frontend
 4. **Amount Verification**: Always verify payment amounts
 5. **Order ID**: Use unique, non-guessable order IDs
+
+## Automatic Trip Migration
+
+**Important**: The payment service now automatically handles trip migration from `initiated_trips` to `payed_trips_advance` collection when a payment is created. This happens immediately when the payment is initiated, using the `tripId` provided in the payment request.
+
+### What happens automatically:
+
+1. **Payment Creation**: When you create a PayHere payment with a valid `tripId`, the system automatically:
+
+   - Saves payment details to the `payment_details` collection
+   - Retrieves the trip data from `initiated_trips` collection using the provided `tripId`
+   - Creates a new entry in the `payed_trips_advance` collection with:
+     - All original trip data
+     - Additional fields: `driverStatus`, `driverEmail`, `guideStatus`, `guideEmail` (set to null)
+     - `payedAmount` field with the payment amount
+
+2. **No Manual Confirmation Required**: The frontend no longer needs to call a separate payment confirmation endpoint. Everything is handled automatically during payment creation.
+
+### Updated Frontend Integration:
+
+```javascript
+// When creating payment, ensure tripId is included
+const paymentData = {
+  amount: 75.0,
+  currency: "LKR",
+  orderId: "ORDER_" + Date.now(),
+  tripId: "042cea55-afae-4c2e-9d19-e3c40490579b", // ✅ Required for automatic migration
+  itemName: "Trip Booking",
+  customerDetails: {
+    firstName: "John",
+    lastName: "Doe",
+    email: "john.doe@example.com",
+    phone: "0771234567",
+    address: "123 Main Street",
+    city: "Colombo",
+    country: "Sri Lanka",
+  },
+};
+
+// Create payment - trip migration happens automatically
+const response = await createPayHerePayment(paymentData);
+```
+
+### PayHere Event Handlers:
+
+```javascript
+payhere.onCompleted = function onCompleted(orderId) {
+  console.log("Payment completed. OrderID:" + orderId);
+  // Trip is already migrated to paid collection
+  // Redirect to success page
+  window.location.href = "/trip-confirmation/" + tripId;
+};
+```
 
 ## Support
 
