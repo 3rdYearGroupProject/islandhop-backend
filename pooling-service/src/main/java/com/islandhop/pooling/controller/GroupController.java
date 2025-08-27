@@ -365,6 +365,27 @@ public class GroupController {
         }
     }
 
+    /**
+     * Gets all groups created by a specific user with full details.
+     * Returns enhanced group information including creator and member names,
+     * trip details, and complete itinerary information.
+     *
+     * @param userId The ID of the user whose created groups to retrieve
+     * @return ResponseEntity with the user's created groups
+     */
+    @GetMapping("/created-by/{userId}")
+    public ResponseEntity<List<EnhancedPublicGroupResponse>> getGroupsCreatedByUser(@PathVariable String userId) {
+        try {
+            log.info("Getting groups created by user '{}'", userId);
+            List<EnhancedPublicGroupResponse> response = groupService.getGroupsCreatedByUser(userId);
+            log.info("Successfully retrieved {} groups created by user '{}'", response.size(), userId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Unexpected error getting groups created by user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get groups created by user: " + e.getMessage());
+        }
+    }
+
     
     /**
      * Allows a group member to vote on a join request.

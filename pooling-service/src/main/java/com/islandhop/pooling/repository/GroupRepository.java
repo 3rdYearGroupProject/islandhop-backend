@@ -26,6 +26,16 @@ public interface GroupRepository extends MongoRepository<Group, String> {
     List<Group> findByUserIdsContaining(String userId);
     
     /**
+     * Find groups created by a specific user.
+     */
+    List<Group> findByCreatorUserId(String creatorUserId);
+    
+    /**
+     * Find groups by created by field (for backward compatibility).
+     */
+    List<Group> findByCreatedBy(String createdBy);
+    
+    /**
      * Find groups by trip ID.
      */
     List<Group> findByTripId(String tripId);
