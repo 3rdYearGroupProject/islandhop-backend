@@ -1,9 +1,9 @@
 package com.islandhop.chat.dto;
 
+import java.util.List;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-
-import java.util.List;
 
 /**
  * Data Transfer Object for creating chat groups.
@@ -20,6 +20,7 @@ public class GroupDTO {
     private String adminId;
     private String description;
     private String groupType;
+    private String tripId; // Associated trip ID for travel groups
 
     public GroupDTO() {
         this.groupType = "PRIVATE";
@@ -70,6 +71,14 @@ public class GroupDTO {
 
     public void setGroupType(String groupType) {
         this.groupType = groupType;
+    }
+
+    public String getTripId() {
+        return tripId;
+    }
+
+    public void setTripId(String tripId) {
+        this.tripId = tripId;
     }
 
     public String getCreatedBy() {
