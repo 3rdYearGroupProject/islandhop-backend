@@ -423,6 +423,88 @@ public class GroupService {
     }
 
     /**
+     * Gets all pending join requests for groups where the user is a member.
+     * Provides a consolidated view across all groups for efficient request management.
+     */
+    public AllPendingRequestsResponse getAllPendingRequestsForUser(String userId) {
+        log.info("Getting all pending join requests for user '{}'", userId);
+        
+        try {
+            // Find all groups where the user is a member
+            List<Group> userGroups = groupRepository.findByUserIdsContaining(userId);
+            log.info("Found {} groups where user '{}' is a member", userGroups.size(), userId);
+            
+            AllPendingRequestsResponse response = new AllPendingRequestsResponse();
+            response.setStatus("success");
+            
+            List<AllPendingRequestsResponse.GroupWithPendingRequests> groupsWithRequests = new ArrayList<>();
+            int totalPendingRequests = 0;
+            
+            for (Group group : userGroups) {
+                // Get pending join requests for this group
+                List<JoinRequest> pendingRequests = group.getJoinRequests().stream()
+                    .filter(JoinRequest::isPending)
+                    .collect(Collectors.toList());
+                
+                if (!pendingRequests.isEmpty()) {
+                    AllPendingRequestsResponse.GroupWithPendingRequests groupWithRequests = 
+                        new AllPendingRequestsResponse.GroupWithPendingRequests();
+                    
+                    // Basic group information
+                    groupWithRequests.setGroupId(group.getId());
+                    groupWithRequests.setGroupName(group.getGroupName());
+                    groupWithRequests.setVisibility(group.getVisibility());
+                    groupWithRequests.setCurrentMembers(group.getUserIds().size());
+                    groupWithRequests.setMaxMembers(group.getMaxMembers());
+                    groupWithRequests.setPendingRequestsCount(pendingRequests.size());
+                    
+                    // Get trip name if available
+                    try {
+                        if (group.getTripId() != null) {
+                            TripServiceClient.TripDetails tripDetails = tripServiceClient.getTripDetails(group.getTripId(), userId);
+                            groupWithRequests.setTripName(tripDetails != null ? tripDetails.getTripName() : group.getGroupName());
+                        } else {
+                            groupWithRequests.setTripName(group.getGroupName());
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to get trip details for group {}: {}", group.getId(), e.getMessage());
+                        groupWithRequests.setTripName(group.getGroupName());
+                    }
+                    
+                    // Convert join requests to response format
+                    List<AllPendingRequestsResponse.PendingJoinRequestInfo> requestInfos = pendingRequests.stream()
+                        .map(joinRequest -> convertToPendingJoinRequestInfo(joinRequest, group, userId))
+                        .collect(Collectors.toList());
+                    
+                    groupWithRequests.setPendingRequests(requestInfos);
+                    groupsWithRequests.add(groupWithRequests);
+                    totalPendingRequests += pendingRequests.size();
+                }
+            }
+            
+            response.setGroups(groupsWithRequests);
+            response.setTotalGroups(groupsWithRequests.size());
+            response.setTotalPendingRequests(totalPendingRequests);
+            
+            if (totalPendingRequests == 0) {
+                response.setMessage("No pending join requests at this time");
+            } else {
+                response.setMessage(String.format("Found %d pending join requests across %d groups", 
+                    totalPendingRequests, groupsWithRequests.size()));
+            }
+            
+            log.info("Successfully retrieved {} pending requests across {} groups for user '{}'", 
+                totalPendingRequests, groupsWithRequests.size(), userId);
+            
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Unexpected error getting pending requests for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get pending requests: " + e.getMessage());
+        }
+    }
+
+    /**
      * Gets list of enhanced public groups with detailed trip and creator information.
      * This version provides comprehensive details for UI display like trip names, creator names,
      * cities, dates, and top attractions. Supports both authenticated and anonymous access.
@@ -1661,5 +1743,261 @@ public class GroupService {
             .preferredTerrains((List<String>) groupPrefs.getOrDefault("preferredTerrains", new ArrayList<>()))
             .activityPacing((String) groupPrefs.getOrDefault("activityPacing", "Normal"))
             .build();
+    }
+    
+    /**
+     * Converts a JoinRequest to PendingJoinRequestInfo for the consolidated response.
+     */
+    private AllPendingRequestsResponse.PendingJoinRequestInfo convertToPendingJoinRequestInfo(
+            JoinRequest joinRequest, Group group, String currentUserId) {
+        
+        AllPendingRequestsResponse.PendingJoinRequestInfo info = new AllPendingRequestsResponse.PendingJoinRequestInfo();
+        
+        // Basic request information
+        info.setJoinRequestId(joinRequest.getId());
+        info.setUserId(joinRequest.getUserId());
+        info.setUserName(joinRequest.getUserName());
+        info.setUserEmail(joinRequest.getUserEmail());
+        info.setMessage(joinRequest.getMessage());
+        info.setRequestedAt(joinRequest.getRequestedAt().toString());
+        
+        // Voting information
+        info.setPendingMembers(joinRequest.getPendingMemberIds(group.getUserIds()));
+        info.setTotalVotesReceived(joinRequest.getMemberApprovals().size());
+        info.setTotalMembersRequired(group.getUserIds().size());
+        info.setHasCurrentUserVoted(joinRequest.hasMemberResponded(currentUserId));
+        
+        // Calculate urgency level based on request age
+        long hoursSinceRequest = java.time.Duration.between(joinRequest.getRequestedAt(), Instant.now()).toHours();
+        if (hoursSinceRequest > 48) {
+            info.setUrgencyLevel("high");
+        } else if (hoursSinceRequest > 24) {
+            info.setUrgencyLevel("medium");
+        } else {
+            info.setUrgencyLevel("low");
+        }
+        
+        // Extract user profile if available
+        if (joinRequest.getUserProfile() != null) {
+            AllPendingRequestsResponse.UserProfileSummary profileSummary = new AllPendingRequestsResponse.UserProfileSummary();
+            Map<String, Object> profile = joinRequest.getUserProfile();
+            
+            profileSummary.setAge((Integer) profile.get("age"));
+            profileSummary.setNationality((String) profile.get("nationality"));
+            profileSummary.setInterests((List<String>) profile.get("interests"));
+            profileSummary.setTravelExperience((String) profile.get("travelExperience"));
+            profileSummary.setBudgetLevel((String) profile.get("budgetLevel"));
+            profileSummary.setActivityPacing((String) profile.get("activityPacing"));
+            profileSummary.setPreferredTerrains((List<String>) profile.get("preferredTerrains"));
+            profileSummary.setPreferredActivities((List<String>) profile.get("preferredActivities"));
+            
+            info.setUserProfile(profileSummary);
+        }
+        
+        return info;
+    }
+    
+    /**
+     * Allows a member to vote on a join request by user ID.
+     * This method provides a cleaner API where the requesting user ID is in the path.
+     *
+     * @param groupId The ID of the group
+     * @param requestUserId The ID of the user who made the join request
+     * @param request The vote request containing voter info and decision
+     * @return JoinRequestVoteResponse with the vote result
+     */
+    public JoinRequestVoteResponse voteOnJoinRequestByUserId(String groupId, String requestUserId, JoinRequestVoteRequest request) {
+        log.info("Processing vote on join request from user '{}' for group '{}' by member '{}'", 
+                 requestUserId, groupId, request.getUserId());
+        
+        try {
+            // Find the group
+            Group group = groupRepository.findById(groupId)
+                    .orElseThrow(() -> new GroupNotFoundException("Group not found with id: " + groupId));
+            
+            // Verify voter is a member
+            if (!group.getUserIds().contains(request.getUserId())) {
+                throw new UnauthorizedGroupAccessException("User is not a member of this group");
+            }
+            
+            // Find the join request
+            JoinRequest joinRequest = group.getJoinRequests().stream()
+                    .filter(jr -> jr.getUserId().equals(requestUserId))
+                    .findFirst()
+                    .orElseThrow(() -> new JoinRequestNotFoundException("No pending join request found for user: " + requestUserId));
+            
+            // Check if user has already voted
+            if (joinRequest.hasMemberResponded(request.getUserId())) {
+                throw new InvalidGroupOperationException("User has already voted on this join request");
+            }
+            
+            // Record the vote
+            String action = request.isApproved() ? "approve" : "reject";
+            joinRequest.addMemberApproval(request.getUserId(), action, request.getComment());
+            
+            JoinRequestVoteResponse response = new JoinRequestVoteResponse();
+            response.setVoterUserId(request.getUserId());
+            response.setRequestUserId(requestUserId);
+            response.setGroupId(groupId);
+            response.setVoteDecision(request.isApproved() ? "approved" : "rejected");
+            response.setComment(request.getComment());
+            response.setVotedAt(Instant.now());
+            
+            // Check if any member has rejected or all have approved
+            if (joinRequest.hasAnyMemberRejected()) {
+                // Remove the join request
+                group.getJoinRequests().remove(joinRequest);
+                
+                GroupAction action1 = GroupAction.create(
+                    request.getUserId(),
+                    "JOIN_REQUEST_REJECTED",
+                    "Join request rejected for user: " + requestUserId
+                );
+                group.getActions().add(action1);
+                
+                response.setRequestStatus("rejected");
+                response.setMessage("Join request has been rejected by all members and removed");
+                
+            } else if (joinRequest.hasAllMembersApproved(group.getUserIds())) {
+                // All members have approved - add user to group
+                if (group.isFull()) {
+                    throw new InvalidGroupOperationException("Group is full");
+                }
+                
+                // Remove the join request and add user
+                group.getJoinRequests().remove(joinRequest);
+                group.addUser(requestUserId);
+                
+                GroupAction approvalAction = GroupAction.create(
+                    request.getUserId(),
+                    "JOIN_REQUEST_APPROVED_ALL_MEMBERS",
+                    "Join request approved by all members for user: " + requestUserId
+                );
+                group.getActions().add(approvalAction);
+                
+                response.setRequestStatus("approved");
+                response.setMessage("Join request has been approved by all members. User added to group.");
+                
+            } else {
+                // Still pending more votes
+                GroupAction voteAction = GroupAction.create(
+                    request.getUserId(),
+                    "JOIN_REQUEST_MEMBER_VOTED",
+                    "Member voted on join request for user: " + requestUserId
+                );
+                group.getActions().add(voteAction);
+                
+                response.setRequestStatus("pending");
+                response.setMessage("Vote recorded. Waiting for votes from remaining members.");
+            }
+            
+            // Set additional response information
+            response.setTotalVotesReceived(joinRequest.getMemberApprovals().size());
+            response.setTotalMembersRequired(group.getUserIds().size());
+            response.setPendingMemberIds(joinRequest.getPendingMemberIds(group.getUserIds()));
+            
+            group.setLastUpdated(Instant.now());
+            groupRepository.save(group);
+            
+            log.info("Vote processed successfully: {} vote by '{}' for request from '{}'", 
+                     request.isApproved() ? "APPROVE" : "REJECT", request.getUserId(), requestUserId);
+            
+            return response;
+            
+        } catch (GroupNotFoundException | InvalidGroupOperationException | UnauthorizedGroupAccessException | JoinRequestNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error processing vote on join request: {}", e.getMessage(), e);
+            throw new GroupCreationException("Failed to process vote: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Get all invitations for a specific user.
+     * Returns all pending invitations sent to the user across all groups.
+     *
+     * @param userId The ID of the user to get invitations for
+     * @return UserInvitationsResponse with all invitations for the user
+     */
+    public UserInvitationsResponse getUserInvitations(String userId) {
+        try {
+            log.info("Getting all invitations for user '{}'", userId);
+            
+            // Find all invitations for this user across all groups
+            List<Invitation> userInvitations = invitationRepository.findByInvitedUserIdAndStatus(userId, "pending");
+            
+            List<InvitationDetail> invitationDetails = userInvitations.stream()
+                    .map(this::convertToInvitationDetail)
+                    .collect(Collectors.toList());
+            
+            UserInvitationsResponse response = new UserInvitationsResponse();
+            response.setInvitations(invitationDetails);
+            response.setTotalInvitations(invitationDetails.size());
+            
+            log.info("Successfully retrieved {} invitations for user '{}'", invitationDetails.size(), userId);
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Unexpected error getting invitations for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get invitations: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Convert an Invitation entity to InvitationDetail DTO.
+     */
+    private InvitationDetail convertToInvitationDetail(Invitation invitation) {
+        InvitationDetail detail = new InvitationDetail();
+        detail.setInvitationId(invitation.getId());
+        detail.setGroupId(invitation.getGroupId());
+        detail.setInviterEmail(invitation.getInviterEmail());
+        detail.setInvitedAt(invitation.getInvitedAt());
+        detail.setMessage(invitation.getMessage());
+        detail.setStatus(invitation.getStatus());
+        
+        // Get group details
+        Group group = groupRepository.findById(invitation.getGroupId()).orElse(null);
+        if (group != null) {
+            detail.setGroupName(group.getGroupName());
+            detail.setGroupDescription(group.getTripName() != null ? group.getTripName() : "Trip Group");
+            detail.setMemberCount(group.getUserIds().size());
+            detail.setMaxMembers(group.getMaxMembers());
+            detail.setBaseCity("Colombo"); // Default city, could be extracted from preferences
+            
+            if (group.getPreferences() != null) {
+                @SuppressWarnings("unchecked")
+                List<String> activities = (List<String>) group.getPreferences().get("preferredActivities");
+                detail.setPreferredActivities(activities != null ? activities : List.of("Cultural Tours", "Food Experiences"));
+            } else {
+                detail.setPreferredActivities(List.of("Cultural Tours", "Food Experiences"));
+            }
+            
+            // Get inviter name from user service
+            String inviterName = userServiceClient.getUserNameByUid(group.getCreatorUserId());
+            if (inviterName == null || inviterName.equals(group.getCreatorUserId())) {
+                inviterName = userServiceClient.getUserNameByEmail(group.getCreatorEmail());
+            }
+            if (inviterName == null || inviterName.equals(group.getCreatorEmail())) {
+                inviterName = "Group Admin";
+            }
+            detail.setInviterName(inviterName);
+            
+            // Get trip dates from trip service
+            try {
+                if (group.getTripId() != null) {
+                    // This would require calling the trip service to get trip details
+                    // For now, setting placeholder dates
+                    detail.setTripStartDate(Instant.now().plus(30, ChronoUnit.DAYS));
+                    detail.setTripEndDate(Instant.now().plus(37, ChronoUnit.DAYS));
+                }
+            } catch (Exception e) {
+                log.warn("Could not fetch trip dates for trip ID: {}", group.getTripId());
+                // Set fallback dates
+                detail.setTripStartDate(Instant.now().plus(30, ChronoUnit.DAYS));
+                detail.setTripEndDate(Instant.now().plus(37, ChronoUnit.DAYS));
+            }
+        }
+        
+        return detail;
     }
 }
