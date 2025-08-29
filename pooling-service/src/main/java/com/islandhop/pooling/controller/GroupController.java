@@ -386,6 +386,26 @@ public class GroupController {
         }
     }
 
+    /**
+     * Gets all pending join requests for groups where the user is a member.
+     * This allows users to see all people requesting to join their groups in one place.
+     *
+     * @param userId The ID of the current user (member of groups)
+     * @return ResponseEntity with all pending join requests across user's groups
+     */
+    @GetMapping("/my-pending-requests")
+    public ResponseEntity<AllPendingRequestsResponse> getAllPendingRequestsForUser(@RequestParam String userId) {
+        try {
+            log.info("Getting all pending join requests for user '{}'", userId);
+            AllPendingRequestsResponse response = groupService.getAllPendingRequestsForUser(userId);
+            log.info("Successfully retrieved pending requests for {} groups for user '{}'", response.getGroups().size(), userId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Unexpected error getting pending requests for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get pending requests: " + e.getMessage());
+        }
+    }
+
     
     /**
      * Allows a group member to vote on a join request.
@@ -440,6 +460,57 @@ public class GroupController {
         } catch (Exception e) {
             log.error("Unexpected error getting pending join requests for group {}: {}", groupId, e.getMessage(), e);
             throw new GroupCreationException("Failed to get pending join requests: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Allows a member to vote on a specific join request by user ID.
+     * Uses the new voting system with user ID in the path.
+     *
+     * @param groupId The ID of the group
+     * @param requestUserId The ID of the user who made the join request
+     * @param request The vote request containing voter info and decision
+     * @return ResponseEntity with the vote response
+     */
+    @PostMapping("/{groupId}/join-requests/{requestUserId}/vote")
+    public ResponseEntity<JoinRequestVoteResponse> voteOnJoinRequestByUserId(
+            @PathVariable String groupId,
+            @PathVariable String requestUserId,
+            @Valid @RequestBody JoinRequestVoteRequest request) {
+        try {
+            log.info("Member '{}' voting {} on join request from '{}' for group '{}'", 
+                     request.getUserId(), request.isApproved() ? "APPROVE" : "REJECT", requestUserId, groupId);
+            JoinRequestVoteResponse response = groupService.voteOnJoinRequestByUserId(groupId, requestUserId, request);
+            return ResponseEntity.ok(response);
+        } catch (GroupNotFoundException e) {
+            log.warn("Group not found for vote: {}", e.getMessage());
+            throw e;
+        } catch (UnauthorizedGroupAccessException | InvalidGroupOperationException | JoinRequestNotFoundException e) {
+            log.warn("Invalid vote operation: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error processing vote for group {}: {}", groupId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to process vote: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Get all invitations for a specific user.
+     * Returns all pending invitations sent to the user across all groups.
+     *
+     * @param userId The ID of the user to get invitations for
+     * @return ResponseEntity with all invitations for the user
+     */
+    @GetMapping("/invitations/{userId}")
+    public ResponseEntity<UserInvitationsResponse> getUserInvitations(@PathVariable String userId) {
+        try {
+            log.info("Getting all invitations for user '{}'", userId);
+            UserInvitationsResponse response = groupService.getUserInvitations(userId);
+            log.info("Successfully retrieved {} invitations for user '{}'", response.getTotalInvitations(), userId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Unexpected error getting invitations for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get invitations: " + e.getMessage());
         }
     }
     
