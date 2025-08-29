@@ -4,9 +4,9 @@ spring:
       uri: ${MONGODB_URI:mongodb+srv://2022cs056:dH4aTFn3IOerWlVZ@cluster0.9ccambx.mongodb.net/islandhop_trips?retryWrites=true&w=majority}
       database: islandhop_trips
   datasource:
-    url: jdbc:postgresql://ep-empty-base-a194u9qt-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-    username: neondb_owner
-    password: npg_Ig3thklS7cZm
+    url: jdbc:postgresql://db.hgpicovzphnrhsdhggqs.supabase.co:5432/postgres?sslmode=require
+    username: postgres
+    password: islandhop123#
     driver-class-name: org.postgresql.Driver
 
 google:
