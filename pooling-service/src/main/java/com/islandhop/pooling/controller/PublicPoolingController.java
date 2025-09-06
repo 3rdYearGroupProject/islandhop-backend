@@ -59,29 +59,6 @@ public class PublicPoolingController {
     }
     
     /**
-     * Creates a new public pooling group.
-     * This endpoint allows trip planning first, then suggests similar groups before saving.
-     *
-     * @param request The public pooling group creation request
-     * @return ResponseEntity with the created group details
-     */
-    @PostMapping("/groups")
-    public ResponseEntity<CreatePublicPoolingGroupResponse> createPublicPoolingGroup(
-            @Valid @RequestBody CreatePublicPoolingGroupRequest request) {
-        try {
-            log.info("Creating public pooling group '{}' for user '{}'", request.getGroupName(), request.getUserId());
-            CreatePublicPoolingGroupResponse response = publicPoolingService.createPublicPoolingGroup(request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (GroupCreationException e) {
-            log.warn("Public pooling group creation failed for user {}: {}", request.getUserId(), e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            log.error("Unexpected error creating public pooling group for user {}: {}", request.getUserId(), e.getMessage(), e);
-            throw new GroupCreationException("Failed to create public pooling group: " + e.getMessage());
-        }
-    }
-    
-    /**
      * Saves a trip and gets suggestions for similar public pooling groups.
      * This is called after trip planning is complete to check for compatible groups.
      *
