@@ -18,4 +18,5 @@ schedule-service - 5005
 active-trips - 5006
 complete-trip - 5007
 scoring-service - 4000
+user fetch -4011
 
