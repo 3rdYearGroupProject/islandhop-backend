@@ -1,0 +1,1178 @@
+{
+	"info": {
+		"_postman_id": "pooling-service-complete-flow",
+		"name": "IslandHop Pooling Service - Complete Flow Test Collection",
+		"description": "Comprehensive test collection for the IslandHop Pooling Service covering all user scenarios:\n- Public pooling flow (pre-check, create, save trip, suggestions, finalize)\n- Private group management (create, invite, join requests, voting)\n- Group discovery and browsing\n- Trip management and comprehensive details\n\nBase URL: http://localhost:8086/api/v1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "🔧 Setup & Health Checks",
+			"item": [
+				{
+					"name": "Health Check - Pooling Service",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/health",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "health"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Health Check - Public Pooling Service",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/public-pooling/health",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "health"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🌊 Scenario 1: Complete Public Pooling Flow",
+			"description": "Complete flow for a user creating a public pooling group with trip planning",
+			"item": [
+				{
+					"name": "Step 1: Pre-check Compatible Groups",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has status field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"});",
+									"",
+									"pm.test('Response has compatible groups', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('compatibleGroups');",
+									"    pm.expect(jsonData.compatibleGroups).to.be.an('array');",
+									"});",
+									"",
+									"// Store response for next request",
+									"pm.globals.set('precheck_response', JSON.stringify(pm.response.json()));"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"baseCity\": \"Colombo\",\n    \"startDate\": \"2025-10-15\",\n    \"endDate\": \"2025-10-20\",\n    \"budgetLevel\": \"Medium\",\n    \"preferredActivities\": [\"Cultural Tours\", \"Beach Activities\"],\n    \"preferredTerrains\": [\"Beach\", \"Cultural Sites\"],\n    \"activityPacing\": \"Normal\",\n    \"multiCityAllowed\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/public-pooling/pre-check",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "pre-check"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2: Create Group with Trip Planning",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has group and trip IDs', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('groupId');",
+									"    pm.expect(jsonData).to.have.property('tripId');",
+									"    pm.expect(jsonData.groupId).to.not.be.empty;",
+									"    pm.expect(jsonData.tripId).to.not.be.empty;",
+									"});",
+									"",
+									"// Store IDs for subsequent requests",
+									"pm.globals.set('created_group_id', pm.response.json().groupId);",
+									"pm.globals.set('created_trip_id', pm.response.json().tripId);",
+									"",
+									"pm.test('Response indicates awaiting trip completion', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('awaiting_trip_completion');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"userEmail\": \"{{user_email}}\",\n    \"groupName\": \"Sri Lanka Cultural Explorer\",\n    \"tripName\": \"Amazing Sri Lanka Cultural Journey\",\n    \"startDate\": \"2025-10-15\",\n    \"endDate\": \"2025-10-20\",\n    \"baseCity\": \"Colombo\",\n    \"arrivalTime\": \"14:30\",\n    \"multiCityAllowed\": true,\n    \"activityPacing\": \"Normal\",\n    \"budgetLevel\": \"Medium\",\n    \"preferredTerrains\": [\"Beach\", \"Cultural Sites\", \"Mountain\"],\n    \"preferredActivities\": [\"Cultural Tours\", \"Beach Activities\", \"Hiking\"],\n    \"visibility\": \"public\",\n    \"maxMembers\": 8,\n    \"requiresApproval\": true,\n    \"additionalPreferences\": {\n        \"accommodationType\": \"mid-range hotels\",\n        \"transportPreference\": \"private vehicle\",\n        \"dietaryRequirements\": \"vegetarian options available\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/groups/with-trip",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "with-trip"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 3: Save Trip with Suggestions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has suggestions', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('suggestions');",
+									"});",
+									"",
+									"// Store suggestion data",
+									"pm.globals.set('trip_suggestions', JSON.stringify(pm.response.json()));"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"tripId\": \"{{created_trip_id}}\",\n    \"tripData\": {\n        \"tripName\": \"Amazing Sri Lanka Cultural Journey\",\n        \"startDate\": \"2025-10-15\",\n        \"endDate\": \"2025-10-20\",\n        \"baseCity\": \"Colombo\",\n        \"cities\": [\"Colombo\", \"Kandy\", \"Galle\"],\n        \"destinations\": [\"Colombo\", \"Kandy\", \"Galle\"],\n        \"places\": [\n            {\n                \"name\": \"Gangaramaya Temple\",\n                \"city\": \"Colombo\",\n                \"type\": \"Cultural\",\n                \"day\": 1\n            },\n            {\n                \"name\": \"Temple of the Tooth\",\n                \"city\": \"Kandy\",\n                \"type\": \"Cultural\",\n                \"day\": 2\n            },\n            {\n                \"name\": \"Galle Fort\",\n                \"city\": \"Galle\",\n                \"type\": \"Historical\",\n                \"day\": 3\n            }\n        ],\n        \"activities\": [\"Cultural Tours\", \"Photography\", \"Local Cuisine\"],\n        \"terrains\": [\"Cultural Sites\", \"Coastal Areas\"],\n        \"itinerary\": [\n            {\n                \"day\": 1,\n                \"date\": \"2025-10-15\",\n                \"city\": \"Colombo\",\n                \"activities\": [\"Gangaramaya Temple\", \"National Museum\", \"Pettah Market\"]\n            },\n            {\n                \"day\": 2,\n                \"date\": \"2025-10-16\",\n                \"city\": \"Kandy\",\n                \"activities\": [\"Temple of the Tooth\", \"Royal Botanical Gardens\", \"Kandy Lake\"]\n            },\n            {\n                \"day\": 3,\n                \"date\": \"2025-10-17\",\n                \"city\": \"Galle\",\n                \"activities\": [\"Galle Fort\", \"Unawatuna Beach\", \"Stilt Fishermen\"]\n            }\n        ]\n    },\n    \"optionalField\": \"Additional trip metadata\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/public-pooling/groups/{{created_group_id}}/save-trip",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "groups", "{{created_group_id}}", "save-trip"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4A: Finalize Group (Keep New Group)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Group finalized successfully', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.be.oneOf(['success', 'finalized']);",
+									"});",
+									"",
+									"pm.test('Group is now active', function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.groupStatus) {",
+									"        pm.expect(jsonData.groupStatus).to.equal('finalized');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"action\": \"finalize\",\n    \"reason\": \"Proceeding with our planned group trip\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/public-pooling/groups/{{created_group_id}}/finalize",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "groups", "{{created_group_id}}", "finalize"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4B: Alternative - Join Existing Group",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Join existing group successful', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('success');",
+									"});",
+									"",
+									"pm.test('Original group discarded', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('originalGroupStatus');",
+									"    pm.expect(jsonData.originalGroupStatus).to.equal('discarded');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"targetGroupId\": \"existing-group-id-from-suggestions\",\n    \"message\": \"I'd like to join your group instead of creating my own. Our itineraries seem very compatible!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/public-pooling/groups/{{created_group_id}}/join-existing",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "groups", "{{created_group_id}}", "join-existing"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🏠 Scenario 2: Private Group Management",
+			"description": "Complete flow for private group creation, invitations, and member management",
+			"item": [
+				{
+					"name": "Step 1: Create Private Group with Trip",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Private group created', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('groupId');",
+									"    pm.expect(jsonData).to.have.property('tripId');",
+									"});",
+									"",
+									"// Store private group ID",
+									"pm.globals.set('private_group_id', pm.response.json().groupId);",
+									"pm.globals.set('private_trip_id', pm.response.json().tripId);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"userEmail\": \"{{user_email}}\",\n    \"groupName\": \"Family Adventure Sri Lanka\",\n    \"tripName\": \"Family-Friendly Sri Lanka Tour\",\n    \"startDate\": \"2025-11-10\",\n    \"endDate\": \"2025-11-16\",\n    \"baseCity\": \"Colombo\",\n    \"arrivalTime\": \"10:00\",\n    \"multiCityAllowed\": true,\n    \"activityPacing\": \"Relaxed\",\n    \"budgetLevel\": \"High\",\n    \"preferredTerrains\": [\"Beach\", \"Wildlife\", \"Cultural Sites\"],\n    \"preferredActivities\": [\"Wildlife Safari\", \"Beach Activities\", \"Cultural Tours\"],\n    \"visibility\": \"private\",\n    \"maxMembers\": 6,\n    \"requiresApproval\": false,\n    \"additionalPreferences\": {\n        \"familyFriendly\": true,\n        \"accommodationType\": \"luxury resorts\",\n        \"transportPreference\": \"private car with driver\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/groups/with-trip",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "with-trip"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2: Invite User to Private Group",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Invitation sent successfully', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('success');",
+									"});",
+									"",
+									"pm.test('Invitation ID returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('invitationId');",
+									"    pm.globals.set('invitation_id', jsonData.invitationId);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"invitedEmail\": \"friend@example.com\",\n    \"message\": \"Hi! Would you like to join our family trip to Sri Lanka? It's going to be an amazing adventure with wildlife safaris and beach time!\",\n    \"expirationDays\": 7\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/groups/{{private_group_id}}/invite",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "{{private_group_id}}", "invite"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 3: Get User Invitations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Invitations list returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('invitations');",
+									"    pm.expect(jsonData.invitations).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Total invitations count present', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('totalInvitations');",
+									"    pm.expect(jsonData.totalInvitations).to.be.a('number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/invitations/{{friend_user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "invitations", "{{friend_user_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4: Respond to Invitation (Accept)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Invitation response processed', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('success');",
+									"});",
+									"",
+									"pm.test('User added to group', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData.message).to.include('accepted');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{friend_user_id}}\",\n    \"invitationId\": \"{{invitation_id}}\",\n    \"action\": \"accept\",\n    \"message\": \"Excited to join the Sri Lanka adventure! Thanks for inviting me.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/groups/invitations/respond",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "invitations", "respond"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔍 Scenario 3: Group Discovery & Browsing",
+			"description": "User discovering and browsing available public groups",
+			"item": [
+				{
+					"name": "Browse All Enhanced Public Groups",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Public groups array returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Groups have required fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.length > 0) {",
+									"        var firstGroup = jsonData[0];",
+									"        pm.expect(firstGroup).to.have.property('groupId');",
+									"        pm.expect(firstGroup).to.have.property('tripName');",
+									"        pm.expect(firstGroup).to.have.property('baseCity');",
+									"        pm.expect(firstGroup).to.have.property('startDate');",
+									"        pm.expect(firstGroup).to.have.property('endDate');",
+									"    }",
+									"});",
+									"",
+									"// Store first group ID for joining test",
+									"var jsonData = pm.response.json();",
+									"if (jsonData.length > 0) {",
+									"    pm.globals.set('browsable_group_id', jsonData[0].groupId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/public/enhanced",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "public", "enhanced"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Browse Public Groups with Filters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Filtered results returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Results match filter criteria', function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.forEach(function(group) {",
+									"        // Check if budget level matches",
+									"        if (group.budgetLevel) {",
+									"            pm.expect(group.budgetLevel).to.equal('Medium');",
+									"        }",
+									"        // Check if base city matches",
+									"        if (group.baseCity) {",
+									"            pm.expect(group.baseCity).to.equal('Colombo');",
+									"        }",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/public/enhanced?userId={{user_id}}&baseCity=Colombo&budgetLevel=Medium&preferredActivities=Cultural Tours&preferredActivities=Beach Activities",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "public", "enhanced"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{user_id}}"
+								},
+								{
+									"key": "baseCity",
+									"value": "Colombo"
+								},
+								{
+									"key": "budgetLevel",
+									"value": "Medium"
+								},
+								{
+									"key": "preferredActivities",
+									"value": "Cultural Tours"
+								},
+								{
+									"key": "preferredActivities",
+									"value": "Beach Activities"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User's Groups (Created + Participant)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('User groups returned (created + participant)', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('All groups involve the user (creator or participant)', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var userId = pm.globals.get('user_id');",
+									"    jsonData.forEach(function(group) {",
+									"        // Check if user is creator OR participant",
+									"        var isCreator = group.creatorUserId === userId;",
+									"        var isParticipant = group.userIds && group.userIds.includes(userId);",
+									"        pm.expect(isCreator || isParticipant).to.be.true;",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/created-by/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "created-by", "{{user_id}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🤝 Scenario 4: Join Request & Voting System",
+			"description": "Complete flow for joining groups and member voting system",
+			"item": [
+				{
+					"name": "Step 1: Request to Join Public Group",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Join request submitted', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.be.oneOf(['success', 'pending']);",
+									"});",
+									"",
+									"pm.test('Join request ID returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.joinRequestId) {",
+									"        pm.globals.set('join_request_id', jsonData.joinRequestId);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{friend_user_id}}\",\n    \"userEmail\": \"joiner@example.com\",\n    \"userName\": \"Sarah Johnson\",\n    \"message\": \"Hi! I'm very interested in joining your Sri Lanka trip. I have experience with cultural tours and I'm excited about the itinerary you've planned. I'm a responsible traveler and would love to be part of your group!\",\n    \"userProfile\": {\n        \"age\": 28,\n        \"interests\": [\"Cultural Tours\", \"Photography\", \"Local Cuisine\"],\n        \"travelExperience\": \"Experienced\",\n        \"languages\": [\"English\", \"Spanish\"]\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/groups/{{browsable_group_id}}/join",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "{{browsable_group_id}}", "join"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2: Get Pending Join Requests (Group Admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Pending requests returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('pendingRequests');",
+									"    pm.expect(jsonData.pendingRequests).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Group info included', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('groupInfo');",
+									"    pm.expect(jsonData.groupInfo).to.have.property('groupId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/{{browsable_group_id}}/join-requests/pending?userId={{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "{{browsable_group_id}}", "join-requests", "pending"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 3: Get All Pending Requests for User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('All pending requests returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('groups');",
+									"    pm.expect(jsonData.groups).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Summary counts included', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('totalGroups');",
+									"    pm.expect(jsonData).to.have.property('totalPendingRequests');",
+									"    pm.expect(jsonData.totalGroups).to.be.a('number');",
+									"    pm.expect(jsonData.totalPendingRequests).to.be.a('number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/my-pending-requests?userId={{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "my-pending-requests"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4: Vote on Join Request (Approve)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Vote submitted successfully', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('success');",
+									"});",
+									"",
+									"pm.test('Vote details included', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('requestStatus');",
+									"    pm.expect(jsonData).to.have.property('totalVotesReceived');",
+									"    pm.expect(jsonData).to.have.property('totalMembersRequired');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"approved\": true,\n    \"comment\": \"Sarah seems like a great fit for our group. Her travel experience and interests align well with our trip plans.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/groups/{{browsable_group_id}}/join-requests/{{friend_user_id}}/vote",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "{{browsable_group_id}}", "join-requests", "{{friend_user_id}}", "vote"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🗺️ Scenario 5: Trip Details & Compatibility",
+			"description": "Getting comprehensive trip details and checking compatibility",
+			"item": [
+				{
+					"name": "Get Comprehensive Trip Details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Trip details returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tripDetails');",
+									"    pm.expect(jsonData).to.have.property('groupInfo');",
+									"});",
+									"",
+									"pm.test('Itinerary included', function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.tripDetails && jsonData.tripDetails.dailyPlans) {",
+									"        pm.expect(jsonData.tripDetails.dailyPlans).to.be.an('array');",
+									"    }",
+									"});",
+									"",
+									"pm.test('Group members included', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('members');",
+									"    pm.expect(jsonData.members).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/public-pooling/trips/{{created_trip_id}}/comprehensive?userId={{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "trips", "{{created_trip_id}}", "comprehensive"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Comprehensive Trip Details (Anonymous)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Public trip details accessible anonymously', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tripDetails');",
+									"    pm.expect(jsonData).to.have.property('groupInfo');",
+									"});",
+									"",
+									"pm.test('No sensitive data exposed', function () {",
+									"    var jsonData = pm.response.json();",
+									"    // Should not include sensitive invitation or join request data",
+									"    pm.expect(jsonData).to.not.have.property('invitations');",
+									"    pm.expect(jsonData).to.not.have.property('joinRequests');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/public-pooling/trips/{{created_trip_id}}/comprehensive",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "trips", "{{created_trip_id}}", "comprehensive"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Compatible Groups for Trip",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Compatible groups list returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Compatibility scores included', function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.forEach(function(group) {",
+									"        if (group.compatibilityScore !== undefined) {",
+									"            pm.expect(group.compatibilityScore).to.be.a('number');",
+									"            pm.expect(group.compatibilityScore).to.be.at.least(0);",
+									"            pm.expect(group.compatibilityScore).to.be.at.most(1);",
+									"        }",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/public-pooling/groups/compatible/{{created_trip_id}}?userId={{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "groups", "compatible", "{{created_trip_id}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "❌ Error Scenarios",
+			"description": "Testing error handling and edge cases",
+			"item": [
+				{
+					"name": "Pre-check with Invalid Data",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error returned', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('error');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"\",\n    \"baseCity\": \"\",\n    \"startDate\": \"invalid-date\",\n    \"endDate\": \"2025-10-20\",\n    \"budgetLevel\": \"InvalidBudget\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/public-pooling/pre-check",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "pre-check"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Access Non-existent Group",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Group not found error', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('error');",
+									"    pm.expect(jsonData.message).to.include('not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/groups/non-existent-group-id/join-requests/pending?userId={{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["groups", "non-existent-group-id", "join-requests", "pending"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Access Non-existent Trip",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Trip not found error', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('error');",
+									"    pm.expect(jsonData.message).to.include('not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/public-pooling/trips/non-existent-trip-id/comprehensive",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "trips", "non-existent-trip-id", "comprehensive"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unauthorized Group Access",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 403', function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test('Unauthorized access error', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('error');",
+									"    pm.expect(jsonData.message).to.include('unauthorized').or.include('access');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"unauthorized-user-id\",\n    \"action\": \"finalize\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/public-pooling/groups/{{created_group_id}}/finalize",
+							"host": ["{{base_url}}"],
+							"path": ["public-pooling", "groups", "{{created_group_id}}", "finalize"]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set default values if not already set",
+					"if (!pm.globals.get('user_id')) {",
+					"    pm.globals.set('user_id', 'test-user-' + Math.random().toString(36).substr(2, 9));",
+					"}",
+					"if (!pm.globals.get('user_email')) {",
+					"    pm.globals.set('user_email', 'testuser@example.com');",
+					"}",
+					"if (!pm.globals.get('friend_user_id')) {",
+					"    pm.globals.set('friend_user_id', 'friend-user-' + Math.random().toString(36).substr(2, 9));",
+					"}",
+					"",
+					"console.log('Using user_id:', pm.globals.get('user_id'));",
+					"console.log('Using friend_user_id:', pm.globals.get('friend_user_id'));"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8086/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "test-user-123",
+			"type": "string"
+		},
+		{
+			"key": "user_email",
+			"value": "testuser@example.com",
+			"type": "string"
+		},
+		{
+			"key": "friend_user_id",
+			"value": "friend-user-456",
+			"type": "string"
+		}
+	]
+}

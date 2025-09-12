@@ -371,11 +371,11 @@ public class GroupService {
     }
 
     /**
-     * Gets all groups (public and private) created by a specific user with full details.
+     * Gets all groups (public and private) created by a specific user and groups where the user is a participant.
      * Includes creator information, member details, and enhanced trip information.
      */
     public List<EnhancedPublicGroupResponse> getGroupsCreatedByUser(String userId) {
-        log.info("Getting all groups created by user '{}'", userId);
+        log.info("Getting all groups created by user '{}' and groups where user is a participant", userId);
         
         try {
             // Find groups by creator user ID
@@ -384,10 +384,14 @@ public class GroupService {
             // Also check createdBy field for backward compatibility
             List<Group> createdByGroups = groupRepository.findByCreatedBy(userId);
             
+            // Find groups where user is a participant (includes created groups + joined groups)
+            List<Group> participantGroups = groupRepository.findByUserIdsContaining(userId);
+            
             // Combine and deduplicate
             Set<String> groupIds = new HashSet<>();
             List<Group> allGroups = new ArrayList<>();
             
+            // Add groups created by user (creatorUserId field)
             for (Group group : createdGroups) {
                 if (!groupIds.contains(group.getId())) {
                     groupIds.add(group.getId());
@@ -395,6 +399,7 @@ public class GroupService {
                 }
             }
             
+            // Add groups created by user (createdBy field - backward compatibility)
             for (Group group : createdByGroups) {
                 if (!groupIds.contains(group.getId())) {
                     groupIds.add(group.getId());
@@ -402,7 +407,16 @@ public class GroupService {
                 }
             }
             
-            log.info("Found {} groups created by user '{}'", allGroups.size(), userId);
+            // Add groups where user is a participant (avoiding duplicates)
+            for (Group group : participantGroups) {
+                if (!groupIds.contains(group.getId())) {
+                    groupIds.add(group.getId());
+                    allGroups.add(group);
+                }
+            }
+            
+            log.info("Found {} groups for user '{}' (created: {}, createdBy: {}, participant: {}, total unique: {})", 
+                userId, allGroups.size(), createdGroups.size(), createdByGroups.size(), participantGroups.size(), allGroups.size());
             
             // Convert to enhanced response DTOs with full details
             List<EnhancedPublicGroupResponse> responses = allGroups.stream()
