@@ -182,24 +182,7 @@ public class GroupController {
         return ResponseEntity.ok(status);
     }
     
-    
-    /**
-     * Gets pending invitations for a user.
-     *
-     * @param userId The user ID
-     * @return ResponseEntity with the user's invitations
-     */
-    @GetMapping("/invitations/{userId}")
-    public ResponseEntity<InvitationListResponse> getUserInvitations(@PathVariable String userId) {
-        try {
-            log.info("Getting invitations for user '{}'", userId);
-            InvitationListResponse response = groupService.getUserInvitations(userId);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Unexpected error getting invitations for user {}: {}", userId, e.getMessage(), e);
-            throw new GroupCreationException("Failed to get invitations: " + e.getMessage());
-        }
-    }
+
     
     /**
      * Responds to an invitation (accept or reject).

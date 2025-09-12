@@ -1136,44 +1136,7 @@ public class GroupService {
         }
     }
     
-    /**
-     * Gets pending invitations for a user.
-     */
-    public InvitationListResponse getUserInvitations(String userId) {
-        log.info("Getting invitations for user '{}'", userId);
-        
-        try {
-            List<Invitation> invitations = invitationRepository.findPendingInvitationsByUserId(userId);
-            
-            List<InvitationListResponse.InvitationSummary> summaries = invitations.stream()
-                .map(invitation -> {
-                    InvitationListResponse.InvitationSummary summary = new InvitationListResponse.InvitationSummary();
-                    summary.setInvitationId(invitation.getId());
-                    summary.setGroupId(invitation.getGroupId());
-                    summary.setTripId(invitation.getTripId());
-                    summary.setTripName(invitation.getTripName());
-                    summary.setInviterName(invitation.getInviterName());
-                    summary.setInviterEmail(invitation.getInviterEmail());
-                    summary.setMessage(invitation.getMessage());
-                    summary.setInvitedAt(invitation.getInvitedAt());
-                    summary.setExpiresAt(invitation.getExpiresAt());
-                    summary.setStatus(invitation.getStatus());
-                    return summary;
-                })
-                .collect(Collectors.toList());
-            
-            InvitationListResponse response = new InvitationListResponse();
-            response.setStatus("success");
-            response.setInvitations(summaries);
-            response.setMessage("Found " + summaries.size() + " pending invitations");
-            
-            return response;
-            
-        } catch (Exception e) {
-            log.error("Error getting user invitations: {}", e.getMessage(), e);
-            throw new GroupCreationException("Failed to get invitations: " + e.getMessage());
-        }
-    }
+
     
     /**
      * Creates a new public pooling group with trip planning.
