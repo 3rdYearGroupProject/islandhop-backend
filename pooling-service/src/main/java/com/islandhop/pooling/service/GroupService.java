@@ -11,6 +11,7 @@ import com.islandhop.pooling.repository.InvitationRepository;
 import com.islandhop.pooling.client.ItineraryServiceClient;
 import com.islandhop.pooling.client.UserServiceClient;
 import com.islandhop.pooling.client.TripServiceClient;
+import com.islandhop.pooling.service.TripCompatibilityService;
 import com.islandhop.pooling.util.DateUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -255,6 +256,60 @@ public class GroupService {
             } else {
                 // Add user directly to group (no approval required)
                 group.addUser(request.getUserId());
+                
+                // Fetch joining user profile details and add as member
+                try {
+                    log.info("Fetching profile for joining user '{}'", request.getUserId());
+                    UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(request.getUserId());
+                    
+                    if (userProfile != null) {
+                        log.info("Successfully fetched profile for joining user: {} {} ({})", 
+                            userProfile.getFirstName(), userProfile.getLastName(), userProfile.getEmail());
+                        
+                        Group.Member member = Group.Member.createFromUserProfile(
+                            request.getUserId(),
+                            userProfile.getEmail(),
+                            userProfile.getFirstName(),
+                            userProfile.getLastName(),
+                            userProfile.getNationality(),
+                            null, // Languages not available in current UserProfile
+                            userProfile.getDob() != null ? userProfile.getDob() : "",
+                            userProfile.getProfileCompletion(),
+                            false // isCreator
+                        );
+                        group.addMember(member);
+                    } else {
+                        log.warn("Could not fetch profile for joining user '{}', using fallback data", request.getUserId());
+                        // Fallback: create member with minimal data
+                        Group.Member member = Group.Member.createFromUserProfile(
+                            request.getUserId(),
+                            null, // email not available
+                            null, // firstName not available
+                            null, // lastName not available
+                            null, // nationality not available
+                            null, // languages not available
+                            "", // dob not available
+                            0, // profileCompletion not available
+                            false // isCreator
+                        );
+                        group.addMember(member);
+                    }
+                } catch (Exception e) {
+                    log.error("Error fetching profile for joining user '{}': {}", request.getUserId(), e.getMessage());
+                    // Fallback: create member with minimal data
+                    Group.Member member = Group.Member.createFromUserProfile(
+                        request.getUserId(),
+                        null, // email not available
+                        null, // firstName not available
+                        null, // lastName not available
+                        null, // nationality not available
+                        null, // languages not available
+                        "", // dob not available
+                        0, // profileCompletion not available
+                        false // isCreator
+                    );
+                    group.addMember(member);
+                }
                 
                 // Add action
                 GroupAction joinAction = GroupAction.create(
@@ -782,10 +837,24 @@ public class GroupService {
             String creatorUserId = group.getCreatorUserId();
             response.setCreatorUserId(creatorUserId);
             
-            // Get creator name using stored email or UserServiceClient
-            response.setCreatorName(getCreatorName(creatorUserId, group.getCreatorEmail()));
+            // Get creator name from stored member data if available
+            String creatorName = "User " + creatorUserId; // fallback
+            if (group.getMembers() != null) {
+                Group.Member creator = group.getMemberByUserId(creatorUserId);
+                if (creator != null) {
+                    creatorName = creator.getFullName();
+                    log.info("Using stored creator name: '{}' for user '{}'", creatorName, creatorUserId);
+                } else {
+                    log.warn("Creator member data not found for user '{}', using fallback", creatorUserId);
+                    creatorName = getCreatorName(creatorUserId, group.getCreatorEmail());
+                }
+            } else {
+                log.warn("No member data stored for group '{}', using fallback creator name", group.getId());
+                creatorName = getCreatorName(creatorUserId, group.getCreatorEmail());
+            }
+            response.setCreatorName(creatorName);
             
-            // Build member details with real user names
+            // Build member details with stored user data
             List<ComprehensiveTripResponse.MemberSummary> memberDetails = buildMemberSummaries(group);
             response.setMembers(memberDetails);
             
@@ -879,49 +948,23 @@ public class GroupService {
     }
     
     /**
-     * Gets creator name using UserServiceClient for consistency with member names.
-     * Falls back to email-based lookup if Firebase UID lookup fails.
+     * Gets creator name from stored member data in the group.
+     * No longer makes external calls to UserServiceClient since we store member details locally.
      */
     private String getCreatorName(String creatorUserId, String creatorEmail) {
-        log.info("Attempting to get creator name for userId: '{}', email: '{}'", creatorUserId, creatorEmail);
+        log.info("Getting creator name for userId: '{}', email: '{}'", creatorUserId, creatorEmail);
         
-        // First try to get user by Firebase UID using the direct name method
-        try {
-            String userName = userServiceClient.getUserNameByUid(creatorUserId);
-            log.info("UserServiceClient.getUserNameByUid('{}') returned: '{}'", creatorUserId, userName);
-            
-            if (userName != null && !userName.equals(creatorUserId)) {
-                // If we got back something other than the UID, it's a real name
-                log.info("Successfully retrieved creator name '{}' for UID '{}'", userName, creatorUserId);
-                return userName;
-            } else {
-                log.warn("getUserNameByUid returned fallback value '{}' for UID '{}'", userName, creatorUserId);
-            }
-        } catch (Exception e) {
-            log.warn("Firebase UID lookup failed for creator {}: {}", creatorUserId, e.getMessage());
-        }
+        // This method is called from convertToEnhancedPublicGroupResponse which has the group object
+        // For now, return a fallback. We'll update the calling method to pass the group object
+        // or get the name directly from the group's members list.
+        log.info("Using fallback creator name method. Consider updating to use stored member data.");
         
-        // Fallback to email-based lookup
+        // Fallback to email or UID as display name
         if (creatorEmail != null && !creatorEmail.trim().isEmpty()) {
-            try {
-                String emailName = userServiceClient.getUserNameByEmail(creatorEmail);
-                log.info("UserServiceClient.getUserNameByEmail('{}') returned: '{}'", creatorEmail, emailName);
-                
-                if (emailName != null && !emailName.equals(creatorEmail)) {
-                    // If we got back something other than the email, it's a real name
-                    log.info("Successfully retrieved creator name '{}' for email '{}'", emailName, creatorEmail);
-                    return emailName;
-                } else {
-                    log.warn("getUserNameByEmail returned fallback value '{}' for email '{}'", emailName, creatorEmail);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to get user name for email {}: {}", creatorEmail, e.getMessage());
-            }
+            return creatorEmail;
         }
         
-        // Final fallback to placeholder
-        log.warn("Using fallback creator name 'Group Creator' for userId: '{}', email: '{}'", creatorUserId, creatorEmail);
-        return "Group Creator";
+        return "User " + creatorUserId;
     }
     
     /**
@@ -1084,6 +1127,60 @@ public class GroupService {
                     joinRequest.finalizeBasedOnApprovals(group.getUserIds());
                     group.addUser(joinRequest.getUserId());
                     
+                    // Fetch approved user profile details and add as member
+                    try {
+                        log.info("Fetching profile for approved user '{}'", joinRequest.getUserId());
+                        UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(joinRequest.getUserId());
+                        
+                        if (userProfile != null) {
+                            log.info("Successfully fetched profile for approved user: {} {} ({})", 
+                                userProfile.getFirstName(), userProfile.getLastName(), userProfile.getEmail());
+                            
+                            Group.Member member = Group.Member.createFromUserProfile(
+                                joinRequest.getUserId(),
+                                userProfile.getEmail(),
+                                userProfile.getFirstName(),
+                                userProfile.getLastName(),
+                                userProfile.getNationality(),
+                                null, // Languages not available in current UserProfile
+                                userProfile.getDob() != null ? userProfile.getDob() : "",
+                                userProfile.getProfileCompletion(),
+                                false // isCreator
+                            );
+                            group.addMember(member);
+                        } else {
+                            log.warn("Could not fetch profile for approved user '{}', using fallback data", joinRequest.getUserId());
+                            // Fallback: create member with minimal data
+                            Group.Member member = Group.Member.createFromUserProfile(
+                                joinRequest.getUserId(),
+                                null, // email not available
+                                null, // firstName not available
+                                null, // lastName not available
+                                null, // nationality not available
+                                null, // languages not available
+                                "", // dob not available
+                                0, // profileCompletion not available
+                                false // isCreator
+                            );
+                            group.addMember(member);
+                        }
+                    } catch (Exception e) {
+                        log.error("Error fetching profile for approved user '{}': {}", joinRequest.getUserId(), e.getMessage());
+                        // Fallback: create member with minimal data
+                        Group.Member member = Group.Member.createFromUserProfile(
+                            joinRequest.getUserId(),
+                            null, // email not available
+                            null, // firstName not available
+                            null, // lastName not available
+                            null, // nationality not available
+                            null, // languages not available
+                            "", // dob not available
+                            0, // profileCompletion not available
+                            false // isCreator
+                        );
+                        group.addMember(member);
+                    }
+                    
                     // Add action
                     GroupAction action = GroupAction.create(
                         request.getUserId(),
@@ -1192,6 +1289,60 @@ public class GroupService {
             group.setUserIds(List.of(request.getUserId()));
             group.setCreatedAt(Instant.now());
             group.setLastUpdated(Instant.now());
+            
+            // Fetch creator profile details and add as member
+            try {
+                log.info("Fetching creator profile for user '{}' with email '{}'", request.getUserId(), request.getUserEmail());
+                UserServiceClient.UserProfile creatorProfile = userServiceClient.getUserByUid(request.getUserId());
+                
+                if (creatorProfile != null) {
+                    log.info("Successfully fetched profile for creator: {} {} ({})", 
+                        creatorProfile.getFirstName(), creatorProfile.getLastName(), creatorProfile.getEmail());
+                    
+                    Group.Member creatorMember = Group.Member.createFromUserProfile(
+                        request.getUserId(),
+                        creatorProfile.getEmail(),
+                        creatorProfile.getFirstName(),
+                        creatorProfile.getLastName(),
+                        creatorProfile.getNationality(),
+                        null, // Languages not available in current UserProfile
+                        creatorProfile.getDob() != null ? creatorProfile.getDob() : "",
+                        creatorProfile.getProfileCompletion(),
+                        true // isCreator
+                    );
+                    group.addMember(creatorMember);
+                } else {
+                    log.warn("Could not fetch profile for creator '{}', using fallback data", request.getUserId());
+                    // Fallback: create member with available data
+                    Group.Member creatorMember = Group.Member.createFromUserProfile(
+                        request.getUserId(),
+                        request.getUserEmail(),
+                        null, // firstName not available
+                        null, // lastName not available
+                        null, // nationality not available
+                        null, // languages not available
+                        "", // dob not available
+                        0, // profileCompletion not available
+                        true // isCreator
+                    );
+                    group.addMember(creatorMember);
+                }
+            } catch (Exception e) {
+                log.error("Error fetching creator profile for user '{}': {}", request.getUserId(), e.getMessage());
+                // Fallback: create member with minimal data
+                Group.Member creatorMember = Group.Member.createFromUserProfile(
+                    request.getUserId(),
+                    request.getUserEmail(),
+                    null, // firstName not available
+                    null, // lastName not available
+                    null, // nationality not available  
+                    null, // languages not available
+                    "", // dob not available
+                    0, // profileCompletion not available
+                    true // isCreator
+                );
+                group.addMember(creatorMember);
+            }
             
             // Set status based on visibility for hybrid workflow
             if ("public".equals(request.getVisibility())) {
@@ -1653,49 +1804,50 @@ public class GroupService {
     /**
      * Builds member summaries with real user names from UserServiceClient.
      */
+    /**
+     * Builds member summaries using stored member data from the group.
+     * No longer makes external calls to UserServiceClient since we store member details locally.
+     */
     private List<ComprehensiveTripResponse.MemberSummary> buildMemberSummaries(Group group) {
+        log.info("Building member summaries for group '{}' with {} stored members", group.getId(), group.getMembers().size());
+        
+        // If we have stored member data, use it
+        if (group.getMembers() != null && !group.getMembers().isEmpty()) {
+            return group.getMembers().stream()
+                .map(member -> {
+                    log.info("Using stored member data - userId: '{}', name: '{}', email: '{}'", 
+                        member.getUserId(), member.getFullName(), member.getEmail());
+                    
+                    return ComprehensiveTripResponse.MemberSummary.builder()
+                        .userId(member.getUserId())
+                        .name(member.getFullName())
+                        .email(member.getEmail() != null ? member.getEmail() : member.getUserId() + "@example.com")
+                        .role(member.isCreator() ? "leader" : "member")
+                        .joinedAt(member.getJoinedAt() != null ? member.getJoinedAt() : group.getCreatedAt())
+                        .status("active")
+                        .preferences(extractMemberPreferences(group))
+                        .build();
+                })
+                .collect(Collectors.toList());
+        }
+        
+        // Fallback: if no stored member data, use userIds with minimal info
+        log.warn("No stored member data found for group '{}', using fallback method", group.getId());
         return group.getUserIds().stream()
             .map(userId -> {
                 boolean isLeader = userId.equals(group.getCreatorUserId()) || userId.equals(group.getCreatedBy());
                 
-                // Fetch real user details from user service
-                try {
-                    log.info("Attempting to get member details for userId: '{}'", userId);
-                    
-                    String userName = userServiceClient.getUserNameByUid(userId);
-                    UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(userId);
-                    
-                    log.info("UserServiceClient.getUserNameByUid('{}') returned: '{}'", userId, userName);
-                    log.info("UserServiceClient.getUserByUid('{}') returned profile: {}", userId, userProfile != null ? "found" : "null");
-                    
-                    // Use the name from getUserNameByUid if it's not just the fallback
-                    String finalUserName = (userName != null && !userName.equals(userId)) ? userName : "User " + userId;
-                    String userEmail = (userProfile != null && userProfile.getEmail() != null) ? userProfile.getEmail() : userId + "@example.com";
-                    
-                    log.info("Final member details - userId: '{}', name: '{}', email: '{}'", userId, finalUserName, userEmail);
-                    
-                    return ComprehensiveTripResponse.MemberSummary.builder()
-                        .userId(userId)
-                        .name(finalUserName)
-                        .email(userEmail)
-                        .role(isLeader ? "leader" : "member")
-                        .joinedAt(group.getCreatedAt()) // Simplified - would track individual join times
-                        .status("active")
-                        .preferences(extractMemberPreferences(group))
-                        .build();
-                } catch (Exception e) {
-                    log.warn("Failed to get user details for userId {}: {}", userId, e.getMessage());
-                    // Return fallback data if user service call fails
-                    return ComprehensiveTripResponse.MemberSummary.builder()
-                        .userId(userId)
-                        .name("User " + userId)
-                        .email(userId + "@example.com")
-                        .role(isLeader ? "leader" : "member")
-                        .joinedAt(group.getCreatedAt())
-                        .status("active")
-                        .preferences(extractMemberPreferences(group))
-                        .build();
-                }
+                log.info("Using fallback member data - userId: '{}'", userId);
+                
+                return ComprehensiveTripResponse.MemberSummary.builder()
+                    .userId(userId)
+                    .name("User " + userId)
+                    .email(userId + "@example.com")
+                    .role(isLeader ? "leader" : "member")
+                    .joinedAt(group.getCreatedAt())
+                    .status("active")
+                    .preferences(extractMemberPreferences(group))
+                    .build();
             })
             .collect(Collectors.toList());
     }

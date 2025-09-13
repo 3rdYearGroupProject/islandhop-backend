@@ -127,6 +127,8 @@ public class UserServiceClient {
         private String firstName;
         private String lastName;
         private String nationality;
+        private String dob; // Date of birth
+        private int profileCompletion; // Profile completion percentage
         
         public String getFullName() {
             if (firstName != null && lastName != null) {

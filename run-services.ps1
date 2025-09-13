@@ -8,4 +8,3 @@ Start-Process powershell -ArgumentList "-NoExit -Command `$host.ui.RawUI.WindowT
 Start-Process powershell -ArgumentList "-NoExit -Command `$host.ui.RawUI.WindowTitle = 'Pooling Service'; cd d:\groupProject\islandhop-backend\pooling-service; mvn spring-boot:run"
 
 
-Start-Process powershell -ArgumentList "-NoExit -Command `$host.ui.RawUI.WindowTitle = 'Firebase User Microservice'; cd d:\groupProject\islandhop-backend\firebase-user-microservice; mvn spring-boot:run"

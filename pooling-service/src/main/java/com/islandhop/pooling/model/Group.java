@@ -1,6 +1,8 @@
 package com.islandhop.pooling.model;
 
 import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -36,6 +38,8 @@ public class Group {
     private String createdBy; // Alias for creatorUserId for backward compatibility
         
     private List<String> userIds = new ArrayList<>(); // List of user IDs in the group
+    
+    private List<Member> members = new ArrayList<>(); // Detailed member information including creator
     
     @Indexed
     private String visibility; // "private" or "public"
@@ -225,6 +229,75 @@ public class Group {
         this.createdBy = createdBy;
         if (this.creatorUserId == null) {
             this.creatorUserId = createdBy;
+        }
+    }
+    
+    /**
+     * Helper methods for member management
+     */
+    public void addMember(Member member) {
+        if (!userIds.contains(member.getUserId())) {
+            userIds.add(member.getUserId());
+        }
+        
+        // Remove existing member with same userId and add new one
+        members.removeIf(m -> m.getUserId().equals(member.getUserId()));
+        members.add(member);
+    }
+    
+    public Member getMemberByUserId(String userId) {
+        return members.stream()
+                .filter(m -> m.getUserId().equals(userId))
+                .findFirst()
+                .orElse(null);
+    }
+    
+    /**
+     * Embedded class representing a group member with full profile details.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Member {
+        private String userId;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String nationality;
+        private List<String> languages;
+        private String dob; // Date of birth (e.g., "2000-05-15")
+        private int profileCompletion; // Profile completion percentage (e.g., 85)
+        private Instant joinedAt;
+        private boolean isCreator;
+        
+        public String getFullName() {
+            if (firstName != null && lastName != null) {
+                return firstName + " " + lastName;
+            }
+            return email != null ? email : userId;
+        }
+        
+        public static Member createFromUserProfile(String userId, 
+                                                  String email, 
+                                                  String firstName, 
+                                                  String lastName, 
+                                                  String nationality, 
+                                                  List<String> languages,
+                                                  String dob,
+                                                  int profileCompletion,
+                                                  boolean isCreator) {
+            Member member = new Member();
+            member.setUserId(userId);
+            member.setEmail(email);
+            member.setFirstName(firstName);
+            member.setLastName(lastName);
+            member.setNationality(nationality);
+            member.setLanguages(languages);
+            member.setDob(dob);
+            member.setProfileCompletion(profileCompletion);
+            member.setJoinedAt(Instant.now());
+            member.setCreator(isCreator);
+            return member;
         }
     }
 }
