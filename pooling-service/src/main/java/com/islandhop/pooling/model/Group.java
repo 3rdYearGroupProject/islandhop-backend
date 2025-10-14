@@ -67,6 +67,23 @@ public class Group {
     
     private int maxMembers = 12; // Maximum number of members allowed
     
+    // Trip logistics and cost details (added for finalization)
+    private Double averageDriverCost;
+    
+    private Double averageGuideCost;
+    
+    private Double totalCost;
+    
+    private Double costPerPerson;
+    
+    private Integer maxParticipants;
+    
+    private String vehicleType;
+    
+    private Boolean needDriver;
+    
+    private Boolean needGuide;
+    
     /**
      * Get the creator's user ID (first user in the list).
      */

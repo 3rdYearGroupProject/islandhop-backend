@@ -28,6 +28,9 @@ public class ComprehensiveTripResponse {
     // Member Information
     private List<MemberSummary> members;
     
+    // Pending Join Requests (only visible to group members)
+    private List<PendingJoinRequest> pendingJoinRequests;
+    
     // Response metadata
     private String status;
     private String message;
@@ -122,5 +125,24 @@ public class ComprehensiveTripResponse {
         private List<String> preferredActivities;
         private List<String> preferredTerrains;
         private String activityPacing;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PendingJoinRequest {
+        private String joinRequestId;
+        private String requestingUserId;
+        private String requestingUserName;
+        private String requestingUserEmail;
+        private String message;
+        private Instant requestedAt;
+        private Map<String, Object> userProfile;
+        private boolean hasCurrentUserVoted;
+        private String currentUserVote; // "approve", "reject", or null
+        private int totalVotesReceived;
+        private int totalVotesRequired;
+        private List<String> pendingMemberIds;
     }
 }

@@ -47,6 +47,24 @@ public class UserServiceClient {
                 profile.setFirstName((String) response.get("firstName"));
                 profile.setLastName((String) response.get("lastName"));
                 profile.setNationality((String) response.get("nationality"));
+                profile.setDob((String) response.get("dob")); // ISO date string
+                
+                // Handle profileCompletion - could be Integer or int
+                Object profileCompletionObj = response.get("profileCompletion");
+                if (profileCompletionObj instanceof Number) {
+                    profile.setProfileCompletion(((Number) profileCompletionObj).intValue());
+                }
+                
+                // Handle languages list
+                @SuppressWarnings("unchecked")
+                java.util.List<String> languages = (java.util.List<String>) response.get("languages");
+                profile.setLanguages(languages);
+                
+                // Handle profile picture (byte array) - note: might be null
+                Object profilePicObj = response.get("profilePic");
+                if (profilePicObj instanceof byte[]) {
+                    profile.setProfilePic((byte[]) profilePicObj);
+                }
                 
                 return profile;
             }
@@ -94,6 +112,24 @@ public class UserServiceClient {
                 profile.setFirstName((String) response.get("firstName"));
                 profile.setLastName((String) response.get("lastName"));
                 profile.setNationality((String) response.get("nationality"));
+                profile.setDob((String) response.get("dob")); // ISO date string
+                
+                // Handle profileCompletion - could be Integer or int
+                Object profileCompletionObj = response.get("profileCompletion");
+                if (profileCompletionObj instanceof Number) {
+                    profile.setProfileCompletion(((Number) profileCompletionObj).intValue());
+                }
+                
+                // Handle languages list
+                @SuppressWarnings("unchecked")
+                java.util.List<String> languages = (java.util.List<String>) response.get("languages");
+                profile.setLanguages(languages);
+                
+                // Handle profile picture (byte array) - note: might be null
+                Object profilePicObj = response.get("profilePic");
+                if (profilePicObj instanceof byte[]) {
+                    profile.setProfilePic((byte[]) profilePicObj);
+                }
                 
                 return profile;
             }
@@ -127,8 +163,10 @@ public class UserServiceClient {
         private String firstName;
         private String lastName;
         private String nationality;
-        private String dob; // Date of birth
-        private int profileCompletion; // Profile completion percentage
+        private String dob; // Date of birth as ISO string
+        private Integer profileCompletion; // Profile completion percentage
+        private java.util.List<String> languages; // User's languages
+        private byte[] profilePic; // Profile picture as byte array
         
         public String getFullName() {
             if (firstName != null && lastName != null) {

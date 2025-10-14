@@ -459,6 +459,8 @@ public class PublicPoolingService {
                 .tripDetails(buildTripDetails(tripData))
                 .groupInfo(group != null ? buildGroupInfo(group) : null)
                 .members(group != null ? buildMemberSummaries(group) : List.of())
+                .pendingJoinRequests(group != null && userId != null && group.isMember(userId) ? 
+                    buildPendingJoinRequests(group, userId) : List.of())
                 .status("success")
                 .message("Comprehensive trip details retrieved successfully")
                 .fetchedAt(Instant.now())
@@ -738,7 +740,7 @@ public class PublicPoolingService {
      */
     public FinalizeGroupResponse finalizeGroup(String groupId, FinalizeGroupRequest request) {
         String userId = request.getUserId();
-        log.info("User {} attempting to finalize group {}", userId, groupId);
+        log.info("User {} attempting to finalize group {} with cost details", userId, groupId);
         
         try {
             // Find the group
@@ -777,20 +779,66 @@ public class PublicPoolingService {
                     "Cannot finalize group - group must have at least one member");
             }
             
+            // Update trip with finalization details (costs, vehicle type, etc.)
+            if (group.getTripId() != null) {
+                try {
+                    log.info("Updating trip {} with finalization details", group.getTripId());
+                    itineraryServiceClient.updateTripFinalizationDetails(group.getTripId(), userId, request)
+                        .doOnSuccess(response -> log.info("Successfully updated trip {} finalization details", group.getTripId()))
+                        .doOnError(error -> log.warn("Failed to update trip finalization details: {}", error.getMessage()))
+                        .subscribe(); // Fire and forget - don't block group finalization on trip update failure
+                } catch (Exception e) {
+                    log.warn("Error updating trip finalization details for trip {}: {}", group.getTripId(), e.getMessage());
+                    // Continue with group finalization even if trip update fails
+                }
+            }
+            
             // Update group status to active (will be finalized after payments)
             group.setStatus("active");
             group.setLastUpdated(Instant.now());
             
+            // Store cost and logistics information directly in group fields
+            group.setAverageDriverCost(request.getAverageDriverCost());
+            group.setAverageGuideCost(request.getAverageGuideCost());
+            group.setTotalCost(request.getTotalCost());
+            group.setCostPerPerson(request.getCostPerPerson());
+            group.setMaxParticipants(request.getMaxParticipants());
+            group.setVehicleType(request.getVehicleType());
+            group.setNeedDriver(request.getNeedDriver());
+            group.setNeedGuide(request.getNeedGuide());
+            
+            // Also store in preferences for backward compatibility and easy querying
+            Map<String, Object> preferences = group.getPreferences();
+            if (preferences == null) {
+                preferences = new HashMap<>();
+            }
+            preferences.put("averageDriverCost", request.getAverageDriverCost());
+            preferences.put("averageGuideCost", request.getAverageGuideCost());
+            preferences.put("totalCost", request.getTotalCost());
+            preferences.put("costPerPerson", request.getCostPerPerson());
+            preferences.put("maxParticipants", request.getMaxParticipants());
+            preferences.put("vehicleType", request.getVehicleType());
+            preferences.put("needDriver", request.getNeedDriver());
+            preferences.put("needGuide", request.getNeedGuide());
+            preferences.put("finalizedAt", Instant.now().toString());
+            group.setPreferences(preferences);
+            
             // Save the updated group
             Group updatedGroup = groupRepository.save(group);
             
-            log.info("Group {} successfully activated by user {} with {} members", 
-                    updatedGroup.getId(), userId, updatedGroup.getUserIds().size());
+            log.info("Group {} successfully activated by user {} with {} members and logistics: {} - Driver: {} - Guide: {}", 
+                    updatedGroup.getId(), userId, updatedGroup.getUserIds().size(), 
+                    request.getVehicleType(), request.getNeedDriver(), request.getNeedGuide());
             
             return new FinalizeGroupResponse(groupId, 
-                String.format("Group '%s' activated successfully with %d member(s). Your trip is now ready for the next steps.", 
+                String.format("Group '%s' activated successfully with %d member(s). Vehicle: %s, Total cost: LKR %.2f (%.2f per person). Driver needed: %s, Guide needed: %s. Your trip is now ready for the next steps.", 
                         group.getGroupName() != null ? group.getGroupName() : "Trip Group", 
-                        group.getUserIds().size()));
+                        group.getUserIds().size(),
+                        request.getVehicleType(),
+                        request.getTotalCost(),
+                        request.getCostPerPerson(),
+                        request.getNeedDriver() ? "Yes" : "No",
+                        request.getNeedGuide() ? "Yes" : "No"));
                         
         } catch (Exception e) {
             log.error("Error finalizing group {} by user {}: {}", groupId, userId, e.getMessage(), e);
@@ -884,6 +932,66 @@ public class PublicPoolingService {
         return response;
     }
     
+    /**
+     * Build pending join requests for group members to see and vote on.
+     * Only returns pending requests if the user is a member of the group.
+     */
+    private List<ComprehensiveTripResponse.PendingJoinRequest> buildPendingJoinRequests(Group group, String userId) {
+        if (!group.isMember(userId)) {
+            return List.of(); // Only group members can see pending requests
+        }
+        
+        return group.getJoinRequests().stream()
+            .filter(joinRequest -> joinRequest.isPending())
+            .map(joinRequest -> {
+                // Check if current user has voted
+                boolean hasVoted = joinRequest.hasMemberResponded(userId);
+                String currentUserVote = null;
+                if (hasVoted) {
+                    if (joinRequest.hasMemberApproved(userId)) {
+                        currentUserVote = "approve";
+                    } else if (joinRequest.hasMemberRejected(userId)) {
+                        currentUserVote = "reject";
+                    }
+                }
+                
+                // Fetch requesting user's name from user service if possible
+                String requestingUserName = joinRequest.getUserName();
+                if (requestingUserName == null && joinRequest.getUserEmail() != null) {
+                    try {
+                        UserServiceClient.UserProfile userProfile = userServiceClient.getUserByEmail(joinRequest.getUserEmail());
+                        if (userProfile != null) {
+                            requestingUserName = userProfile.getFullName();
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to fetch user profile for join request from {}: {}", joinRequest.getUserEmail(), e.getMessage());
+                    }
+                }
+                
+                // Fallback to email or user ID if name not available
+                if (requestingUserName == null) {
+                    requestingUserName = joinRequest.getUserEmail() != null ? 
+                        joinRequest.getUserEmail() : joinRequest.getUserId();
+                }
+                
+                return ComprehensiveTripResponse.PendingJoinRequest.builder()
+                    .joinRequestId(joinRequest.getId())
+                    .requestingUserId(joinRequest.getUserId())
+                    .requestingUserName(requestingUserName)
+                    .requestingUserEmail(joinRequest.getUserEmail())
+                    .message(joinRequest.getMessage())
+                    .requestedAt(joinRequest.getRequestedAt())
+                    .userProfile(joinRequest.getUserProfile())
+                    .hasCurrentUserVoted(hasVoted)
+                    .currentUserVote(currentUserVote)
+                    .totalVotesReceived(joinRequest.getMemberApprovals().size())
+                    .totalVotesRequired(group.getUserIds().size())
+                    .pendingMemberIds(joinRequest.getPendingMemberIds(group.getUserIds()))
+                    .build();
+            })
+            .collect(Collectors.toList());
+    }
+
     /**
      * Generates a unique ID for join requests.
      * @return A unique join request ID

@@ -249,6 +249,29 @@ public class GroupController {
         }
     }
 
+    /**
+     * Gets ALL pending items requiring user action - both invitations received and join requests to vote on.
+     * This comprehensive endpoint combines:
+     * 1. Invitations the user has received (to join groups)
+     * 2. Join requests that need the user's vote (for groups they're a member of)
+     *
+     * @param userId The ID of the current user
+     * @return ResponseEntity with all pending items requiring user attention
+     */
+    @GetMapping("/all-pending-items")
+    public ResponseEntity<ComprehensivePendingItemsResponse> getAllPendingItems(@RequestParam String userId) {
+        try {
+            log.info("Getting ALL pending items (invitations + voting requests) for user '{}'", userId);
+            ComprehensivePendingItemsResponse response = groupService.getAllPendingItems(userId);
+            log.info("Successfully retrieved {} invitations and {} voting requests for user '{}'", 
+                    response.getPendingInvitations().size(), response.getPendingVotes().size(), userId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Unexpected error getting all pending items for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get all pending items: " + e.getMessage());
+        }
+    }
+
     
     /**
      * Allows a group member to vote on a join request.

@@ -195,7 +195,7 @@ public class GroupService {
     
     /**
      * Requests to join a public trip collaboration.
-     * Creates a join request that may require approval.
+     * Always creates a pending join request that requires approval from all group members.
      */
     public JoinGroupResponse joinGroup(String groupId, JoinGroupRequest request) {
         log.info("User '{}' requesting to join trip collaboration '{}'", request.getUserId(), groupId);
@@ -225,109 +225,39 @@ public class GroupService {
                 throw new InvalidGroupOperationException("User already has a pending join request for this group");
             }
             
-            JoinGroupResponse response = new JoinGroupResponse();
-            response.setGroupId(groupId);
+            // Always create a pending join request that requires approval from all members
+            JoinRequest joinRequest = new JoinRequest();
+            joinRequest.setId(UUID.randomUUID().toString());
+            joinRequest.setUserId(request.getUserId());
+            joinRequest.setUserEmail(request.getUserEmail());
+            joinRequest.setUserName(request.getUserName());
+            joinRequest.setUserProfile(request.getUserProfile());
+            joinRequest.setMessage(request.getMessage());
+            joinRequest.setStatus("pending");
+            joinRequest.setRequestedAt(Instant.now());
+            joinRequest.setRequiresAllMemberApproval(true); // Require approval from all members
             
-            if (group.isRequiresApproval()) {
-                // Create join request for approval
-                JoinRequest joinRequest = new JoinRequest();
-                joinRequest.setId(UUID.randomUUID().toString());
-                joinRequest.setUserId(request.getUserId());
-                joinRequest.setUserEmail(request.getUserEmail());
-                joinRequest.setUserName(request.getUserName());
-                joinRequest.setUserProfile(request.getUserProfile());
-                joinRequest.setMessage(request.getMessage());
-                joinRequest.setStatus("pending");
-                joinRequest.setRequestedAt(Instant.now());
-                
-                group.addJoinRequest(joinRequest);
-                
-                // Add action
-                GroupAction joinAction = GroupAction.create(
-                    request.getUserId(),
-                    "JOIN_REQUEST_SUBMITTED",
-                    "Join request submitted for approval"
-                );
-                group.getActions().add(joinAction);
-                
-                response.setStatus("pending");
-                response.setMessage("Join request submitted and pending approval from group administrators");
-                
-            } else {
-                // Add user directly to group (no approval required)
-                group.addUser(request.getUserId());
-                
-                // Fetch joining user profile details and add as member
-                try {
-                    log.info("Fetching profile for joining user '{}'", request.getUserId());
-                    UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(request.getUserId());
-                    
-                    if (userProfile != null) {
-                        log.info("Successfully fetched profile for joining user: {} {} ({})", 
-                            userProfile.getFirstName(), userProfile.getLastName(), userProfile.getEmail());
-                        
-                        Group.Member member = Group.Member.createFromUserProfile(
-                            request.getUserId(),
-                            userProfile.getEmail(),
-                            userProfile.getFirstName(),
-                            userProfile.getLastName(),
-                            userProfile.getNationality(),
-                            null, // Languages not available in current UserProfile
-                            userProfile.getDob() != null ? userProfile.getDob() : "",
-                            userProfile.getProfileCompletion(),
-                            false // isCreator
-                        );
-                        group.addMember(member);
-                    } else {
-                        log.warn("Could not fetch profile for joining user '{}', using fallback data", request.getUserId());
-                        // Fallback: create member with minimal data
-                        Group.Member member = Group.Member.createFromUserProfile(
-                            request.getUserId(),
-                            null, // email not available
-                            null, // firstName not available
-                            null, // lastName not available
-                            null, // nationality not available
-                            null, // languages not available
-                            "", // dob not available
-                            0, // profileCompletion not available
-                            false // isCreator
-                        );
-                        group.addMember(member);
-                    }
-                } catch (Exception e) {
-                    log.error("Error fetching profile for joining user '{}': {}", request.getUserId(), e.getMessage());
-                    // Fallback: create member with minimal data
-                    Group.Member member = Group.Member.createFromUserProfile(
-                        request.getUserId(),
-                        null, // email not available
-                        null, // firstName not available
-                        null, // lastName not available
-                        null, // nationality not available
-                        null, // languages not available
-                        "", // dob not available
-                        0, // profileCompletion not available
-                        false // isCreator
-                    );
-                    group.addMember(member);
-                }
-                
-                // Add action
-                GroupAction joinAction = GroupAction.create(
-                    request.getUserId(),
-                    "USER_JOINED",
-                    "User joined the group"
-                );
-                group.getActions().add(joinAction);
-                
-                response.setStatus("success");
-                response.setMessage("Successfully joined the group");
-            }
+            group.addJoinRequest(joinRequest);
+            
+            // Add action
+            GroupAction joinAction = GroupAction.create(
+                request.getUserId(),
+                "JOIN_REQUEST_SUBMITTED",
+                "Join request submitted and pending approval from all group members"
+            );
+            group.getActions().add(joinAction);
             
             group.setLastUpdated(Instant.now());
             groupRepository.save(group);
             
-            log.info("User '{}' join request for group '{}' - Status: {}", 
-                request.getUserId(), groupId, response.getStatus());
+            JoinGroupResponse response = new JoinGroupResponse();
+            response.setGroupId(groupId);
+            response.setStatus("pending");
+            response.setMessage("Join request submitted and pending approval from all group members (" + 
+                group.getUserIds().size() + " member(s) need to vote)");
+            
+            log.info("User '{}' join request for group '{}' - Status: {} - Requires approval from {} members", 
+                request.getUserId(), groupId, response.getStatus(), group.getUserIds().size());
             return response;
             
         } catch (GroupNotFoundException | InvalidGroupOperationException e) {
@@ -570,6 +500,65 @@ public class GroupService {
         } catch (Exception e) {
             log.error("Unexpected error getting pending requests for user {}: {}", userId, e.getMessage(), e);
             throw new GroupCreationException("Failed to get pending requests: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Gets ALL pending items requiring user action - both invitations received and join requests to vote on.
+     * This comprehensive method combines invitations and voting requests into a single response.
+     */
+    public ComprehensivePendingItemsResponse getAllPendingItems(String userId) {
+        log.info("Getting ALL pending items (invitations + voting requests) for user '{}'", userId);
+        
+        try {
+            ComprehensivePendingItemsResponse response = new ComprehensivePendingItemsResponse();
+            response.setStatus("success");
+            
+            // 1. Get pending invitations the user has received
+            List<Invitation> userInvitations = invitationRepository.findByInvitedUserIdAndStatus(userId, "pending");
+            List<ComprehensivePendingItemsResponse.PendingInvitation> pendingInvitations = userInvitations.stream()
+                    .map(this::convertToPendingInvitation)
+                    .collect(Collectors.toList());
+            
+            // 2. Get join requests that need the user's vote (for groups they're a member of)
+            List<Group> userGroups = groupRepository.findByUserIdsContaining(userId);
+            List<ComprehensivePendingItemsResponse.PendingVoteRequest> pendingVotes = new ArrayList<>();
+            
+            for (Group group : userGroups) {
+                List<JoinRequest> pendingRequests = group.getJoinRequests().stream()
+                    .filter(JoinRequest::isPending)
+                    .collect(Collectors.toList());
+                
+                for (JoinRequest joinRequest : pendingRequests) {
+                    ComprehensivePendingItemsResponse.PendingVoteRequest voteRequest = 
+                        convertToPendingVoteRequest(joinRequest, group, userId);
+                    pendingVotes.add(voteRequest);
+                }
+            }
+            
+            // Set response data
+            response.setPendingInvitations(pendingInvitations);
+            response.setTotalInvitations(pendingInvitations.size());
+            response.setPendingVotes(pendingVotes);
+            response.setTotalVoteRequests(pendingVotes.size());
+            response.setTotalPendingItems(pendingInvitations.size() + pendingVotes.size());
+            
+            // Set appropriate message
+            if (response.getTotalPendingItems() == 0) {
+                response.setMessage("No pending items at this time");
+            } else {
+                response.setMessage(String.format("You have %d invitations and %d join requests requiring your attention", 
+                    pendingInvitations.size(), pendingVotes.size()));
+            }
+            
+            log.info("Successfully retrieved {} invitations and {} voting requests for user '{}'", 
+                    pendingInvitations.size(), pendingVotes.size(), userId);
+            
+            return response;
+            
+        } catch (Exception e) {
+            log.error("Unexpected error getting all pending items for user {}: {}", userId, e.getMessage(), e);
+            throw new GroupCreationException("Failed to get all pending items: " + e.getMessage());
         }
     }
 
@@ -1129,8 +1118,13 @@ public class GroupService {
                     
                     // Fetch approved user profile details and add as member
                     try {
-                        log.info("Fetching profile for approved user '{}'", joinRequest.getUserId());
-                        UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(joinRequest.getUserId());
+                        // Try to get profile by email first (more reliable), then fallback to UID
+                        UserServiceClient.UserProfile userProfile = null;
+                        
+                        if (joinRequest.getUserEmail() != null && !joinRequest.getUserEmail().trim().isEmpty()) {
+                            log.info("Fetching profile for approved user by email '{}'", joinRequest.getUserEmail());
+                            userProfile = userServiceClient.getUserByEmail(joinRequest.getUserEmail());
+                        }
                         
                         if (userProfile != null) {
                             log.info("Successfully fetched profile for approved user: {} {} ({})", 
@@ -1142,19 +1136,20 @@ public class GroupService {
                                 userProfile.getFirstName(),
                                 userProfile.getLastName(),
                                 userProfile.getNationality(),
-                                null, // Languages not available in current UserProfile
+                                userProfile.getLanguages(), // Now available from enhanced UserProfile
                                 userProfile.getDob() != null ? userProfile.getDob() : "",
-                                userProfile.getProfileCompletion(),
+                                userProfile.getProfileCompletion() != null ? userProfile.getProfileCompletion() : 0,
                                 false // isCreator
                             );
                             group.addMember(member);
                         } else {
-                            log.warn("Could not fetch profile for approved user '{}', using fallback data", joinRequest.getUserId());
-                            // Fallback: create member with minimal data
+                            log.warn("Could not fetch profile for approved user '{}' (email: '{}'), using fallback data", 
+                                joinRequest.getUserId(), joinRequest.getUserEmail());
+                            // Fallback: create member with available data from join request
                             Group.Member member = Group.Member.createFromUserProfile(
                                 joinRequest.getUserId(),
-                                null, // email not available
-                                null, // firstName not available
+                                joinRequest.getUserEmail(), // Use email from join request
+                                joinRequest.getUserName(), // Use name from join request if available
                                 null, // lastName not available
                                 null, // nationality not available
                                 null, // languages not available
@@ -1166,11 +1161,11 @@ public class GroupService {
                         }
                     } catch (Exception e) {
                         log.error("Error fetching profile for approved user '{}': {}", joinRequest.getUserId(), e.getMessage());
-                        // Fallback: create member with minimal data
+                        // Fallback: create member with available data from join request
                         Group.Member member = Group.Member.createFromUserProfile(
                             joinRequest.getUserId(),
-                            null, // email not available
-                            null, // firstName not available
+                            joinRequest.getUserEmail(), // Use email from join request
+                            joinRequest.getUserName(), // Use name from join request if available
                             null, // lastName not available
                             null, // nationality not available
                             null, // languages not available
@@ -1292,8 +1287,19 @@ public class GroupService {
             
             // Fetch creator profile details and add as member
             try {
-                log.info("Fetching creator profile for user '{}' with email '{}'", request.getUserId(), request.getUserEmail());
-                UserServiceClient.UserProfile creatorProfile = userServiceClient.getUserByUid(request.getUserId());
+                // Try to get profile by email first (more reliable), then fallback to UID
+                UserServiceClient.UserProfile creatorProfile = null;
+                
+                if (request.getUserEmail() != null && !request.getUserEmail().trim().isEmpty()) {
+                    log.info("Fetching creator profile by email '{}'", request.getUserEmail());
+                    creatorProfile = userServiceClient.getUserByEmail(request.getUserEmail());
+                }
+                
+                // Fallback to UID if email lookup failed
+                if (creatorProfile == null) {
+                    log.info("Email lookup failed, trying UID lookup for creator '{}'", request.getUserId());
+                    creatorProfile = userServiceClient.getUserByUid(request.getUserId());
+                }
                 
                 if (creatorProfile != null) {
                     log.info("Successfully fetched profile for creator: {} {} ({})", 
@@ -1305,14 +1311,15 @@ public class GroupService {
                         creatorProfile.getFirstName(),
                         creatorProfile.getLastName(),
                         creatorProfile.getNationality(),
-                        null, // Languages not available in current UserProfile
+                        creatorProfile.getLanguages(), // Now available from enhanced UserProfile
                         creatorProfile.getDob() != null ? creatorProfile.getDob() : "",
-                        creatorProfile.getProfileCompletion(),
+                        creatorProfile.getProfileCompletion() != null ? creatorProfile.getProfileCompletion() : 0,
                         true // isCreator
                     );
                     group.addMember(creatorMember);
                 } else {
-                    log.warn("Could not fetch profile for creator '{}', using fallback data", request.getUserId());
+                    log.warn("Could not fetch profile for creator '{}' (email: '{}'), using fallback data", 
+                        request.getUserId(), request.getUserEmail());
                     // Fallback: create member with available data
                     Group.Member creatorMember = Group.Member.createFromUserProfile(
                         request.getUserId(),
@@ -2128,5 +2135,150 @@ public class GroupService {
         }
         
         return detail;
+    }
+    
+    /**
+     * Convert an Invitation entity to PendingInvitation DTO for comprehensive response.
+     */
+    private ComprehensivePendingItemsResponse.PendingInvitation convertToPendingInvitation(Invitation invitation) {
+        ComprehensivePendingItemsResponse.PendingInvitation pendingInvitation = 
+            new ComprehensivePendingItemsResponse.PendingInvitation();
+        
+        pendingInvitation.setInvitationId(invitation.getId());
+        pendingInvitation.setGroupId(invitation.getGroupId());
+        pendingInvitation.setInviterEmail(invitation.getInviterEmail());
+        pendingInvitation.setMessage(invitation.getMessage());
+        pendingInvitation.setInvitedAt(invitation.getInvitedAt());
+        
+        // Calculate expiration (30 days from invitation)
+        Instant expiresAt = invitation.getInvitedAt().plus(30, ChronoUnit.DAYS);
+        pendingInvitation.setExpiresAt(expiresAt);
+        
+        // Calculate urgency
+        long daysRemaining = ChronoUnit.DAYS.between(Instant.now(), expiresAt);
+        pendingInvitation.setDaysRemaining((int) daysRemaining);
+        
+        if (daysRemaining <= 2) {
+            pendingInvitation.setUrgencyLevel("high");
+        } else if (daysRemaining <= 7) {
+            pendingInvitation.setUrgencyLevel("medium");
+        } else {
+            pendingInvitation.setUrgencyLevel("low");
+        }
+        
+        // Get group details
+        Group group = groupRepository.findById(invitation.getGroupId()).orElse(null);
+        if (group != null) {
+            pendingInvitation.setGroupName(group.getGroupName());
+            pendingInvitation.setTripName(group.getTripName() != null ? group.getTripName() : group.getGroupName());
+            pendingInvitation.setCurrentMembers(group.getUserIds().size());
+            pendingInvitation.setMaxMembers(group.getMaxMembers());
+            
+            // Get group preferences
+            if (group.getPreferences() != null) {
+                pendingInvitation.setBaseCity((String) group.getPreferences().get("baseCity"));
+                @SuppressWarnings("unchecked")
+                List<String> activities = (List<String>) group.getPreferences().get("preferredActivities");
+                pendingInvitation.setPreferredActivities(activities != null ? activities : List.of());
+            }
+            
+            // Get inviter name
+            String inviterName = userServiceClient.getUserNameByUid(group.getCreatorUserId());
+            if (inviterName == null || inviterName.equals(group.getCreatorUserId())) {
+                inviterName = userServiceClient.getUserNameByEmail(group.getCreatorEmail());
+            }
+            if (inviterName == null) {
+                inviterName = "Group Admin";
+            }
+            pendingInvitation.setInviterName(inviterName);
+            
+            // Get trip dates (placeholder for now)
+            pendingInvitation.setTripStartDate(Instant.now().plus(30, ChronoUnit.DAYS));
+            pendingInvitation.setTripEndDate(Instant.now().plus(37, ChronoUnit.DAYS));
+        }
+        
+        return pendingInvitation;
+    }
+    
+    /**
+     * Convert a JoinRequest entity to PendingVoteRequest DTO for comprehensive response.
+     */
+    private ComprehensivePendingItemsResponse.PendingVoteRequest convertToPendingVoteRequest(
+            JoinRequest joinRequest, Group group, String currentUserId) {
+        
+        ComprehensivePendingItemsResponse.PendingVoteRequest voteRequest = 
+            new ComprehensivePendingItemsResponse.PendingVoteRequest();
+        
+        voteRequest.setJoinRequestId(joinRequest.getId());
+        voteRequest.setGroupId(group.getId());
+        voteRequest.setGroupName(group.getGroupName());
+        voteRequest.setTripName(group.getTripName() != null ? group.getTripName() : group.getGroupName());
+        voteRequest.setRequestingUserId(joinRequest.getUserId());
+        voteRequest.setRequestingUserEmail(joinRequest.getUserEmail());
+        voteRequest.setRequestMessage(joinRequest.getMessage());
+        voteRequest.setRequestedAt(joinRequest.getRequestedAt());
+        
+        // Get requesting user's name and profile
+        String userName = userServiceClient.getUserNameByUid(joinRequest.getUserId());
+        if (userName == null || userName.equals(joinRequest.getUserId())) {
+            userName = userServiceClient.getUserNameByEmail(joinRequest.getUserEmail());
+        }
+        if (userName == null) {
+            userName = joinRequest.getUserEmail();
+        }
+        voteRequest.setRequestingUserName(userName);
+        
+        // Get complete user profile
+        UserServiceClient.UserProfile userProfile = userServiceClient.getUserByEmail(joinRequest.getUserEmail());
+        if (userProfile != null) {
+            ComprehensivePendingItemsResponse.UserProfile profile = 
+                new ComprehensivePendingItemsResponse.UserProfile();
+            profile.setUserId(joinRequest.getUserId()); // Use join request user ID since UserProfile doesn't have userId
+            profile.setName(userProfile.getFullName()); // Use getFullName() method
+            profile.setEmail(userProfile.getEmail());
+            profile.setNationality(userProfile.getNationality());
+            profile.setLanguages(userProfile.getLanguages());
+            profile.setProfileImageUrl(null); // UserProfile doesn't have profile image URL, only byte array
+            profile.setProfileComplete(userProfile.getProfileCompletion() != null && userProfile.getProfileCompletion() >= 100);
+            voteRequest.setRequestingUserProfile(profile);
+        }
+        
+        // Calculate voting status
+        boolean hasCurrentUserVoted = joinRequest.getMemberApprovals().stream()
+            .anyMatch(approval -> approval.getMemberId().equals(currentUserId));
+        voteRequest.setHasCurrentUserVoted(hasCurrentUserVoted);
+        
+        if (hasCurrentUserVoted) {
+            String vote = joinRequest.getMemberApprovals().stream()
+                .filter(approval -> approval.getMemberId().equals(currentUserId))
+                .map(approval -> "approve".equals(approval.getAction()) ? "APPROVED" : "REJECTED")
+                .findFirst()
+                .orElse(null);
+            voteRequest.setCurrentUserVote(vote);
+        }
+        
+        voteRequest.setTotalVotesReceived(joinRequest.getMemberApprovals().size());
+        voteRequest.setTotalVotesRequired(group.getUserIds().size());
+        
+        // Find members who haven't voted
+        List<String> pendingMemberIds = group.getUserIds().stream()
+            .filter(memberId -> joinRequest.getMemberApprovals().stream()
+                .noneMatch(approval -> approval.getMemberId().equals(memberId)))
+            .collect(Collectors.toList());
+        voteRequest.setPendingMemberIds(pendingMemberIds);
+        
+        // Calculate urgency
+        long daysPending = ChronoUnit.DAYS.between(joinRequest.getRequestedAt(), Instant.now());
+        voteRequest.setDaysPending((int) daysPending);
+        
+        if (daysPending >= 7) {
+            voteRequest.setUrgencyLevel("high");
+        } else if (daysPending >= 3) {
+            voteRequest.setUrgencyLevel("medium");
+        } else {
+            voteRequest.setUrgencyLevel("low");
+        }
+        
+        return voteRequest;
     }
 }
