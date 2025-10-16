@@ -231,11 +231,51 @@ public class GroupService {
             joinRequest.setUserId(request.getUserId());
             joinRequest.setUserEmail(request.getUserEmail());
             joinRequest.setUserName(request.getUserName());
-            joinRequest.setUserProfile(request.getUserProfile());
             joinRequest.setMessage(request.getMessage());
             joinRequest.setStatus("pending");
             joinRequest.setRequestedAt(Instant.now());
             joinRequest.setRequiresAllMemberApproval(true); // Require approval from all members
+            
+            // Fetch and store complete user profile details
+            try {
+                log.info("Fetching user profile for join request by email '{}'", request.getUserEmail());
+                UserServiceClient.UserProfile userProfile = userServiceClient.getUserByEmail(request.getUserEmail());
+                
+                if (userProfile != null) {
+                    log.info("Successfully fetched profile for joining user: {} {} ({})", 
+                        userProfile.getFirstName(), userProfile.getLastName(), userProfile.getEmail());
+                    
+                    // Store complete profile data in the join request
+                    Map<String, Object> profileData = new HashMap<>();
+                    profileData.put("firstName", userProfile.getFirstName());
+                    profileData.put("lastName", userProfile.getLastName());
+                    profileData.put("email", userProfile.getEmail());
+                    profileData.put("nationality", userProfile.getNationality());
+                    profileData.put("languages", userProfile.getLanguages());
+                    profileData.put("dob", userProfile.getDob());
+                    profileData.put("profileCompletion", userProfile.getProfileCompletion());
+                    profileData.put("fetchedAt", Instant.now().toString());
+                    
+                    joinRequest.setUserProfile(profileData);
+                    
+                    // Use the full name from profile if userName is not provided
+                    if (request.getUserName() == null || request.getUserName().trim().isEmpty()) {
+                        String fullName = (userProfile.getFirstName() != null ? userProfile.getFirstName() : "") + 
+                                         " " + (userProfile.getLastName() != null ? userProfile.getLastName() : "");
+                        joinRequest.setUserName(fullName.trim().isEmpty() ? userProfile.getEmail() : fullName.trim());
+                    }
+                    
+                } else {
+                    log.warn("Could not fetch profile for joining user '{}' (email: '{}'), using provided data", 
+                        request.getUserId(), request.getUserEmail());
+                    // Use provided userProfile data as fallback
+                    joinRequest.setUserProfile(request.getUserProfile());
+                }
+            } catch (Exception e) {
+                log.error("Error fetching profile for joining user '{}': {}", request.getUserId(), e.getMessage());
+                // Use provided userProfile data as fallback
+                joinRequest.setUserProfile(request.getUserProfile());
+            }
             
             group.addJoinRequest(joinRequest);
             
@@ -1278,7 +1318,7 @@ public class GroupService {
             group.setVisibility(request.getVisibility());
             group.setCreatorUserId(request.getUserId());
             group.setCreatedBy(request.getUserId()); // Set both fields for consistency
-            group.setCreatorEmail(request.getUserEmail()); // Store creator email for name lookup
+            group.setCreatorEmail(request.getEmail()); // Store creator email for name lookup
             group.setMaxMembers(request.getMaxMembers());
             group.setRequiresApproval(request.getRequiresApproval() != null ? request.getRequiresApproval() : false);
             group.setUserIds(List.of(request.getUserId()));
@@ -1290,9 +1330,9 @@ public class GroupService {
                 // Try to get profile by email first (more reliable), then fallback to UID
                 UserServiceClient.UserProfile creatorProfile = null;
                 
-                if (request.getUserEmail() != null && !request.getUserEmail().trim().isEmpty()) {
-                    log.info("Fetching creator profile by email '{}'", request.getUserEmail());
-                    creatorProfile = userServiceClient.getUserByEmail(request.getUserEmail());
+                if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+                    log.info("Fetching creator profile by email '{}'", request.getEmail());
+                    creatorProfile = userServiceClient.getUserByEmail(request.getEmail());
                 }
                 
                 // Fallback to UID if email lookup failed
@@ -1319,11 +1359,11 @@ public class GroupService {
                     group.addMember(creatorMember);
                 } else {
                     log.warn("Could not fetch profile for creator '{}' (email: '{}'), using fallback data", 
-                        request.getUserId(), request.getUserEmail());
+                        request.getUserId(), request.getEmail());
                     // Fallback: create member with available data
                     Group.Member creatorMember = Group.Member.createFromUserProfile(
                         request.getUserId(),
-                        request.getUserEmail(),
+                        request.getEmail(),
                         null, // firstName not available
                         null, // lastName not available
                         null, // nationality not available
@@ -1339,7 +1379,7 @@ public class GroupService {
                 // Fallback: create member with minimal data
                 Group.Member creatorMember = Group.Member.createFromUserProfile(
                     request.getUserId(),
-                    request.getUserEmail(),
+                    request.getEmail(),
                     null, // firstName not available
                     null, // lastName not available
                     null, // nationality not available  
@@ -1694,7 +1734,7 @@ public class GroupService {
                 }
                 
                 joinRequest.finalizeBasedOnApprovals(group.getUserIds());
-                group.addUser(joinRequest.getUserId());
+                group.addUserFromJoinRequest(joinRequest);
                 
                 GroupAction action = GroupAction.create(
                     request.getUserId(),
@@ -2002,7 +2042,7 @@ public class GroupService {
                 
                 // Remove the join request and add user
                 group.getJoinRequests().remove(joinRequest);
-                group.addUser(requestUserId);
+                group.addUserFromJoinRequest(joinRequest);
                 
                 GroupAction approvalAction = GroupAction.create(
                     request.getUserId(),

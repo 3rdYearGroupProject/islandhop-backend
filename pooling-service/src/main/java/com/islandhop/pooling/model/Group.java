@@ -120,6 +120,51 @@ public class Group {
     }
     
     /**
+     * Add a user to the group with profile data from join request.
+     */
+    public void addUserFromJoinRequest(JoinRequest joinRequest) {
+        // Add to userIds if not already present
+        if (!userIds.contains(joinRequest.getUserId())) {
+            userIds.add(joinRequest.getUserId());
+        }
+        
+        // Create and add Member object with profile data
+        if (joinRequest.getUserProfile() != null) {
+            Map<String, Object> profile = joinRequest.getUserProfile();
+            
+            Member member = Member.createFromUserProfile(
+                joinRequest.getUserId(),
+                joinRequest.getUserEmail(),
+                (String) profile.get("firstName"),
+                (String) profile.get("lastName"),
+                (String) profile.get("nationality"),
+                (List<String>) profile.get("languages"),
+                (String) profile.get("dob"),
+                profile.get("profileCompletion") != null ? 
+                    ((Number) profile.get("profileCompletion")).intValue() : 0,
+                false // not creator
+            );
+            
+            addMember(member);
+        } else {
+            // Fallback: create minimal member data
+            Member member = Member.createFromUserProfile(
+                joinRequest.getUserId(),
+                joinRequest.getUserEmail(),
+                null, // firstName not available
+                null, // lastName not available
+                null, // nationality not available
+                null, // languages not available
+                "", // dob not available
+                0, // profileCompletion not available
+                false // not creator
+            );
+            
+            addMember(member);
+        }
+    }
+    
+    /**
      * Remove a user from the group.
      */
     public void removeUser(String userId) {
