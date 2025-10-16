@@ -138,3 +138,4 @@ target/
 .user-services/logs/
 user-services/logs/*.log
 user-services/logs/*.gz
+payhere-payment-service/logs/payhere-payment-service.log.2025-10-15.0.gz
