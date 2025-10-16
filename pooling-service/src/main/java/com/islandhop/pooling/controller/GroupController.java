@@ -120,8 +120,11 @@ public class GroupController {
             @PathVariable String groupId,
             @Valid @RequestBody JoinGroupRequest request) {
         try {
-            log.info("User '{}' requesting to join group '{}'", request.getUserId(), groupId);
+            log.info("User '{}' (email: '{}') requesting to join group '{}'", 
+                    request.getUserId(), request.getUserEmail(), groupId);
             JoinGroupResponse response = groupService.joinGroup(groupId, request);
+            log.info("Join request processed successfully for user '{}' in group '{}' with status: {}", 
+                    request.getUserId(), groupId, response.getStatus());
             return ResponseEntity.ok(response);
         } catch (GroupNotFoundException e) {
             log.warn("Group not found for join request: {}", e.getMessage());

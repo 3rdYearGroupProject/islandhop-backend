@@ -110,6 +110,9 @@ public class ComprehensiveTripResponse {
         private String userId;
         private String name; // Will be fetched from user service or defaulted  
         private String email; // Will be fetched from user service or defaulted
+        private String nationality; // User's nationality
+        private List<String> languages; // Languages spoken by the user
+        private Integer age; // User's age calculated from DOB
         private String role; // "leader" or "member"
         private Instant joinedAt;
         private String status; // "active", "pending", "left"

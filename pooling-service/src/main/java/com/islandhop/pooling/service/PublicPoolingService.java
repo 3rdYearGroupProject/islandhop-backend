@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Period;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -564,22 +566,72 @@ public class PublicPoolingService {
     }
     
     /**
-     * Build member summaries with basic information.
+     * Build member summaries using stored member data from the group.
+     * Uses the enhanced member details stored in the group collection instead of external API calls.
      */
     private List<ComprehensiveTripResponse.MemberSummary> buildMemberSummaries(Group group) {
+        log.info("Building member summaries for group '{}' with {} stored members", group.getId(), 
+                group.getMembers() != null ? group.getMembers().size() : 0);
+        
+        // If we have stored member data, use it (preferred method)
+        if (group.getMembers() != null && !group.getMembers().isEmpty()) {
+            log.info("Using stored member data for {} members", group.getMembers().size());
+            
+            return group.getMembers().stream()
+                .map(member -> {
+                    log.debug("Processing stored member: userId='{}', name='{}', email='{}', nationality='{}', languages='{}'", 
+                        member.getUserId(), member.getFullName(), member.getEmail(), 
+                        member.getNationality(), member.getLanguages());
+                    
+                    // Calculate age from date of birth
+                    Integer age = calculateAge(member.getDob());
+                    
+                    return ComprehensiveTripResponse.MemberSummary.builder()
+                        .userId(member.getUserId())
+                        .name(member.getFullName())
+                        .email(member.getEmail() != null ? member.getEmail() : member.getUserId() + "@example.com")
+                        .nationality(member.getNationality())
+                        .languages(member.getLanguages() != null ? member.getLanguages() : new ArrayList<>())
+                        .age(age)
+                        .role(member.isCreator() ? "leader" : "member")
+                        .joinedAt(member.getJoinedAt() != null ? member.getJoinedAt() : group.getCreatedAt())
+                        .status("active")
+                        .preferences(extractMemberPreferences(group))
+                        .build();
+                })
+                .collect(Collectors.toList());
+        }
+        
+        // Fallback: if no stored member data, use userIds with external API calls
+        log.warn("No stored member data found for group '{}', falling back to external API calls", group.getId());
         return group.getUserIds().stream()
             .map(userId -> {
                 boolean isLeader = userId.equals(group.getCreatedBy());
                 
-                // Fetch real user details from user service
-                UserServiceClient.UserProfile userProfile = userServiceClient.getUserByUid(userId);
-                String userName = userProfile != null ? userProfile.getFullName() : userId;
+                // Fetch real user details from user service as fallback
+                UserServiceClient.UserProfile userProfile = null;
+                try {
+                    userProfile = userServiceClient.getUserByUid(userId);
+                } catch (Exception e) {
+                    log.warn("Failed to fetch user profile for userId '{}': {}", userId, e.getMessage());
+                }
+                
+                String userName = userProfile != null ? userProfile.getFullName() : "User " + userId;
                 String userEmail = userProfile != null ? userProfile.getEmail() : userId + "@example.com";
+                String nationality = userProfile != null ? userProfile.getNationality() : null;
+                List<String> languages = userProfile != null ? userProfile.getLanguages() : new ArrayList<>();
+                Integer age = userProfile != null ? calculateAge(userProfile.getDob()) : null;
+                
+                log.debug("Using fallback member data: userId='{}', name='{}', email='{}', nationality='{}', age={}", 
+                         userId, userName, userEmail, nationality, age);
                 
                 return ComprehensiveTripResponse.MemberSummary.builder()
                     .userId(userId)
                     .name(userName)
                     .email(userEmail)
+                    .nationality(nationality)
+                    .languages(languages)
+                    .age(age)
                     .role(isLeader ? "leader" : "member")
                     .joinedAt(group.getCreatedAt()) // Simplified - would track individual join times
                     .status("active")
@@ -934,6 +986,7 @@ public class PublicPoolingService {
     
     /**
      * Build pending join requests for group members to see and vote on.
+     * Uses stored profile data from join requests instead of external API calls.
      * Only returns pending requests if the user is a member of the group.
      */
     private List<ComprehensiveTripResponse.PendingJoinRequest> buildPendingJoinRequests(Group group, String userId) {
@@ -941,9 +994,15 @@ public class PublicPoolingService {
             return List.of(); // Only group members can see pending requests
         }
         
+        log.info("Building pending join requests for group '{}' with {} pending requests", 
+                group.getId(), group.getJoinRequests().stream().mapToInt(jr -> jr.isPending() ? 1 : 0).sum());
+        
         return group.getJoinRequests().stream()
             .filter(joinRequest -> joinRequest.isPending())
             .map(joinRequest -> {
+                log.debug("Processing pending join request from user '{}' with email '{}'", 
+                    joinRequest.getUserId(), joinRequest.getUserEmail());
+                
                 // Check if current user has voted
                 boolean hasVoted = joinRequest.hasMemberResponded(userId);
                 String currentUserVote = null;
@@ -955,24 +1014,34 @@ public class PublicPoolingService {
                     }
                 }
                 
-                // Fetch requesting user's name from user service if possible
+                // Use stored user name, fallback to external API if needed
                 String requestingUserName = joinRequest.getUserName();
-                if (requestingUserName == null && joinRequest.getUserEmail() != null) {
+                
+                // If no stored name, try to fetch from user service (last resort)
+                if ((requestingUserName == null || requestingUserName.equals(joinRequest.getUserEmail())) 
+                    && joinRequest.getUserEmail() != null) {
                     try {
+                        log.debug("Attempting to fetch user profile for join request from '{}'", joinRequest.getUserEmail());
                         UserServiceClient.UserProfile userProfile = userServiceClient.getUserByEmail(joinRequest.getUserEmail());
                         if (userProfile != null) {
                             requestingUserName = userProfile.getFullName();
+                            log.debug("Fetched user name '{}' from external API", requestingUserName);
                         }
                     } catch (Exception e) {
                         log.warn("Failed to fetch user profile for join request from {}: {}", joinRequest.getUserEmail(), e.getMessage());
                     }
                 }
                 
-                // Fallback to email or user ID if name not available
-                if (requestingUserName == null) {
+                // Final fallback to email or user ID if name not available
+                if (requestingUserName == null || requestingUserName.trim().isEmpty()) {
                     requestingUserName = joinRequest.getUserEmail() != null ? 
-                        joinRequest.getUserEmail() : joinRequest.getUserId();
+                        joinRequest.getUserEmail() : "User " + joinRequest.getUserId();
+                    log.debug("Using fallback name '{}' for join request", requestingUserName);
                 }
+                
+                log.debug("Building join request response: userId='{}', name='{}', email='{}', hasProfile={}", 
+                    joinRequest.getUserId(), requestingUserName, joinRequest.getUserEmail(), 
+                    joinRequest.getUserProfile() != null);
                 
                 return ComprehensiveTripResponse.PendingJoinRequest.builder()
                     .joinRequestId(joinRequest.getId())
@@ -981,7 +1050,7 @@ public class PublicPoolingService {
                     .requestingUserEmail(joinRequest.getUserEmail())
                     .message(joinRequest.getMessage())
                     .requestedAt(joinRequest.getRequestedAt())
-                    .userProfile(joinRequest.getUserProfile())
+                    .userProfile(joinRequest.getUserProfile()) // Use stored profile data
                     .hasCurrentUserVoted(hasVoted)
                     .currentUserVote(currentUserVote)
                     .totalVotesReceived(joinRequest.getMemberApprovals().size())
@@ -998,5 +1067,29 @@ public class PublicPoolingService {
      */
     private String generateJoinRequestId() {
         return UUID.randomUUID().toString();
+    }
+    
+    /**
+     * Calculate age from date of birth string.
+     * @param dobString Date of birth in string format (YYYY-MM-DD)
+     * @return Age in years, or null if DOB is invalid
+     */
+    private Integer calculateAge(String dobString) {
+        if (dobString == null || dobString.trim().isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // Parse the date string (assuming format YYYY-MM-DD)
+            LocalDate birthDate = LocalDate.parse(dobString);
+            LocalDate currentDate = LocalDate.now();
+            
+            // Calculate age
+            int age = Period.between(birthDate, currentDate).getYears();
+            return age >= 0 ? age : null;
+        } catch (Exception e) {
+            log.warn("Failed to calculate age from DOB '{}': {}", dobString, e.getMessage());
+            return null;
+        }
     }
 }

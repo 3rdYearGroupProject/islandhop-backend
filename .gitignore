@@ -138,3 +138,5 @@ target/
 .user-services/logs/
 user-services/logs/*.log
 user-services/logs/*.gz
+pooling-service/EMAIL_BASED_MEMBER_PROFILE_CACHING.md
+pooling-service/FRONTEND_INTEGRATION_COMPLETE_GUIDE.md
