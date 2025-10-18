@@ -36,7 +36,7 @@ public class ExternalApiService {
 
     private static final String TRIPADVISOR_API_BASE_URL = "https://api.content.tripadvisor.com/api/v1/location";
     private static final int DEFAULT_RADIUS = 15000; // 15km radius
-    private static final int MAX_RESULTS = 10;
+    private static final int MAX_RESULTS = 5; // Limit to 5 results to reduce API calls
 
     // Rate limiting configuration
     @Value("${api.max-concurrent-calls:5}")
