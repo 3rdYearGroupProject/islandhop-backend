@@ -1,29 +1,32 @@
 package com.islandhop.chat.security;
 
-import com.google.firebase.auth.FirebaseAuthException;
-import com.islandhop.chat.service.FirebaseAuthService;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Collections;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
-import java.util.Collections;
+import com.islandhop.chat.service.FirebaseAuthService;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Filter to authenticate requests using Firebase ID tokens.
  * Validates the Authorization header and sets the security context.
+ * 
+ * DISABLED: This filter is currently disabled for development/testing.
+ * To re-enable, uncomment @Component annotation and add back to SecurityConfig.
  */
-@Component
+// @Component - DISABLED FOR NO-AUTH MODE
 public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(FirebaseAuthenticationFilter.class);

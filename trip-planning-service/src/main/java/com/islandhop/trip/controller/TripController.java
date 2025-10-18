@@ -335,6 +335,85 @@ public class TripController {
     }
 
     /**
+     * Removes a place from a specific day and type in the trip itinerary.
+     * Allows users to remove attractions, hotels, or restaurants from their trip plans.
+     *
+     * @param tripId The unique ID of the trip
+     * @param day The day number (1-based, 1-30)
+     * @param type The type of place (attractions, hotels, restaurants)
+     * @param placeName Query parameter for the name of the place to remove
+     * @param userId Query parameter for user authentication
+     * @return ResponseEntity with success message or error details
+     */
+    @DeleteMapping("/{tripId}/day/{day}/{type}")
+    public ResponseEntity<?> removePlaceFromItinerary(
+            @PathVariable String tripId,
+            @PathVariable @Min(value = 1, message = "Day must be at least 1") 
+                        @Max(value = 30, message = "Day cannot exceed 30") int day,
+            @PathVariable String type,
+            @RequestParam String placeName,
+            @RequestParam String userId) {
+        
+        log.info("Received request to remove place from itinerary - Trip: {}, Day: {}, Type: {}, User: {}, Place: {}", 
+                tripId, day, type, userId, placeName);
+
+        try {
+            // Remove place from itinerary through service layer
+            tripService.removePlaceFromItinerary(tripId, day, type, userId, placeName);
+            
+            log.info("Successfully removed place {} from {} for trip: {}, day: {}", 
+                    placeName, type, tripId, day);
+            
+            // Create success response
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("tripId", tripId);
+            response.put("day", day);
+            response.put("type", type);
+            response.put("placeName", placeName);
+            response.put("message", "Place removed successfully from itinerary");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (TripNotFoundException e) {
+            log.warn("Trip not found: {} for user: {}", tripId, userId);
+            SuggestionErrorResponse errorResponse = new SuggestionErrorResponse("error", tripId, day, type, 
+                    e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            
+        } catch (UnauthorizedTripAccessException e) {
+            log.warn("Unauthorized access attempt: user {} for trip {}", userId, tripId);
+            SuggestionErrorResponse errorResponse = new SuggestionErrorResponse("error", tripId, day, type, 
+                    "You are not authorized to modify this trip");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+            
+        } catch (InvalidDayException e) {
+            log.warn("Invalid day number: {} for trip: {}", day, tripId);
+            SuggestionErrorResponse errorResponse = new SuggestionErrorResponse("error", tripId, day, type, 
+                    e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (InvalidTypeException e) {
+            log.warn("Invalid type: {} for trip: {}", type, tripId);
+            SuggestionErrorResponse errorResponse = new SuggestionErrorResponse("error", tripId, day, type, 
+                    e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error removing place from trip {}: {}", tripId, e.getMessage());
+            SuggestionErrorResponse errorResponse = new SuggestionErrorResponse("error", tripId, day, type, 
+                    e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (Exception e) {
+            log.error("Unexpected error removing place from trip {}: {}", tripId, e.getMessage(), e);
+            SuggestionErrorResponse errorResponse = new SuggestionErrorResponse("error", tripId, day, type, 
+                    "Failed to remove place from itinerary. Please try again later.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
      * Retrieves the complete trip plan for a given trip ID.
      * Returns all trip details including daily plans with their places.
      *
@@ -385,6 +464,7 @@ public class TripController {
     /**
      * Retrieves all trips for a specific user.
      * Returns a list of trip summaries without detailed daily plans.
+     * Excludes group trips (where type="group").
      *
      * @param userId Query parameter for user identification
      * @return ResponseEntity with list of TripSummaryResponse or error details
@@ -392,7 +472,7 @@ public class TripController {
     @GetMapping
     public ResponseEntity<?> getUserTrips(@RequestParam String userId) {
         
-        log.info("Received request to retrieve all trips for user: {}", userId);
+        log.info("Received request to retrieve all non-group trips for user: {}", userId);
 
         try {
             // Retrieve all trips for the user through service layer
@@ -411,6 +491,69 @@ public class TripController {
             log.error("Unexpected error retrieving trips for user {}: {}", userId, e.getMessage(), e);
             TripSummaryResponse errorResponse = new TripSummaryResponse("error", null, 
                     "Failed to retrieve trips. Please try again later.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Deletes a specific trip plan.
+     * Validates trip ownership before deletion.
+     *
+     * @param tripId The unique ID of the trip to delete
+     * @param userId Query parameter for user authentication
+     * @return ResponseEntity with deletion confirmation or error details
+     */
+    @DeleteMapping("/{tripId}")
+    public ResponseEntity<?> deleteTrip(
+            @PathVariable String tripId,
+            @RequestParam String userId) {
+        
+        log.info("Received request to delete trip - Trip: {}, User: {}", tripId, userId);
+
+        try {
+            // Delete trip through service layer
+            tripService.deleteTrip(tripId, userId);
+            
+            log.info("Successfully deleted trip: {} for user: {}", tripId, userId);
+            
+            // Create success response
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("tripId", tripId);
+            response.put("message", "Trip deleted successfully");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (TripNotFoundException e) {
+            log.warn("Trip not found: {} for user: {}", tripId, userId);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("tripId", tripId);
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            
+        } catch (UnauthorizedTripAccessException e) {
+            log.warn("Unauthorized delete attempt: user {} for trip {}", userId, tripId);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("tripId", tripId);
+            errorResponse.put("message", "You are not authorized to delete this trip");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error deleting trip {}: {}", tripId, e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("tripId", tripId);
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+            
+        } catch (Exception e) {
+            log.error("Unexpected error deleting trip {}: {}", tripId, e.getMessage(), e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("tripId", tripId);
+            errorResponse.put("message", "Failed to delete trip. Please try again later.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }

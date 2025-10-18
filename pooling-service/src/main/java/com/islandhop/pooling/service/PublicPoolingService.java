@@ -3,14 +3,21 @@ package com.islandhop.pooling.service;
 import com.islandhop.pooling.dto.*;
 import com.islandhop.pooling.model.Group;
 import com.islandhop.pooling.model.JoinRequest;
+import com.islandhop.pooling.model.Invitation;
 import com.islandhop.pooling.repository.GroupRepository;
 import com.islandhop.pooling.exception.GroupNotFoundException;
+import com.islandhop.pooling.exception.TripNotFoundException;
+import com.islandhop.pooling.exception.UnauthorizedTripAccessException;
+import com.islandhop.pooling.client.ItineraryServiceClient;
+import com.islandhop.pooling.client.UserServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Period;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,6 +32,8 @@ public class PublicPoolingService {
     
     private final GroupRepository groupRepository;
     private final TripCompatibilityService tripCompatibilityService;
+    private final ItineraryServiceClient itineraryServiceClient;
+    private final UserServiceClient userServiceClient;
     
     @Value("${pooling.compatibility.min-score:0.1}")
     private double minCompatibilityScore;
@@ -409,6 +418,280 @@ public class PublicPoolingService {
     }
     
     /**
+     * Get comprehensive trip details including itinerary and joined group members.
+     * This method is publicly accessible for both logged-in and anonymous users.
+     *
+     * @param tripId The ID of the trip
+     * @param userId The ID of the user making the request (optional)
+     * @return ComprehensiveTripResponse with trip and member information
+     */
+    public ComprehensiveTripResponse getComprehensiveTripDetails(String tripId, String userId) {
+        log.info("Fetching comprehensive trip details for trip {} requested by user {}", tripId, userId != null ? userId : "anonymous");
+        
+        try {
+            // 1. Find associated group first to determine which userId to use for trip service
+            Optional<Group> groupOpt = groupRepository.findFirstByTripId(tripId);
+            Group group = groupOpt.orElse(null);
+            
+            // 2. Determine which userId to use for trip service call
+            String effectiveUserId = userId;
+            if (group != null && group.isPublic()) {
+                // For public groups, use the group owner's userId to fetch trip details
+                effectiveUserId = group.getCreatorUserId();
+                log.info("Using group owner's userId {} for public group trip {}", effectiveUserId, tripId);
+            } else if (userId == null) {
+                // For private groups or no group, userId is required
+                log.warn("No userId provided for non-public trip: {}", tripId);
+                throw new IllegalArgumentException("User ID is required for this trip");
+            }
+            
+            // 3. Get trip data from itinerary service
+            Map<String, Object> tripData = itineraryServiceClient.getTripPlan(tripId, effectiveUserId)
+                .doOnError(error -> log.warn("Failed to fetch trip data from itinerary service: {}", error.getMessage()))
+                .onErrorReturn(new HashMap<>()) // Return empty map if trip service fails
+                .block();
+            
+            if (tripData == null || tripData.isEmpty()) {
+                log.warn("No trip data found for tripId: {}", tripId);
+                throw new TripNotFoundException("Trip not found with ID: " + tripId);
+            }
+            
+            // 4. Build comprehensive response
+            ComprehensiveTripResponse response = ComprehensiveTripResponse.builder()
+                .tripDetails(buildTripDetails(tripData))
+                .groupInfo(group != null ? buildGroupInfo(group) : null)
+                .members(group != null ? buildMemberSummaries(group) : List.of())
+                .pendingJoinRequests(group != null && userId != null && group.isMember(userId) ? 
+                    buildPendingJoinRequests(group, userId) : List.of())
+                .status("success")
+                .message("Comprehensive trip details retrieved successfully")
+                .fetchedAt(Instant.now())
+                .build();
+            
+            log.info("Successfully built comprehensive trip response for trip {} with {} members", 
+                    tripId, group != null ? group.getUserIds().size() : 0);
+            
+            return response;
+            
+        } catch (TripNotFoundException e) {
+            // Re-throw these specific exceptions
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error fetching comprehensive trip details for trip {}: {}", tripId, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch comprehensive trip details: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Build trip details from itinerary service response.
+     */
+    private ComprehensiveTripResponse.TripDetails buildTripDetails(Map<String, Object> tripData) {
+        // Extract daily plans
+        List<Map<String, Object>> dailyPlansData = (List<Map<String, Object>>) tripData.get("dailyPlans");
+        List<ComprehensiveTripResponse.DailyPlanSummary> dailyPlans = dailyPlansData != null ? 
+            dailyPlansData.stream()
+                .map(this::convertToDailyPlanSummary)
+                .collect(Collectors.toList()) : new ArrayList<>();
+        
+        return ComprehensiveTripResponse.TripDetails.builder()
+            .tripId((String) tripData.get("tripId"))
+            .tripName((String) tripData.get("tripName"))
+            .startDate((String) tripData.get("startDate"))
+            .endDate((String) tripData.get("endDate"))
+            .baseCity((String) tripData.get("baseCity"))
+            .budgetLevel((String) tripData.getOrDefault("budgetLevel", "Medium"))
+            .activityPacing((String) tripData.getOrDefault("activityPacing", "Normal"))
+            .preferredActivities((List<String>) tripData.getOrDefault("preferredActivities", new ArrayList<>()))
+            .preferredTerrains((List<String>) tripData.getOrDefault("preferredTerrains", new ArrayList<>()))
+            .multiCityAllowed((Boolean) tripData.getOrDefault("multiCityAllowed", true))
+            .dailyPlans(dailyPlans)
+            .createdAt(parseInstant((String) tripData.get("createdAt")))
+            .lastUpdated(parseInstant((String) tripData.get("lastUpdated")))
+            .build();
+    }
+    
+    /**
+     * Convert daily plan data to summary format.
+     */
+    private ComprehensiveTripResponse.DailyPlanSummary convertToDailyPlanSummary(Map<String, Object> dailyPlan) {
+        List<Map<String, Object>> attractions = (List<Map<String, Object>>) dailyPlan.getOrDefault("attractions", new ArrayList<>());
+        List<Map<String, Object>> hotels = (List<Map<String, Object>>) dailyPlan.getOrDefault("hotels", new ArrayList<>());
+        List<Map<String, Object>> restaurants = (List<Map<String, Object>>) dailyPlan.getOrDefault("restaurants", new ArrayList<>());
+        
+        return ComprehensiveTripResponse.DailyPlanSummary.builder()
+            .day((Integer) dailyPlan.get("day"))
+            .city((String) dailyPlan.get("city"))
+            .userSelected((Boolean) dailyPlan.getOrDefault("userSelected", false))
+            .attractionsCount(attractions.size())
+            .hotelsCount(hotels.size())
+            .restaurantsCount(restaurants.size())
+            .attractions(convertToPlaceSummaries(attractions))
+            .hotels(convertToPlaceSummaries(hotels))
+            .restaurants(convertToPlaceSummaries(restaurants))
+            .build();
+    }
+    
+    /**
+     * Convert place data to place summaries.
+     */
+    private List<ComprehensiveTripResponse.PlaceSummary> convertToPlaceSummaries(List<Map<String, Object>> places) {
+        return places.stream()
+            .map(place -> ComprehensiveTripResponse.PlaceSummary.builder()
+                .name((String) place.get("name"))
+                .category((String) place.get("category"))
+                .rating(parseDouble(place.get("rating")))
+                .address((String) place.get("address"))
+                .userSelected((Boolean) place.getOrDefault("userSelected", false))
+                .build())
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Build group information.
+     */
+    private ComprehensiveTripResponse.GroupInfo buildGroupInfo(Group group) {
+        return ComprehensiveTripResponse.GroupInfo.builder()
+            .groupId(group.getId())
+            .groupName(group.getGroupName())
+            .visibility(group.getVisibility())
+            .status(group.getStatus())
+            .groupLeader(group.getCreatedBy())
+            .currentMembers(group.getUserIds().size())
+            .maxMembers(group.getMaxMembers())
+            .availableSlots(group.getMaxMembers() - group.getUserIds().size())
+            .requiresApproval(group.isRequiresApproval())
+            .createdAt(group.getCreatedAt())
+            .lastUpdated(group.getLastUpdated())
+            .build();
+    }
+    
+    /**
+     * Build member summaries using stored member data from the group.
+     * Uses the enhanced member details stored in the group collection instead of external API calls.
+     */
+    private List<ComprehensiveTripResponse.MemberSummary> buildMemberSummaries(Group group) {
+        log.info("Building member summaries for group '{}' with {} stored members", group.getId(), 
+                group.getMembers() != null ? group.getMembers().size() : 0);
+        
+        // If we have stored member data, use it (preferred method)
+        if (group.getMembers() != null && !group.getMembers().isEmpty()) {
+            log.info("Using stored member data for {} members", group.getMembers().size());
+            
+            return group.getMembers().stream()
+                .map(member -> {
+                    log.debug("Processing stored member: userId='{}', name='{}', email='{}', nationality='{}', languages='{}'", 
+                        member.getUserId(), member.getFullName(), member.getEmail(), 
+                        member.getNationality(), member.getLanguages());
+                    
+                    // Calculate age from date of birth
+                    Integer age = calculateAge(member.getDob());
+                    
+                    return ComprehensiveTripResponse.MemberSummary.builder()
+                        .userId(member.getUserId())
+                        .name(member.getFullName())
+                        .email(member.getEmail() != null ? member.getEmail() : member.getUserId() + "@example.com")
+                        .nationality(member.getNationality())
+                        .languages(member.getLanguages() != null ? member.getLanguages() : new ArrayList<>())
+                        .age(age)
+                        .role(member.isCreator() ? "leader" : "member")
+                        .joinedAt(member.getJoinedAt() != null ? member.getJoinedAt() : group.getCreatedAt())
+                        .status("active")
+                        .preferences(extractMemberPreferences(group))
+                        .build();
+                })
+                .collect(Collectors.toList());
+        }
+        
+        // Fallback: if no stored member data, use userIds with external API calls
+        log.warn("No stored member data found for group '{}', falling back to external API calls", group.getId());
+        return group.getUserIds().stream()
+            .map(userId -> {
+                boolean isLeader = userId.equals(group.getCreatedBy());
+                
+                // Fetch real user details from user service as fallback
+                UserServiceClient.UserProfile userProfile = null;
+                try {
+                    userProfile = userServiceClient.getUserByUid(userId);
+                } catch (Exception e) {
+                    log.warn("Failed to fetch user profile for userId '{}': {}", userId, e.getMessage());
+                }
+                
+                String userName = userProfile != null ? userProfile.getFullName() : "User " + userId;
+                String userEmail = userProfile != null ? userProfile.getEmail() : userId + "@example.com";
+                String nationality = userProfile != null ? userProfile.getNationality() : null;
+                List<String> languages = userProfile != null ? userProfile.getLanguages() : new ArrayList<>();
+                Integer age = userProfile != null ? calculateAge(userProfile.getDob()) : null;
+                
+                log.debug("Using fallback member data: userId='{}', name='{}', email='{}', nationality='{}', age={}", 
+                         userId, userName, userEmail, nationality, age);
+                
+                return ComprehensiveTripResponse.MemberSummary.builder()
+                    .userId(userId)
+                    .name(userName)
+                    .email(userEmail)
+                    .nationality(nationality)
+                    .languages(languages)
+                    .age(age)
+                    .role(isLeader ? "leader" : "member")
+                    .joinedAt(group.getCreatedAt()) // Simplified - would track individual join times
+                    .status("active")
+                    .preferences(extractMemberPreferences(group))
+                    .build();
+            })
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Extract member preferences from group preferences.
+     */
+    private ComprehensiveTripResponse.TravelPreferences extractMemberPreferences(Group group) {
+        Map<String, Object> groupPrefs = group.getPreferences();
+        if (groupPrefs == null) {
+            return ComprehensiveTripResponse.TravelPreferences.builder()
+                .budgetLevel("Medium")
+                .preferredActivities(new ArrayList<>())
+                .preferredTerrains(new ArrayList<>())
+                .activityPacing("Normal")
+                .build();
+        }
+        
+        return ComprehensiveTripResponse.TravelPreferences.builder()
+            .budgetLevel((String) groupPrefs.getOrDefault("budgetLevel", "Medium"))
+            .preferredActivities((List<String>) groupPrefs.getOrDefault("preferredActivities", new ArrayList<>()))
+            .preferredTerrains((List<String>) groupPrefs.getOrDefault("preferredTerrains", new ArrayList<>()))
+            .activityPacing((String) groupPrefs.getOrDefault("activityPacing", "Normal"))
+            .build();
+    }
+    
+    /**
+     * Utility method to parse Instant from string.
+     */
+    private Instant parseInstant(String instantString) {
+        try {
+            return instantString != null ? Instant.parse(instantString) : Instant.now();
+        } catch (Exception e) {
+            log.warn("Failed to parse instant: {}", instantString);
+            return Instant.now();
+        }
+    }
+    
+    /**
+     * Utility method to parse Double from object.
+     */
+    private Double parseDouble(Object value) {
+        try {
+            if (value instanceof Number) {
+                return ((Number) value).doubleValue();
+            } else if (value instanceof String) {
+                return Double.parseDouble((String) value);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Join an existing group.
      */
     public JoinExistingGroupResponse joinExistingGroup(String userId, JoinExistingGroupRequest request) {
@@ -509,7 +792,7 @@ public class PublicPoolingService {
      */
     public FinalizeGroupResponse finalizeGroup(String groupId, FinalizeGroupRequest request) {
         String userId = request.getUserId();
-        log.info("User {} attempting to finalize group {}", userId, groupId);
+        log.info("User {} attempting to finalize group {} with cost details", userId, groupId);
         
         try {
             // Find the group
@@ -548,20 +831,66 @@ public class PublicPoolingService {
                     "Cannot finalize group - group must have at least one member");
             }
             
+            // Update trip with finalization details (costs, vehicle type, etc.)
+            if (group.getTripId() != null) {
+                try {
+                    log.info("Updating trip {} with finalization details", group.getTripId());
+                    itineraryServiceClient.updateTripFinalizationDetails(group.getTripId(), userId, request)
+                        .doOnSuccess(response -> log.info("Successfully updated trip {} finalization details", group.getTripId()))
+                        .doOnError(error -> log.warn("Failed to update trip finalization details: {}", error.getMessage()))
+                        .subscribe(); // Fire and forget - don't block group finalization on trip update failure
+                } catch (Exception e) {
+                    log.warn("Error updating trip finalization details for trip {}: {}", group.getTripId(), e.getMessage());
+                    // Continue with group finalization even if trip update fails
+                }
+            }
+            
             // Update group status to active (will be finalized after payments)
             group.setStatus("active");
             group.setLastUpdated(Instant.now());
             
+            // Store cost and logistics information directly in group fields
+            group.setAverageDriverCost(request.getAverageDriverCost());
+            group.setAverageGuideCost(request.getAverageGuideCost());
+            group.setTotalCost(request.getTotalCost());
+            group.setCostPerPerson(request.getCostPerPerson());
+            group.setMaxParticipants(request.getMaxParticipants());
+            group.setVehicleType(request.getVehicleType());
+            group.setNeedDriver(request.getNeedDriver());
+            group.setNeedGuide(request.getNeedGuide());
+            
+            // Also store in preferences for backward compatibility and easy querying
+            Map<String, Object> preferences = group.getPreferences();
+            if (preferences == null) {
+                preferences = new HashMap<>();
+            }
+            preferences.put("averageDriverCost", request.getAverageDriverCost());
+            preferences.put("averageGuideCost", request.getAverageGuideCost());
+            preferences.put("totalCost", request.getTotalCost());
+            preferences.put("costPerPerson", request.getCostPerPerson());
+            preferences.put("maxParticipants", request.getMaxParticipants());
+            preferences.put("vehicleType", request.getVehicleType());
+            preferences.put("needDriver", request.getNeedDriver());
+            preferences.put("needGuide", request.getNeedGuide());
+            preferences.put("finalizedAt", Instant.now().toString());
+            group.setPreferences(preferences);
+            
             // Save the updated group
             Group updatedGroup = groupRepository.save(group);
             
-            log.info("Group {} successfully activated by user {} with {} members", 
-                    updatedGroup.getId(), userId, updatedGroup.getUserIds().size());
+            log.info("Group {} successfully activated by user {} with {} members and logistics: {} - Driver: {} - Guide: {}", 
+                    updatedGroup.getId(), userId, updatedGroup.getUserIds().size(), 
+                    request.getVehicleType(), request.getNeedDriver(), request.getNeedGuide());
             
             return new FinalizeGroupResponse(groupId, 
-                String.format("Group '%s' activated successfully with %d member(s). Your trip is now ready for the next steps.", 
+                String.format("Group '%s' activated successfully with %d member(s). Vehicle: %s, Total cost: LKR %.2f (%.2f per person). Driver needed: %s, Guide needed: %s. Your trip is now ready for the next steps.", 
                         group.getGroupName() != null ? group.getGroupName() : "Trip Group", 
-                        group.getUserIds().size()));
+                        group.getUserIds().size(),
+                        request.getVehicleType(),
+                        request.getTotalCost(),
+                        request.getCostPerPerson(),
+                        request.getNeedDriver() ? "Yes" : "No",
+                        request.getNeedGuide() ? "Yes" : "No"));
                         
         } catch (Exception e) {
             log.error("Error finalizing group {} by user {}: {}", groupId, userId, e.getMessage(), e);
@@ -656,10 +985,205 @@ public class PublicPoolingService {
     }
     
     /**
+     * Build pending join requests for group members to see and vote on.
+     * Uses stored profile data from join requests instead of external API calls.
+     * Only returns pending requests if the user is a member of the group.
+     */
+    private List<ComprehensiveTripResponse.PendingJoinRequest> buildPendingJoinRequests(Group group, String userId) {
+        if (!group.isMember(userId)) {
+            return List.of(); // Only group members can see pending requests
+        }
+        
+        log.info("Building pending join requests for group '{}' with {} pending requests", 
+                group.getId(), group.getJoinRequests().stream().mapToInt(jr -> jr.isPending() ? 1 : 0).sum());
+        
+        return group.getJoinRequests().stream()
+            .filter(joinRequest -> joinRequest.isPending())
+            .map(joinRequest -> {
+                log.debug("Processing pending join request from user '{}' with email '{}'", 
+                    joinRequest.getUserId(), joinRequest.getUserEmail());
+                
+                // Check if current user has voted
+                boolean hasVoted = joinRequest.hasMemberResponded(userId);
+                String currentUserVote = null;
+                if (hasVoted) {
+                    if (joinRequest.hasMemberApproved(userId)) {
+                        currentUserVote = "approve";
+                    } else if (joinRequest.hasMemberRejected(userId)) {
+                        currentUserVote = "reject";
+                    }
+                }
+                
+                // Use stored user name, fallback to external API if needed
+                String requestingUserName = joinRequest.getUserName();
+                
+                // If no stored name, try to fetch from user service (last resort)
+                if ((requestingUserName == null || requestingUserName.equals(joinRequest.getUserEmail())) 
+                    && joinRequest.getUserEmail() != null) {
+                    try {
+                        log.debug("Attempting to fetch user profile for join request from '{}'", joinRequest.getUserEmail());
+                        UserServiceClient.UserProfile userProfile = userServiceClient.getUserByEmail(joinRequest.getUserEmail());
+                        if (userProfile != null) {
+                            requestingUserName = userProfile.getFullName();
+                            log.debug("Fetched user name '{}' from external API", requestingUserName);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to fetch user profile for join request from {}: {}", joinRequest.getUserEmail(), e.getMessage());
+                    }
+                }
+                
+                // Final fallback to email or user ID if name not available
+                if (requestingUserName == null || requestingUserName.trim().isEmpty()) {
+                    requestingUserName = joinRequest.getUserEmail() != null ? 
+                        joinRequest.getUserEmail() : "User " + joinRequest.getUserId();
+                    log.debug("Using fallback name '{}' for join request", requestingUserName);
+                }
+                
+                log.debug("Building join request response: userId='{}', name='{}', email='{}', hasProfile={}", 
+                    joinRequest.getUserId(), requestingUserName, joinRequest.getUserEmail(), 
+                    joinRequest.getUserProfile() != null);
+                
+                return ComprehensiveTripResponse.PendingJoinRequest.builder()
+                    .joinRequestId(joinRequest.getId())
+                    .requestingUserId(joinRequest.getUserId())
+                    .requestingUserName(requestingUserName)
+                    .requestingUserEmail(joinRequest.getUserEmail())
+                    .message(joinRequest.getMessage())
+                    .requestedAt(joinRequest.getRequestedAt())
+                    .userProfile(joinRequest.getUserProfile()) // Use stored profile data
+                    .hasCurrentUserVoted(hasVoted)
+                    .currentUserVote(currentUserVote)
+                    .totalVotesReceived(joinRequest.getMemberApprovals().size())
+                    .totalVotesRequired(group.getUserIds().size())
+                    .pendingMemberIds(joinRequest.getPendingMemberIds(group.getUserIds()))
+                    .build();
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Generates a unique ID for join requests.
      * @return A unique join request ID
      */
     private String generateJoinRequestId() {
         return UUID.randomUUID().toString();
+    }
+    
+    /**
+     * Calculate age from date of birth string.
+     * Supports multiple date formats: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, ISO8601 with time
+     * @param dobString Date of birth string
+     * @return Age in years, or null if DOB is invalid
+     */
+    private Integer calculateAge(String dobString) {
+        if (dobString == null || dobString.trim().isEmpty()) {
+            log.debug("DOB is null or empty, returning null");
+            return null;
+        }
+        
+        try {
+            LocalDate birthDate = null;
+            String trimmedDob = dobString.trim();
+            
+            // Try different date formats
+            // Format 1: ISO 8601 (YYYY-MM-DD) - Standard format
+            try {
+                birthDate = LocalDate.parse(trimmedDob);
+                log.debug("Successfully parsed DOB '{}' using ISO format", trimmedDob);
+            } catch (Exception e1) {
+                log.debug("Failed to parse DOB '{}' as ISO format, trying other formats", trimmedDob);
+                
+                // Format 2: Handle ISO 8601 with time component (YYYY-MM-DDTHH:mm:ss)
+                if (trimmedDob.contains("T")) {
+                    try {
+                        birthDate = LocalDate.parse(trimmedDob.substring(0, 10));
+                        log.debug("Successfully parsed DOB '{}' by extracting date from ISO datetime", trimmedDob);
+                    } catch (Exception e2) {
+                        log.debug("Failed to extract date from ISO datetime format");
+                    }
+                }
+                
+                // Format 3: DD/MM/YYYY or MM/DD/YYYY
+                if (birthDate == null && trimmedDob.contains("/")) {
+                    String[] parts = trimmedDob.split("/");
+                    if (parts.length == 3) {
+                        try {
+                            // Try DD/MM/YYYY
+                            int day = Integer.parseInt(parts[0]);
+                            int month = Integer.parseInt(parts[1]);
+                            int year = Integer.parseInt(parts[2]);
+                            birthDate = LocalDate.of(year, month, day);
+                            log.debug("Successfully parsed DOB '{}' as DD/MM/YYYY format", trimmedDob);
+                        } catch (Exception e3) {
+                            try {
+                                // Try MM/DD/YYYY
+                                int month = Integer.parseInt(parts[0]);
+                                int day = Integer.parseInt(parts[1]);
+                                int year = Integer.parseInt(parts[2]);
+                                birthDate = LocalDate.of(year, month, day);
+                                log.debug("Successfully parsed DOB '{}' as MM/DD/YYYY format", trimmedDob);
+                            } catch (Exception e4) {
+                                log.debug("Failed to parse DOB '{}' with slash formats", trimmedDob);
+                            }
+                        }
+                    }
+                }
+                
+                // Format 4: DD-MM-YYYY or MM-DD-YYYY
+                if (birthDate == null && trimmedDob.contains("-") && trimmedDob.split("-").length == 3) {
+                    String[] parts = trimmedDob.split("-");
+                    if (parts[0].length() <= 2) { // Day or month comes first
+                        try {
+                            // Try DD-MM-YYYY
+                            int day = Integer.parseInt(parts[0]);
+                            int month = Integer.parseInt(parts[1]);
+                            int year = Integer.parseInt(parts[2]);
+                            birthDate = LocalDate.of(year, month, day);
+                            log.debug("Successfully parsed DOB '{}' as DD-MM-YYYY format", trimmedDob);
+                        } catch (Exception e5) {
+                            try {
+                                // Try MM-DD-YYYY
+                                int month = Integer.parseInt(parts[0]);
+                                int day = Integer.parseInt(parts[1]);
+                                int year = Integer.parseInt(parts[2]);
+                                birthDate = LocalDate.of(year, month, day);
+                                log.debug("Successfully parsed DOB '{}' as MM-DD-YYYY format", trimmedDob);
+                            } catch (Exception e6) {
+                                log.debug("Failed to parse DOB '{}' with dash formats", trimmedDob);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (birthDate == null) {
+                log.warn("Unable to parse DOB '{}' in any supported format", dobString);
+                return null;
+            }
+            
+            LocalDate currentDate = LocalDate.now();
+            
+            // Validate that birth date is not in the future
+            if (birthDate.isAfter(currentDate)) {
+                log.warn("Birth date '{}' is in the future, returning null", birthDate);
+                return null;
+            }
+            
+            // Calculate age
+            int age = Period.between(birthDate, currentDate).getYears();
+            
+            // Validate reasonable age range (0-150 years)
+            if (age < 0 || age > 150) {
+                log.warn("Calculated age {} is out of reasonable range for DOB '{}'", age, dobString);
+                return null;
+            }
+            
+            log.debug("Successfully calculated age {} from DOB '{}'", age, dobString);
+            return age;
+            
+        } catch (Exception e) {
+            log.error("Unexpected error calculating age from DOB '{}': {}", dobString, e.getMessage(), e);
+            return null;
+        }
     }
 }

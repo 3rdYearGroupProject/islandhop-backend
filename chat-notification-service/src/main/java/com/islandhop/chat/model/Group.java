@@ -1,11 +1,11 @@
 package com.islandhop.chat.model;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * MongoDB entity representing a chat group.
@@ -34,6 +34,9 @@ public class Group {
 
     @Field("group_type")
     private String groupType; // PUBLIC, PRIVATE
+
+    @Field("trip_id")
+    private String tripId; // Associated trip ID for travel groups
 
     public Group() {
         this.createdAt = LocalDateTime.now();
@@ -102,5 +105,13 @@ public class Group {
 
     public void setGroupType(String groupType) {
         this.groupType = groupType;
+    }
+
+    public String getTripId() {
+        return tripId;
+    }
+
+    public void setTripId(String tripId) {
+        this.tripId = tripId;
     }
 }

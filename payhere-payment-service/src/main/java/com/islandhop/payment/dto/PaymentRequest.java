@@ -26,6 +26,9 @@ public class PaymentRequest {
     @JsonProperty("orderId")
     private String orderId;
     
+    @JsonProperty("tripId")
+    private String tripId; // Optional: Trip ID for trip-related payments
+    
     @NotBlank(message = "Item name is required")
     @Size(max = 100, message = "Item name must not exceed 100 characters")
     @JsonProperty("itemName")
@@ -72,6 +75,14 @@ public class PaymentRequest {
         this.orderId = orderId;
     }
     
+    public String getTripId() {
+        return tripId;
+    }
+    
+    public void setTripId(String tripId) {
+        this.tripId = tripId;
+    }
+    
     public String getItemName() {
         return itemName;
     }
@@ -94,6 +105,7 @@ public class PaymentRequest {
                 "amount=" + amount +
                 ", currency='" + currency + '\'' +
                 ", orderId='" + orderId + '\'' +
+                ", tripId='" + tripId + '\'' +
                 ", itemName='" + itemName + '\'' +
                 ", customerDetails=" + customerDetails +
                 '}';

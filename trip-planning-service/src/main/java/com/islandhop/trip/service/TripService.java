@@ -643,6 +643,118 @@ public class TripService {
     }
 
     /**
+     * Removes a place from a specific day and type in the trip itinerary.
+     * Validates trip ownership and finds the place by name to remove it.
+     *
+     * @param tripId The ID of the trip
+     * @param day The day number (1-based)
+     * @param type The type of place (attractions, hotels, restaurants)
+     * @param userId The ID of the user making the request
+     * @param placeName The name of the place to remove
+     * @throws TripNotFoundException if the trip doesn't exist
+     * @throws UnauthorizedTripAccessException if the user doesn't own the trip
+     * @throws InvalidDayException if the day number is invalid
+     * @throws InvalidTypeException if the type is invalid
+     * @throws IllegalArgumentException if required fields are missing or place not found
+     */
+    public void removePlaceFromItinerary(String tripId, int day, String type, String userId, String placeName) {
+        log.info("Removing place from itinerary for trip: {}, day: {}, type: {}, user: {}, place: {}", 
+                tripId, day, type, userId, placeName);
+
+        // Validate input parameters
+        if (placeName == null || placeName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Place name cannot be null or empty");
+        }
+        if (tripId == null || tripId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Trip ID cannot be null or empty");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        // Validate type
+        String normalizedType = type.toLowerCase();
+        if (!List.of("attractions", "hotels", "restaurants").contains(normalizedType)) {
+            throw new InvalidTypeException("Invalid suggestion type: " + type + 
+                    ". Must be one of: attractions, hotels, restaurants");
+        }
+
+        if (day < 1) {
+            throw new InvalidDayException("Day number must be positive (1-based indexing)");
+        }
+
+        // Find the trip and validate ownership
+        Optional<TripPlan> tripOptional = tripPlanRepository.findById(tripId);
+        if (tripOptional.isEmpty()) {
+            log.warn("Trip not found: {} for user: {}", tripId, userId);
+            throw new TripNotFoundException("Trip not found with ID: " + tripId);
+        }
+
+        TripPlan trip = tripOptional.get();
+        if (!trip.getUserId().equals(userId)) {
+            log.warn("Unauthorized access attempt: user {} trying to access trip {} owned by {}", 
+                    userId, tripId, trip.getUserId());
+            throw new UnauthorizedTripAccessException("You are not authorized to modify this trip");
+        }
+
+        // Validate day number against trip duration
+        if (day > trip.getDailyPlans().size()) {
+            log.warn("Invalid day number: {} for trip: {} which has {} days", 
+                    day, tripId, trip.getDailyPlans().size());
+            throw new InvalidDayException("Day " + day + " is invalid. Trip has only " + 
+                    trip.getDailyPlans().size() + " days");
+        }
+
+        // Get the specific day's plan
+        DailyPlan dailyPlan = trip.getDailyPlans().get(day - 1);
+
+        // Remove place from the appropriate list based on type
+        try {
+            boolean removed = false;
+            String trimmedPlaceName = placeName.trim();
+
+            switch (normalizedType) {
+                case "attractions":
+                    removed = dailyPlan.getAttractions().removeIf(place -> 
+                            place.getName() != null && place.getName().trim().equalsIgnoreCase(trimmedPlaceName));
+                    break;
+                case "hotels":
+                    removed = dailyPlan.getHotels().removeIf(place -> 
+                            place.getName() != null && place.getName().trim().equalsIgnoreCase(trimmedPlaceName));
+                    break;
+                case "restaurants":
+                    removed = dailyPlan.getRestaurants().removeIf(place -> 
+                            place.getName() != null && place.getName().trim().equalsIgnoreCase(trimmedPlaceName));
+                    break;
+            }
+
+            if (!removed) {
+                log.warn("Place '{}' not found in {} for trip: {}, day: {}", 
+                        placeName, normalizedType, tripId, day);
+                throw new IllegalArgumentException("Place '" + placeName + "' not found in " + 
+                        normalizedType + " for day " + day);
+            }
+
+            // Update lastUpdated timestamp
+            trip.setLastUpdated(Instant.now());
+
+            // Save the updated trip plan
+            tripPlanRepository.save(trip);
+
+            log.info("Successfully removed place '{}' from {} for trip: {}, day: {}", 
+                    placeName, normalizedType, tripId, day);
+
+        } catch (IllegalArgumentException e) {
+            // Re-throw known exceptions
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to remove place from itinerary for trip: {}, day: {}, type: {}", 
+                    tripId, day, type, e);
+            throw new RuntimeException("Failed to remove place from itinerary: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Retrieves the complete trip plan information for a given trip ID.
      * Validates trip existence and user ownership before returning the trip details.
      *
@@ -742,13 +854,15 @@ public class TripService {
     /**
      * Retrieves all trips for a specific user.
      * Returns a list of trip summaries without detailed daily plans.
+     * Excludes group trips (where type="group").
+     * Includes trips where type is null, empty, or "individual".
      *
      * @param userId The ID of the user whose trips to retrieve
-     * @return List of TripSummaryResponse objects for the user
+     * @return List of TripSummaryResponse objects for the user (excluding group trips)
      * @throws IllegalArgumentException if userId is null or empty
      */
     public List<TripSummaryResponse> getUserTrips(String userId) {
-        log.info("Retrieving all trips for user: {}", userId);
+        log.info("Retrieving all non-group trips for user: {}", userId);
         
         // Validate input
         if (userId == null || userId.trim().isEmpty()) {
@@ -756,10 +870,14 @@ public class TripService {
         }
         
         try {
-            // Find all trips for the user
-            List<TripPlan> userTrips = tripPlanRepository.findByUserId(userId);
+            // Find all trips for the user, excluding group trips
+            // This will get trips where:
+            // 1. type field doesn't exist
+            // 2. type is null
+            // 3. type is not "group" (e.g., "individual" or any other value)
+            List<TripPlan> userTrips = tripPlanRepository.findNonGroupTripsByUserId(userId);
             
-            log.info("Found {} trips for user: {}", userTrips.size(), userId);
+            log.info("Found {} non-group trips for user: {}", userTrips.size(), userId);
             
             // Convert to response DTOs
             return userTrips.stream()
@@ -772,5 +890,54 @@ public class TripService {
         }
     }
 
+    /**
+     * Deletes a trip plan after validating ownership.
+     * Ensures the trip exists and belongs to the requesting user before deletion.
+     *
+     * @param tripId The ID of the trip to delete
+     * @param userId The ID of the user requesting deletion
+     * @throws TripNotFoundException if the trip doesn't exist
+     * @throws UnauthorizedTripAccessException if the user doesn't own the trip
+     * @throws IllegalArgumentException if tripId or userId is null/empty
+     */
+    public void deleteTrip(String tripId, String userId) {
+        log.info("Attempting to delete trip: {} for user: {}", tripId, userId);
+        
+        // Validate inputs
+        if (tripId == null || tripId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Trip ID cannot be null or empty");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+        
+        try {
+            // Find the trip
+            TripPlan trip = tripPlanRepository.findById(tripId)
+                    .orElseThrow(() -> new TripNotFoundException("Trip not found with ID: " + tripId));
+            
+            // Validate ownership
+            if (!trip.getUserId().equals(userId)) {
+                log.warn("User {} attempted to delete trip {} owned by user {}", 
+                        userId, tripId, trip.getUserId());
+                throw new UnauthorizedTripAccessException(
+                        "You are not authorized to delete this trip");
+            }
+            
+            // Delete the trip
+            tripPlanRepository.deleteById(tripId);
+            
+            log.info("Successfully deleted trip: {} for user: {}", tripId, userId);
+            
+        } catch (TripNotFoundException | UnauthorizedTripAccessException | IllegalArgumentException e) {
+            // Re-throw known exceptions
+            throw e;
+        } catch (Exception e) {
+            log.error("Error deleting trip {}: {}", tripId, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete trip", e);
+        }
+    }
+
     // ...existing methods...
 }
+

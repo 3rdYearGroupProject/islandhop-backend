@@ -21,6 +21,9 @@ public class EnhancedPublicGroupResponse {
     private String creatorUserId;
     private String creatorName; // "John Doe"
     
+    // Member information  
+    private List<ComprehensiveTripResponse.MemberSummary> members;
+    
     // Trip details
     private String baseCity;
     private List<String> cities; // ["Kandy", "Nuwara Eliya", "Ella"]
@@ -30,6 +33,7 @@ public class EnhancedPublicGroupResponse {
     private int tripDurationDays; // 3
     
     // Group details
+    private String visibility; // "public" or "private"
     private int memberCount; // 3
     private int maxMembers; // 5
     private String memberCountText; // "3 participants / 5"

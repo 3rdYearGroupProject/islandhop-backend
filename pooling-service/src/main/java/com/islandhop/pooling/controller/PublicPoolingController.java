@@ -59,29 +59,6 @@ public class PublicPoolingController {
     }
     
     /**
-     * Creates a new public pooling group.
-     * This endpoint allows trip planning first, then suggests similar groups before saving.
-     *
-     * @param request The public pooling group creation request
-     * @return ResponseEntity with the created group details
-     */
-    @PostMapping("/groups")
-    public ResponseEntity<CreatePublicPoolingGroupResponse> createPublicPoolingGroup(
-            @Valid @RequestBody CreatePublicPoolingGroupRequest request) {
-        try {
-            log.info("Creating public pooling group '{}' for user '{}'", request.getGroupName(), request.getUserId());
-            CreatePublicPoolingGroupResponse response = publicPoolingService.createPublicPoolingGroup(request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (GroupCreationException e) {
-            log.warn("Public pooling group creation failed for user {}: {}", request.getUserId(), e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            log.error("Unexpected error creating public pooling group for user {}: {}", request.getUserId(), e.getMessage(), e);
-            throw new GroupCreationException("Failed to create public pooling group: " + e.getMessage());
-        }
-    }
-    
-    /**
      * Saves a trip and gets suggestions for similar public pooling groups.
      * This is called after trip planning is complete to check for compatible groups.
      *
@@ -188,6 +165,38 @@ public class PublicPoolingController {
         }
     }
     
+    /**
+     * Gets comprehensive trip details including itinerary and joined group members.
+     * This endpoint is publicly accessible and provides trip information for both logged-in and anonymous users.
+     * Does not include sensitive information like invitations or join requests.
+     *
+     * @param tripId The ID of the trip
+     * @param userId The ID of the user making the request (optional, for personalization)
+     * @return ResponseEntity with ComprehensiveTripResponse or error details
+     */
+    @GetMapping("/trips/{tripId}/comprehensive")
+    public ResponseEntity<?> getComprehensiveTripDetails(
+            @PathVariable String tripId,
+            @RequestParam(required = false) String userId) {
+        try {
+            log.info("Getting comprehensive trip details for trip '{}' requested by user '{}'", tripId, userId != null ? userId : "anonymous");
+            ComprehensiveTripResponse response = publicPoolingService.getComprehensiveTripDetails(tripId, userId);
+            return ResponseEntity.ok(response);
+        } catch (TripNotFoundException e) {
+            log.warn("Trip not found: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "status", "error",
+                "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            log.error("Unexpected error getting comprehensive trip details for trip {}: {}", tripId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Failed to retrieve comprehensive trip details. Please try again later."
+            ));
+        }
+    }
+
     /**
      * Health check endpoint for Public Pooling Service.
      */

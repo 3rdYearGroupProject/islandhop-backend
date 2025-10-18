@@ -22,6 +22,11 @@ public interface InvitationRepository extends MongoRepository<Invitation, String
     List<Invitation> findPendingInvitationsByUserId(String userId);
     
     /**
+     * Find invitations by user ID and status.
+     */
+    List<Invitation> findByInvitedUserIdAndStatus(String invitedUserId, String status);
+    
+    /**
      * Find pending invitations by email.
      */
     @Query("{ 'invitedEmail': ?0, 'status': 'pending' }")

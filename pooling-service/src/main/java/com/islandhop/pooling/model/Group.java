@@ -1,6 +1,8 @@
 package com.islandhop.pooling.model;
 
 import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -37,6 +39,8 @@ public class Group {
         
     private List<String> userIds = new ArrayList<>(); // List of user IDs in the group
     
+    private List<Member> members = new ArrayList<>(); // Detailed member information including creator
+    
     @Indexed
     private String visibility; // "private" or "public"
     
@@ -62,6 +66,23 @@ public class Group {
     private boolean requiresApproval = true; // For public groups, whether join requests need approval
     
     private int maxMembers = 12; // Maximum number of members allowed
+    
+    // Trip logistics and cost details (added for finalization)
+    private Double averageDriverCost;
+    
+    private Double averageGuideCost;
+    
+    private Double totalCost;
+    
+    private Double costPerPerson;
+    
+    private Integer maxParticipants;
+    
+    private String vehicleType;
+    
+    private Boolean needDriver;
+    
+    private Boolean needGuide;
     
     /**
      * Get the creator's user ID (first user in the list).
@@ -95,6 +116,51 @@ public class Group {
     public void addUser(String userId) {
         if (!userIds.contains(userId)) {
             userIds.add(userId);
+        }
+    }
+    
+    /**
+     * Add a user to the group with profile data from join request.
+     */
+    public void addUserFromJoinRequest(JoinRequest joinRequest) {
+        // Add to userIds if not already present
+        if (!userIds.contains(joinRequest.getUserId())) {
+            userIds.add(joinRequest.getUserId());
+        }
+        
+        // Create and add Member object with profile data
+        if (joinRequest.getUserProfile() != null) {
+            Map<String, Object> profile = joinRequest.getUserProfile();
+            
+            Member member = Member.createFromUserProfile(
+                joinRequest.getUserId(),
+                joinRequest.getUserEmail(),
+                (String) profile.get("firstName"),
+                (String) profile.get("lastName"),
+                (String) profile.get("nationality"),
+                (List<String>) profile.get("languages"),
+                (String) profile.get("dob"),
+                profile.get("profileCompletion") != null ? 
+                    ((Number) profile.get("profileCompletion")).intValue() : 0,
+                false // not creator
+            );
+            
+            addMember(member);
+        } else {
+            // Fallback: create minimal member data
+            Member member = Member.createFromUserProfile(
+                joinRequest.getUserId(),
+                joinRequest.getUserEmail(),
+                null, // firstName not available
+                null, // lastName not available
+                null, // nationality not available
+                null, // languages not available
+                "", // dob not available
+                0, // profileCompletion not available
+                false // not creator
+            );
+            
+            addMember(member);
         }
     }
     
@@ -225,6 +291,75 @@ public class Group {
         this.createdBy = createdBy;
         if (this.creatorUserId == null) {
             this.creatorUserId = createdBy;
+        }
+    }
+    
+    /**
+     * Helper methods for member management
+     */
+    public void addMember(Member member) {
+        if (!userIds.contains(member.getUserId())) {
+            userIds.add(member.getUserId());
+        }
+        
+        // Remove existing member with same userId and add new one
+        members.removeIf(m -> m.getUserId().equals(member.getUserId()));
+        members.add(member);
+    }
+    
+    public Member getMemberByUserId(String userId) {
+        return members.stream()
+                .filter(m -> m.getUserId().equals(userId))
+                .findFirst()
+                .orElse(null);
+    }
+    
+    /**
+     * Embedded class representing a group member with full profile details.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Member {
+        private String userId;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String nationality;
+        private List<String> languages;
+        private String dob; // Date of birth (e.g., "2000-05-15")
+        private int profileCompletion; // Profile completion percentage (e.g., 85)
+        private Instant joinedAt;
+        private boolean isCreator;
+        
+        public String getFullName() {
+            if (firstName != null && lastName != null) {
+                return firstName + " " + lastName;
+            }
+            return email != null ? email : userId;
+        }
+        
+        public static Member createFromUserProfile(String userId, 
+                                                  String email, 
+                                                  String firstName, 
+                                                  String lastName, 
+                                                  String nationality, 
+                                                  List<String> languages,
+                                                  String dob,
+                                                  int profileCompletion,
+                                                  boolean isCreator) {
+            Member member = new Member();
+            member.setUserId(userId);
+            member.setEmail(email);
+            member.setFirstName(firstName);
+            member.setLastName(lastName);
+            member.setNationality(nationality);
+            member.setLanguages(languages);
+            member.setDob(dob);
+            member.setProfileCompletion(profileCompletion);
+            member.setJoinedAt(Instant.now());
+            member.setCreator(isCreator);
+            return member;
         }
     }
 }

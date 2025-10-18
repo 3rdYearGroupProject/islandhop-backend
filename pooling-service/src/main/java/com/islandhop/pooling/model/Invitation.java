@@ -27,11 +27,27 @@ public class Invitation {
     
     private String inviterEmail;
     
-    private String inviterName;
+    private String inviterDisplayName; // Full name of the person sending the invitation
     
-    private String invitedUserId;
+    // Invited person's basic info
+    private String invitedUserId; // Firebase UID of the invited person
     
     private String invitedEmail;
+    
+    private String invitedDisplayName; // Full name of the invited person
+    
+    private String invitedFirstName; // First name of the invited person
+    
+    private String invitedLastName; // Last name of the invited person
+    
+    // Invited person's profile details
+    private String invitedNationality; // Nationality of the invited person
+    
+    private String invitedDob; // Date of birth of the invited person
+    
+    private Integer invitedProfileCompletion; // Profile completion percentage
+    
+    private java.util.List<String> invitedLanguages; // Languages spoken by invited person
     
     private String status; // "pending", "accepted", "rejected", "expired"
     

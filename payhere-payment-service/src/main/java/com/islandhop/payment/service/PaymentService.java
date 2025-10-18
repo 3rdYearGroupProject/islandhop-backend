@@ -6,6 +6,7 @@ import com.islandhop.payment.dto.PayHereNotification;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -35,8 +36,15 @@ public class PaymentService {
     @Value("${payhere.sandbox}")
     private boolean sandbox;
     
+    private final TripPaymentService tripPaymentService;
+    
     // In-memory storage for payment status (In production, use database)
     private final Map<String, PaymentStatus> paymentStatusMap = new ConcurrentHashMap<>();
+    
+    @Autowired
+    public PaymentService(TripPaymentService tripPaymentService) {
+        this.tripPaymentService = tripPaymentService;
+    }
     
     /**
      * Create PayHere payment request
@@ -54,6 +62,22 @@ public class PaymentService {
             paymentStatusMap.put(paymentRequest.getOrderId(), 
                 new PaymentStatus(paymentRequest.getOrderId(), "PENDING", 
                     paymentRequest.getAmount(), paymentRequest.getCurrency(), LocalDateTime.now()));
+            
+            // Save initial payment details to database immediately
+            boolean savedToDb = tripPaymentService.saveInitialPaymentDetails(
+                paymentRequest.getOrderId(),
+                paymentRequest.getTripId(), // Use tripId from request if provided
+                null, // userId will be extracted from trip data if available
+                paymentRequest.getAmount(),
+                paymentRequest.getCurrency(),
+                "PENDING"
+            );
+            
+            if (savedToDb) {
+                logger.info("Initial payment details saved to database for order: {}", paymentRequest.getOrderId());
+            } else {
+                logger.warn("Failed to save initial payment details to database for order: {}", paymentRequest.getOrderId());
+            }
             
             PaymentResponse response = PaymentResponse.success(
                 paymentRequest.getOrderId(), 
@@ -95,6 +119,20 @@ public class PaymentService {
                     notification.getAmount(), notification.getCurrency(), LocalDateTime.now()));
             
             logger.info("Payment status updated to {} for order: {}", status, notification.getOrderId());
+            
+            // Update payment details in database
+            boolean updated = tripPaymentService.updatePaymentDetailsOnCompletion(
+                notification.getOrderId(),
+                notification.getPaymentId(),
+                String.valueOf(notification.getStatusCode()),
+                notification.getStatusMessage(),
+                status
+            );
+            
+            if (!updated) {
+                logger.error("Failed to update payment details in database for order: {}", notification.getOrderId());
+                // Don't return error to PayHere, but log the issue
+            }
             
             if (notification.isPaymentSuccessful()) {
                 return PaymentResponse.success(notification.getOrderId(), notification.getPaymentId(), 

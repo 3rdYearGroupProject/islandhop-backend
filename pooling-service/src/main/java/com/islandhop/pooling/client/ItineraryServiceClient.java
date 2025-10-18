@@ -1,6 +1,7 @@
 package com.islandhop.pooling.client;
 
 import com.islandhop.pooling.dto.SuggestionResponse;
+import com.islandhop.pooling.dto.FinalizeGroupRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -21,8 +23,8 @@ public class ItineraryServiceClient {
     
     private final WebClient webClient;
 
-    public ItineraryServiceClient(WebClient.Builder webClientBuilder) {
-        String baseUrl = "http://localhost:8084";
+    public ItineraryServiceClient(WebClient.Builder webClientBuilder, 
+                                @Value("${app.itinerary-service.url:http://localhost:8084}") String baseUrl) {
         log.info("Initializing ItineraryServiceClient with baseUrl: {}", baseUrl);
         this.webClient = webClientBuilder.baseUrl(baseUrl).build();
     }
@@ -35,7 +37,10 @@ public class ItineraryServiceClient {
         log.info("Fetching trip plan {} for user {}", tripId, userId);
         
         return webClient.get()
-                .uri("/api/v1/itinerary/{tripId}?userId={userId}", tripId, userId)
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/itinerary/{tripId}")
+                        .queryParam("userId", userId)
+                        .build(tripId))
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully fetched trip plan {}", tripId))
@@ -119,5 +124,34 @@ public class ItineraryServiceClient {
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .doOnSuccess(response -> log.info("Successfully fetched trips for user {}", userId))
                 .doOnError(error -> log.error("Error fetching trips for user {}: {}", userId, error.getMessage()));
+    }
+    
+    /**
+     * Update trip with finalization details including costs and logistics.
+     */
+    public Mono<Map<String, Object>> updateTripFinalizationDetails(String tripId, String userId, 
+                                                                   FinalizeGroupRequest request) {
+        log.info("Updating trip {} finalization details for user {}", tripId, userId);
+        
+        Map<String, Object> finalizationData = new HashMap<>();
+        finalizationData.put("userId", userId);
+        finalizationData.put("action", request.getAction());
+        finalizationData.put("averageDriverCost", request.getAverageDriverCost());
+        finalizationData.put("averageGuideCost", request.getAverageGuideCost());
+        finalizationData.put("totalCost", request.getTotalCost());
+        finalizationData.put("costPerPerson", request.getCostPerPerson());
+        finalizationData.put("maxParticipants", request.getMaxParticipants());
+        finalizationData.put("vehicleType", request.getVehicleType());
+        finalizationData.put("needDriver", request.getNeedDriver());
+        finalizationData.put("needGuide", request.getNeedGuide());
+        finalizationData.put("finalizedAt", Instant.now().toString());
+        
+        return webClient.patch()
+                .uri("/api/v1/itinerary/{tripId}/finalize", tripId)
+                .bodyValue(finalizationData)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .doOnSuccess(response -> log.info("Successfully updated trip {} finalization details", tripId))
+                .doOnError(error -> log.error("Error updating trip {} finalization details: {}", tripId, error.getMessage()));
     }
 }

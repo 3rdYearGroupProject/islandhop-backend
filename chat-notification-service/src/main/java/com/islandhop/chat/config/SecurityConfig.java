@@ -1,7 +1,7 @@
 package com.islandhop.chat.config;
 
-import com.islandhop.chat.security.FirebaseAuthenticationFilter;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Arrays;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -9,26 +9,21 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
-
 /**
  * Security configuration for the Chat and Notification Microservice.
- * Configures Firebase authentication and CORS settings.
+ * AUTHENTICATION DISABLED - All endpoints are public for development/testing.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private FirebaseAuthenticationFilter firebaseAuthenticationFilter;
-
     /**
      * Configure the security filter chain.
+     * AUTHENTICATION DISABLED - All endpoints are now public for development/testing.
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -39,25 +34,14 @@ public class SecurityConfig {
             // Configure CORS
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             
-            // Configure session management (stateless for JWT)
+            // Configure session management (stateless)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             
-            // Configure authorization rules
+            // Configure authorization rules - PERMIT ALL REQUESTS
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints (no authentication required)
-                .requestMatchers("/api/v1/*/health").permitAll()
-                .requestMatchers("/api/v1/*/*/health").permitAll()
-                .requestMatchers("/actuator/**").permitAll()
-                .requestMatchers("/ws/**").permitAll()  // WebSocket endpoint
-                .requestMatchers("/error").permitAll()
-                .requestMatchers("/").permitAll()
-                
-                // All other endpoints require authentication
-                .anyRequest().authenticated()
-            )
-            
-            // Add Firebase authentication filter
-            .addFilterBefore(firebaseAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                // All endpoints are now public - no authentication required
+                .anyRequest().permitAll()
+            );
 
         return http.build();
     }

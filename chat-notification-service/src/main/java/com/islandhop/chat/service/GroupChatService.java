@@ -1,12 +1,9 @@
 package com.islandhop.chat.service;
 
-import com.islandhop.chat.dto.GroupDTO;
-import com.islandhop.chat.dto.GroupMemberDTO;
-import com.islandhop.chat.dto.GroupMessageDTO;
-import com.islandhop.chat.model.Group;
-import com.islandhop.chat.model.GroupMessage;
-import com.islandhop.chat.repository.mongo.GroupRepository;
-import com.islandhop.chat.repository.mongo.GroupMessageRepository;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,9 +15,13 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import com.islandhop.chat.dto.GroupDTO;
+import com.islandhop.chat.dto.GroupMemberDTO;
+import com.islandhop.chat.dto.GroupMessageDTO;
+import com.islandhop.chat.model.Group;
+import com.islandhop.chat.model.GroupMessage;
+import com.islandhop.chat.repository.mongo.GroupMessageRepository;
+import com.islandhop.chat.repository.mongo.GroupRepository;
 
 /**
  * Service class for handling group chat operations.
@@ -62,9 +63,10 @@ public class GroupChatService {
         );
         group.setDescription(groupDTO.getDescription());
         group.setGroupType(groupDTO.getGroupType());
+        group.setTripId(groupDTO.getTripId()); // Set trip ID if provided
 
         Group savedGroup = groupRepository.save(group);
-        logger.debug("Group created with ID: {}", savedGroup.getId());
+        logger.debug("Group created with ID: {} for trip: {}", savedGroup.getId(), savedGroup.getTripId());
 
         // Notify all members about group creation
         notifyGroupMembers(savedGroup, "GROUP_CREATED", "You have been added to group: " + savedGroup.getGroupName());

@@ -1,11 +1,8 @@
 package com.islandhop.chat.controller;
 
-import com.islandhop.chat.dto.GroupDTO;
-import com.islandhop.chat.dto.GroupMemberDTO;
-import com.islandhop.chat.dto.GroupMessageDTO;
-import com.islandhop.chat.model.Group;
-import com.islandhop.chat.model.GroupMessage;
-import com.islandhop.chat.service.GroupChatService;
+import java.util.List;
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,11 +10,25 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.islandhop.chat.dto.GroupDTO;
+import com.islandhop.chat.dto.GroupMemberDTO;
+import com.islandhop.chat.dto.GroupMessageDTO;
+import com.islandhop.chat.model.Group;
+import com.islandhop.chat.model.GroupMessage;
+import com.islandhop.chat.service.GroupChatService;
 
 import jakarta.validation.Valid;
-import java.util.List;
-import java.util.Optional;
 
 /**
  * REST Controller for handling group chat operations.
@@ -50,6 +61,29 @@ public class GroupChatController {
             return ResponseEntity.ok(createdGroup);
         } catch (Exception e) {
             logger.error("Error creating group: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Failed to create group: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Create a new group with trip association.
+     * 
+     * @param groupDTO The group data transfer object including tripId
+     * @return ResponseEntity with the created group
+     */
+    @PostMapping("/create-with-trip")
+    public ResponseEntity<?> createGroupWithTrip(@Valid @RequestBody GroupDTO groupDTO) {
+        logger.info("Creating new group with trip: {} by creator: {} for trip: {}", 
+                   groupDTO.getGroupName(), groupDTO.getCreatedBy(), groupDTO.getTripId());
+
+        try {
+            Group createdGroup = groupChatService.createGroup(groupDTO);
+            logger.debug("Group created successfully with ID: {} for trip: {}", 
+                        createdGroup.getId(), createdGroup.getTripId());
+            
+            return ResponseEntity.ok(createdGroup);
+        } catch (Exception e) {
+            logger.error("Error creating group with trip: {}", e.getMessage());
             return ResponseEntity.badRequest().body("Failed to create group: " + e.getMessage());
         }
     }

@@ -26,9 +26,24 @@ public interface GroupRepository extends MongoRepository<Group, String> {
     List<Group> findByUserIdsContaining(String userId);
     
     /**
+     * Find groups created by a specific user.
+     */
+    List<Group> findByCreatorUserId(String creatorUserId);
+    
+    /**
+     * Find groups by created by field (for backward compatibility).
+     */
+    List<Group> findByCreatedBy(String createdBy);
+    
+    /**
      * Find groups by trip ID.
      */
     List<Group> findByTripId(String tripId);
+    
+    /**
+     * Find first group by trip ID.
+     */
+    Optional<Group> findFirstByTripId(String tripId);
     
     /**
      * Find public groups with preferences containing specific interests.
@@ -42,6 +57,11 @@ public interface GroupRepository extends MongoRepository<Group, String> {
     @Query("{'visibility': 'public', 'preferences.destination': ?0}")
     List<Group> findPublicGroupsByDestination(String destination);
     
+    /**
+     * Find group by trip ID and user ID.
+     */
+    Optional<Group> findByTripIdAndUserIdsContaining(String tripId, String userId);
+
     /**
      * Find groups by visibility and status, excluding a specific group.
      */

@@ -14,4 +14,9 @@ trip-initiation - 8095
 npm servers
 verification-service - 8060
 support-agent - 8061
+schedule-service - 5005
+active-trips - 5006
+complete-trip - 5007
+scoring-service - 4000
+user fetch -4011
 

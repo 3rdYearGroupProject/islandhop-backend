@@ -1,124 +1,530 @@
 {
   "info": {
-    "name": "Chat Notification Service API",
-    "description": "Postman collection for testing Chat, Group, and Notification endpoints with Firebase Auth.",
+    "name": "Chat Notification Service API - No Auth",
+    "description": "Complete Postman collection for testing all Chat, Group, and Notification endpoints. Authentication disabled - all endpoints are public. Service running on port 8090.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Send Personal Message",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{authToken}}" }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/chat/personal/send",
-          "host": ["{{baseUrl}}"],
-          "path": ["chat", "personal", "send"]
+      "name": "Personal Chat",
+      "item": [
+        {
+          "name": "Send Personal Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/send",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "send"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senderId\": \"user123\",\n  \"receiverId\": \"user456\",\n  \"content\": \"Hello! How are you doing today?\",\n  \"messageType\": \"TEXT\"\n}"
+            }
+          }
         },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"senderId\": \"user123\",\n  \"receiverId\": \"user456\",\n  \"content\": \"Hello! How are you?\",\n  \"messageType\": \"TEXT\"\n}"
-        }
-      }
-    },
-    {
-      "name": "Get Message History",
-      "request": {
-        "method": "GET",
-        "header": [
-          { "key": "Authorization", "value": "Bearer {{authToken}}" }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/chat/personal/messages?senderId=user123&receiverId=user456&page=0&size=20",
-          "host": ["{{baseUrl}}"],
-          "path": ["chat", "personal", "messages"],
-          "query": [
-            { "key": "senderId", "value": "user123" },
-            { "key": "receiverId", "value": "user456" },
-            { "key": "page", "value": "0" },
-            { "key": "size", "value": "20" }
-          ]
-        }
-      }
-    },
-    {
-      "name": "Get User Conversations",
-      "request": {
-        "method": "GET",
-        "header": [
-          { "key": "Authorization", "value": "Bearer {{authToken}}" }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/chat/personal/conversations/user123",
-          "host": ["{{baseUrl}}"],
-          "path": ["chat", "personal", "conversations", "user123"]
-        }
-      }
-    },
-    {
-      "name": "Send Group Message",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{authToken}}" }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/chat/group/send",
-          "host": ["{{baseUrl}}"],
-          "path": ["chat", "group", "send"]
+        {
+          "name": "Get Message History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/messages?senderId=user123&receiverId=user456&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "messages"],
+              "query": [
+                { "key": "senderId", "value": "user123" },
+                { "key": "receiverId", "value": "user456" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
         },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"groupId\": \"group_123456789\",\n  \"senderId\": \"user123\",\n  \"content\": \"Hey everyone! Ready for the trip?\",\n  \"messageType\": \"TEXT\",\n  \"senderName\": \"John Doe\"\n}"
+        {
+          "name": "Get User Conversations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/conversations/user123",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "conversations", "user123"]
+            }
+          }
+        },
+        {
+          "name": "Get Recent Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/recent/user123?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "recent", "user123"],
+              "query": [
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Messages as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/mark-read?senderId=user123&receiverId=user456",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "mark-read"],
+              "query": [
+                { "key": "senderId", "value": "user123" },
+                { "key": "receiverId", "value": "user456" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/unread-count/user123",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "unread-count", "user123"]
+            }
+          }
+        },
+        {
+          "name": "Search Personal Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/search?senderId=user123&receiverId=user456&searchTerm=hello&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "search"],
+              "query": [
+                { "key": "senderId", "value": "user123" },
+                { "key": "receiverId", "value": "user456" },
+                { "key": "searchTerm", "value": "hello" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Personal Message",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/message/msg_123456789",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "message", "msg_123456789"]
+            }
+          }
+        },
+        {
+          "name": "Personal Chat Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/personal/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "personal", "health"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Create Group",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{authToken}}" }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/chat/group/create",
-          "host": ["{{baseUrl}}"],
-          "path": ["chat", "group", "create"]
+      "name": "Group Chat",
+      "item": [
+        {
+          "name": "Create Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "create"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupName\": \"Travel Buddies Sri Lanka\",\n  \"description\": \"Planning our amazing trip to Sri Lanka\",\n  \"groupType\": \"PRIVATE\",\n  \"memberIds\": [\"user456\", \"user789\", \"user101\"],\n  \"adminId\": \"user123\"\n}"
+            }
+          }
         },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"groupName\": \"Travel Buddies\",\n  \"description\": \"Planning our next adventure\",\n  \"groupType\": \"PRIVATE\",\n  \"memberIds\": [\"user456\", \"user789\"],\n  \"adminId\": \"user123\"\n}"
+        {
+          "name": "Create Group with Trip",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/create-with-trip",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "create-with-trip"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupName\": \"Travel Buddies Sri Lanka\",\n  \"description\": \"Planning our amazing trip to Sri Lanka\",\n  \"groupType\": \"PRIVATE\",\n  \"memberIds\": [\"user456\", \"user789\", \"user999\", \"user9996\"],\n  \"adminId\": \"user123\",\n  \"tripId\": \"trip_12345\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Send Group Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/send",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "send"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"group_123456789\",\n  \"senderId\": \"user123\",\n  \"content\": \"Hey everyone! Ready for our Sri Lanka adventure?\",\n  \"messageType\": \"TEXT\",\n  \"senderName\": \"John Doe\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Group Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789/messages?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789", "messages"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Member to Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/add-member",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "add-member"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupId\": \"group_123456789\",\n  \"userId\": \"user999\",\n  \"requesterId\": \"user123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Remove Member from Group",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789/member/user456?removedBy=user123",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789", "member", "user456"],
+              "query": [
+                { "key": "removedBy", "value": "user123" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Groups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/user/user123",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "user", "user123"]
+            }
+          }
+        },
+        {
+          "name": "Get Group Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789"]
+            }
+          }
+        },
+        {
+          "name": "Update Group",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupName\": \"Updated Travel Group Name\",\n  \"description\": \"Updated description for our travel group\",\n  \"groupType\": \"PRIVATE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Group",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789?deletedBy=user123",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789"],
+              "query": [
+                { "key": "deletedBy", "value": "user123" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Group Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789/search?searchTerm=travel&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789", "search"],
+              "query": [
+                { "key": "searchTerm", "value": "travel" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Group Members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789", "members"]
+            }
+          }
+        },
+        {
+          "name": "Leave Group",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/group_123456789/leave?userId=user456",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "group_123456789", "leave"],
+              "query": [
+                { "key": "userId", "value": "user456" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Group Chat Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/group/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "group", "health"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Send Notification",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{authToken}}" }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/notifications/send",
-          "host": ["{{baseUrl}}"],
-          "path": ["notifications", "send"]
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Send Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/send",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "send"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"user123\",\n  \"title\": \"New Message Received\",\n  \"message\": \"You have received a new message from John Doe in Travel Buddies group\",\n  \"type\": \"CHAT\",\n  \"priority\": \"MEDIUM\",\n  \"relatedEntityId\": \"msg_123456789\"\n}"
+            }
+          }
         },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"userId\": \"user123\",\n  \"title\": \"New Message\",\n  \"message\": \"You have received a new message from John\",\n  \"type\": \"CHAT\",\n  \"priority\": \"MEDIUM\",\n  \"relatedEntityId\": \"msg_123456789\"\n}"
+        {
+          "name": "Get User Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/user/user123",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "user", "user123"]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/user/user123/unread",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "user", "user123", "unread"]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Notification Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/user/user123/unread-count",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "user", "user123", "unread-count"]
+            }
+          }
+        },
+        {
+          "name": "Get Notifications by Type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/user/user123/type/CHAT",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "user", "user123", "type", "CHAT"]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/1/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "1", "read"]
+            }
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/user/user123/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "user", "user123", "read-all"]
+            }
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "1"]
+            }
+          }
+        },
+        {
+          "name": "Cleanup Old Notifications",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/admin/cleanup?daysOld=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "admin", "cleanup"],
+              "query": [
+                { "key": "daysOld", "value": "30" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Batch Send Notifications",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/batch-send?userIds=user123&userIds=user456&userIds=user789",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "batch-send"],
+              "query": [
+                { "key": "userIds", "value": "user123" },
+                { "key": "userIds", "value": "user456" },
+                { "key": "userIds", "value": "user789" }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Group Announcement\",\n  \"message\": \"Important update for all group members\",\n  \"type\": \"SYSTEM\",\n  \"priority\": \"HIGH\",\n  \"relatedEntityId\": \"announcement_001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Notifications Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "health"]
+            }
+          }
         }
-      }
+      ]
     }
   ],
   "event": [],
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8083/api/v1" },
-    { "key": "authToken", "value": "" }
+    { "key": "baseUrl", "value": "http://localhost:8090/api/v1" }
   ]
 }

@@ -4,6 +4,9 @@ import com.islandhop.payment.dto.PaymentRequest;
 import com.islandhop.payment.dto.PaymentResponse;
 import com.islandhop.payment.dto.PayHereNotification;
 import com.islandhop.payment.service.PaymentService;
+import com.islandhop.payment.service.TripPaymentService;
+import com.islandhop.payment.model.PaymentDetails;
+import com.islandhop.payment.model.PaidTrip;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -16,7 +19,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -31,10 +36,12 @@ public class PaymentController {
     private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
     
     private final PaymentService paymentService;
+    private final TripPaymentService tripPaymentService;
     
     @Autowired
-    public PaymentController(PaymentService paymentService) {
+    public PaymentController(PaymentService paymentService, TripPaymentService tripPaymentService) {
         this.paymentService = paymentService;
+        this.tripPaymentService = tripPaymentService;
     }
     
     /**
@@ -243,6 +250,158 @@ public class PaymentController {
         }
     }
     
+    /**
+     * Get paid trip details by trip ID
+     * @param tripId Trip ID
+     * @param httpRequest HTTP request for logging
+     * @return Paid trip details
+     */
+    @GetMapping("/paid-trip/{tripId}")
+    public ResponseEntity<Map<String, Object>> getPaidTrip(
+            @PathVariable String tripId,
+            HttpServletRequest httpRequest) {
+        
+        logger.info("Paid trip details requested from IP: {} for trip: {}", 
+                   getClientIpAddress(httpRequest), tripId);
+        
+        if (tripId == null || tripId.trim().isEmpty()) {
+            logger.error("Invalid request - missing trip ID");
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Trip ID is required");
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+        
+        try {
+            Optional<PaidTrip> paidTripOpt = tripPaymentService.getPaidTripById(tripId);
+            
+            if (paidTripOpt.isEmpty()) {
+                logger.warn("Paid trip not found for ID: {}", tripId);
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("message", "Paid trip not found");
+                return ResponseEntity.notFound().build();
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("data", paidTripOpt.get());
+            
+            logger.info("Paid trip details retrieved for ID: {}", tripId);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Unexpected error retrieving paid trip for ID: {}", tripId, e);
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+    
+    /**
+     * Get payment details by order ID
+     * @param orderId Order ID
+     * @param httpRequest HTTP request for logging
+     * @return Payment details
+     */
+    @GetMapping("/payment-details/{orderId}")
+    public ResponseEntity<Map<String, Object>> getPaymentDetails(
+            @PathVariable String orderId,
+            HttpServletRequest httpRequest) {
+        
+        logger.info("Payment details requested from IP: {} for order: {}", 
+                   getClientIpAddress(httpRequest), orderId);
+        
+        if (orderId == null || orderId.trim().isEmpty()) {
+            logger.error("Invalid request - missing order ID");
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Order ID is required");
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+        
+        try {
+            Optional<PaymentDetails> paymentDetailsOpt = tripPaymentService.getPaymentDetailsByOrderId(orderId);
+            
+            if (paymentDetailsOpt.isEmpty()) {
+                logger.warn("Payment details not found for order: {}", orderId);
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("message", "Payment details not found");
+                return ResponseEntity.notFound().build();
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("data", paymentDetailsOpt.get());
+            
+            logger.info("Payment details retrieved for order: {}", orderId);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Unexpected error retrieving payment details for order: {}", orderId, e);
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Check if payment exists in database by order ID
+     * @param orderId Order ID
+     * @param httpRequest HTTP request for logging
+     * @return Payment existence status
+     */
+    @GetMapping("/check-payment/{orderId}")
+    public ResponseEntity<Map<String, Object>> checkPaymentExists(
+            @PathVariable String orderId,
+            HttpServletRequest httpRequest) {
+        
+        logger.info("Payment existence check requested from IP: {} for order: {}", 
+                   getClientIpAddress(httpRequest), orderId);
+        
+        if (orderId == null || orderId.trim().isEmpty()) {
+            logger.error("Invalid request - missing order ID");
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Order ID is required");
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+        
+        try {
+            Optional<PaymentDetails> paymentDetailsOpt = tripPaymentService.getPaymentDetailsByOrderId(orderId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("exists", paymentDetailsOpt.isPresent());
+            
+            if (paymentDetailsOpt.isPresent()) {
+                PaymentDetails payment = paymentDetailsOpt.get();
+                response.put("paymentStatus", payment.getPaymentStatus());
+                response.put("amount", payment.getAmount());
+                response.put("currency", payment.getCurrency());
+                response.put("createdAt", payment.getCreatedAt());
+                response.put("paymentDate", payment.getPaymentDate());
+            }
+            
+            logger.info("Payment existence check completed for order: {} - Exists: {}", 
+                       orderId, paymentDetailsOpt.isPresent());
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Unexpected error checking payment existence for order: {}", orderId, e);
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
     /**
      * Health check endpoint
      * @return Service health status

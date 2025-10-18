@@ -22,7 +22,7 @@ public class TripCompatibilityService {
     
     private final GroupRepository groupRepository;
     
-    @Value("${pooling.compatibility.min-score:0.6}")
+    @Value("${pooling.compatibility.min-score:0.2}")
     private double minCompatibilityScore;
     
     @Value("${pooling.compatibility.weights.destinations:0.4}")

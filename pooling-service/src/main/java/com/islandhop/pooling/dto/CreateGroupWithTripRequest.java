@@ -16,7 +16,9 @@ public class CreateGroupWithTripRequest {
     @NotBlank(message = "User ID is required")
     private String userId;
     
-    private String userEmail; // Email of the user creating the group (from frontend storage)
+    @NotBlank(message = "Email is required")
+    @Email(message = "Please provide a valid email address")
+    private String email; // Email of the user creating the group (required from frontend)
     
     @NotBlank(message = "Group name is required")
     private String groupName;
