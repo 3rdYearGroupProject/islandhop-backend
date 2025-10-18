@@ -1071,24 +1071,118 @@ public class PublicPoolingService {
     
     /**
      * Calculate age from date of birth string.
-     * @param dobString Date of birth in string format (YYYY-MM-DD)
+     * Supports multiple date formats: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, ISO8601 with time
+     * @param dobString Date of birth string
      * @return Age in years, or null if DOB is invalid
      */
     private Integer calculateAge(String dobString) {
         if (dobString == null || dobString.trim().isEmpty()) {
+            log.debug("DOB is null or empty, returning null");
             return null;
         }
         
         try {
-            // Parse the date string (assuming format YYYY-MM-DD)
-            LocalDate birthDate = LocalDate.parse(dobString);
+            LocalDate birthDate = null;
+            String trimmedDob = dobString.trim();
+            
+            // Try different date formats
+            // Format 1: ISO 8601 (YYYY-MM-DD) - Standard format
+            try {
+                birthDate = LocalDate.parse(trimmedDob);
+                log.debug("Successfully parsed DOB '{}' using ISO format", trimmedDob);
+            } catch (Exception e1) {
+                log.debug("Failed to parse DOB '{}' as ISO format, trying other formats", trimmedDob);
+                
+                // Format 2: Handle ISO 8601 with time component (YYYY-MM-DDTHH:mm:ss)
+                if (trimmedDob.contains("T")) {
+                    try {
+                        birthDate = LocalDate.parse(trimmedDob.substring(0, 10));
+                        log.debug("Successfully parsed DOB '{}' by extracting date from ISO datetime", trimmedDob);
+                    } catch (Exception e2) {
+                        log.debug("Failed to extract date from ISO datetime format");
+                    }
+                }
+                
+                // Format 3: DD/MM/YYYY or MM/DD/YYYY
+                if (birthDate == null && trimmedDob.contains("/")) {
+                    String[] parts = trimmedDob.split("/");
+                    if (parts.length == 3) {
+                        try {
+                            // Try DD/MM/YYYY
+                            int day = Integer.parseInt(parts[0]);
+                            int month = Integer.parseInt(parts[1]);
+                            int year = Integer.parseInt(parts[2]);
+                            birthDate = LocalDate.of(year, month, day);
+                            log.debug("Successfully parsed DOB '{}' as DD/MM/YYYY format", trimmedDob);
+                        } catch (Exception e3) {
+                            try {
+                                // Try MM/DD/YYYY
+                                int month = Integer.parseInt(parts[0]);
+                                int day = Integer.parseInt(parts[1]);
+                                int year = Integer.parseInt(parts[2]);
+                                birthDate = LocalDate.of(year, month, day);
+                                log.debug("Successfully parsed DOB '{}' as MM/DD/YYYY format", trimmedDob);
+                            } catch (Exception e4) {
+                                log.debug("Failed to parse DOB '{}' with slash formats", trimmedDob);
+                            }
+                        }
+                    }
+                }
+                
+                // Format 4: DD-MM-YYYY or MM-DD-YYYY
+                if (birthDate == null && trimmedDob.contains("-") && trimmedDob.split("-").length == 3) {
+                    String[] parts = trimmedDob.split("-");
+                    if (parts[0].length() <= 2) { // Day or month comes first
+                        try {
+                            // Try DD-MM-YYYY
+                            int day = Integer.parseInt(parts[0]);
+                            int month = Integer.parseInt(parts[1]);
+                            int year = Integer.parseInt(parts[2]);
+                            birthDate = LocalDate.of(year, month, day);
+                            log.debug("Successfully parsed DOB '{}' as DD-MM-YYYY format", trimmedDob);
+                        } catch (Exception e5) {
+                            try {
+                                // Try MM-DD-YYYY
+                                int month = Integer.parseInt(parts[0]);
+                                int day = Integer.parseInt(parts[1]);
+                                int year = Integer.parseInt(parts[2]);
+                                birthDate = LocalDate.of(year, month, day);
+                                log.debug("Successfully parsed DOB '{}' as MM-DD-YYYY format", trimmedDob);
+                            } catch (Exception e6) {
+                                log.debug("Failed to parse DOB '{}' with dash formats", trimmedDob);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (birthDate == null) {
+                log.warn("Unable to parse DOB '{}' in any supported format", dobString);
+                return null;
+            }
+            
             LocalDate currentDate = LocalDate.now();
+            
+            // Validate that birth date is not in the future
+            if (birthDate.isAfter(currentDate)) {
+                log.warn("Birth date '{}' is in the future, returning null", birthDate);
+                return null;
+            }
             
             // Calculate age
             int age = Period.between(birthDate, currentDate).getYears();
-            return age >= 0 ? age : null;
+            
+            // Validate reasonable age range (0-150 years)
+            if (age < 0 || age > 150) {
+                log.warn("Calculated age {} is out of reasonable range for DOB '{}'", age, dobString);
+                return null;
+            }
+            
+            log.debug("Successfully calculated age {} from DOB '{}'", age, dobString);
+            return age;
+            
         } catch (Exception e) {
-            log.warn("Failed to calculate age from DOB '{}': {}", dobString, e.getMessage());
+            log.error("Unexpected error calculating age from DOB '{}': {}", dobString, e.getMessage(), e);
             return null;
         }
     }

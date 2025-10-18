@@ -255,17 +255,20 @@ public class GroupController {
     /**
      * Gets ALL pending items requiring user action - both invitations received and join requests to vote on.
      * This comprehensive endpoint combines:
-     * 1. Invitations the user has received (to join groups)
-     * 2. Join requests that need the user's vote (for groups they're a member of)
+     * 1. Invitations the user has received (to join groups) - found by email
+     * 2. Join requests that need the user's vote (for groups they're a member of) - found by userId
      *
-     * @param userId The ID of the current user
+     * @param userId The Firebase UID of the current user
+     * @param email The email of the current user (used to find invitations)
      * @return ResponseEntity with all pending items requiring user attention
      */
     @GetMapping("/all-pending-items")
-    public ResponseEntity<ComprehensivePendingItemsResponse> getAllPendingItems(@RequestParam String userId) {
+    public ResponseEntity<ComprehensivePendingItemsResponse> getAllPendingItems(
+            @RequestParam String userId,
+            @RequestParam String email) {
         try {
-            log.info("Getting ALL pending items (invitations + voting requests) for user '{}'", userId);
-            ComprehensivePendingItemsResponse response = groupService.getAllPendingItems(userId);
+            log.info("Getting ALL pending items (invitations + voting requests) for user '{}' with email '{}'", userId, email);
+            ComprehensivePendingItemsResponse response = groupService.getAllPendingItems(userId, email);
             log.info("Successfully retrieved {} invitations and {} voting requests for user '{}'", 
                     response.getPendingInvitations().size(), response.getPendingVotes().size(), userId);
             return ResponseEntity.ok(response);

@@ -19,7 +19,15 @@ public class InviteUserRequest {
     @Email(message = "Valid email address is required")
     private String invitedEmail; // For email-based invitations
     
+    @Email(message = "Valid inviter email address is required")
+    private String inviterEmail; // Email of the person sending the invitation
+    
+    @NotBlank(message = "Inviter display name is required")
+    private String inviterDisplayName; // Display name of the person sending the invitation
+    
     private String message; // Optional invitation message
     
     private int expirationDays = 7; // Invitation expires in 7 days by default
+    
+    private String method = "email"; // Method of invitation: "email" or other
 }

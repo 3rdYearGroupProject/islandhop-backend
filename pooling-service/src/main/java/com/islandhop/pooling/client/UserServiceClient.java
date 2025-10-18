@@ -157,8 +157,37 @@ public class UserServiceClient {
         return uid; // Fallback to UID if name not available
     }
     
+    /**
+     * Gets Firebase UID from email address.
+     * Calls the user service to get the UID for a given email.
+     * 
+     * @param email The user's email
+     * @return Firebase UID or null if not found
+     */
+    public String getUidByEmail(String email) {
+        try {
+            String url = userServiceBaseUrl + "/api/v1/tourist/uid-by-email?email=" + email;
+            log.debug("Fetching UID for email from: {}", url);
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            
+            if (response != null && response.containsKey("uid")) {
+                return (String) response.get("uid");
+            }
+            
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("UID not found for email: {}", email);
+        } catch (Exception e) {
+            log.error("Error fetching UID for email {}: {}", email, e.getMessage());
+        }
+        
+        return null;
+    }
+    
     @Data
     public static class UserProfile {
+        private String uid; // Firebase UID
         private String email;
         private String firstName;
         private String lastName;
