@@ -18,7 +18,7 @@ spring:
 # Gemini AI Configuration
 gemini:
   api:
-    key: ${GEMINI_API_KEY:AIzaSyDFfy8AdCiZSwHQy1zLhC96MvWpOLUIjgs}
+    key: ${GEMINI_API_KEY:AIzaSyD5AWevlyQnz5-NJ-XvrlU6TvjjoemAmcs}
     url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent
 
 # Review AI Configuration

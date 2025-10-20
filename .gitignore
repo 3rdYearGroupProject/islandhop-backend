@@ -154,3 +154,4 @@ trip-planning-service/REMOVE_PLACE_TROUBLESHOOTING.md
 trip-planning-service/RESTART_SERVICE.md
 pooling-service/FRONTEND_INTEGRATION_COMPLETE_GUIDE.md
 trip-planning-service/frontend_intergration.md
+*.original
